@@ -78,10 +78,15 @@ Your lights answer what the dashboard shows:
 - **Done:** a short mint glow, then back to how the light was.
 - **Question:** the lights breathe violet until you answer.
 - **Stuck:** a red flare.
+- **The site builds:** a progress bar in orange. A lightstrip with color points fills from one end to the other, single lights one after the other; at the end a short green (or red if the build failed).
 
 Each light keeps its own brightness, lights that are off stay off, and everything goes back to its previous state. **Setup:** dashboard → ⚙ Settings → 💡 Lights → **Pair bridge**, then press the round button on your Hue Bridge. Pick the lights and colors there.
 
 ![Pairing a Hue Bridge](docs/settings-lights.png)
+
+### Site builds (Cloudflare, Vercel, Netlify)
+
+When a chat works in a GitHub repository whose site is built by Cloudflare (Workers or Pages), Vercel or Netlify, the live view shows the build: the host's mark, *builds … · live* or *preview of a branch*, the time, and a progress bar; then **✓ deployed** or **✗ build failed** with a link to the log. It needs the [GitHub CLI](https://cli.github.com) signed in (`gh auth login`), no key of the host: the host reports each build to GitHub, and the dashboard reads it there. The host reports a build only once it is done, so the bar in between follows how long its builds usually take.
 
 ### Install (one click)
 
@@ -147,8 +152,10 @@ Everything Live Code does outside of Claude Code itself, in full:
 | Starts the dashboard server, `node dashboard/server.mjs`, listening on `127.0.0.1:4477` only | when a chat starts | your PC only |
 | Opens the dashboard in Microsoft Edge (app window), tile windows through PowerShell + WebView2 | when you open them | your PC only |
 | Reads your chats' transcripts in `~/.claude/projects` to count today's prompts and words | while the dashboard is open | your PC only |
-| Sends light commands to **your own Philips Hue Bridge** (local network, HTTPS) | only after you pair it, on done / question / stuck | your bridge |
-| Looks up the latest version number: `raw.githubusercontent.com/CNLynx/Live-Code-Dashboard/main/.claude-plugin/plugin.json` | at most every 6 hours | GitHub |
+| Sends light commands to **your own Philips Hue Bridge** (local network, HTTPS) | only after you pair it, on done / question / stuck / a site build | your bridge |
+| Looks up the latest version number: `api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json` | at most hourly (every 5 minutes right after a release) | GitHub |
+| Reads the build checks of the repository a chat works in, through your signed-in GitHub CLI (`gh api …/check-runs`) | while that chat was active in the last 30 minutes | GitHub |
+| Runs `claude plugin marketplace update cnlynx` and `claude plugin update live-code@cnlynx` | only when you click the **Update available** tile | GitHub, through Claude Code |
 | Downloads Microsoft's WebView2 SDK (`Microsoft.Web.WebView2` 1.0.2365.46 from nuget.org) for the frameless tile windows | once, at setup or the first tile window | nuget.org |
 | Setup: Start menu / desktop shortcut, launcher in `%LOCALAPPDATA%\live-code-dashboard`, Stream Deck plugin package opened in the Stream Deck app (you confirm there) | `/live-code-setup`, `install.ps1`, once per version | your PC only |
 | Optional: ElevenLabs voices, only if you put your own key in `~/.claude/live-code-voice.json` | when a summary is read aloud | ElevenLabs |
@@ -232,8 +239,13 @@ Fragt Claude etwas, werden die Tasten zur Frage mit den Antworten, und du antwor
 - **Fertig:** ein kurzes, mintgrünes Aufleuchten.
 - **Frage:** Die Lampen atmen violett, bis du antwortest.
 - **Hängt fest:** rotes Aufblitzen.
+- **Die Seite wird gebaut:** ein Fortschrittsbalken in Orange. Ein Lichtstreifen mit Farbpunkten füllt sich von einem Ende zum anderen, einzelne Lampen eine nach der anderen; am Ende kurz grün (rot, wenn der Build fehlschlug).
 
 Jede Lampe behält ihre Helligkeit, ausgeschaltete bleiben aus, und danach ist alles wie vorher. **Einrichten:** Dashboard → ⚙ Einstellungen → 💡 Lights → **Pair bridge**. Dann den runden Knopf auf der Hue Bridge drücken und dort Lampen und Farben wählen.
+
+### Builds der Seite (Cloudflare, Vercel, Netlify)
+
+Arbeitet ein Chat in einem GitHub-Repo, dessen Seite Cloudflare (Workers oder Pages), Vercel oder Netlify baut, zeigt der Live-Bereich den Build: das Zeichen des Anbieters, *builds … · live* oder *preview* eines Branches, die Zeit und einen Fortschrittsbalken; danach **✓ deployed** oder **✗ build failed** mit Link zum Log. Nötig ist nur die angemeldete [GitHub CLI](https://cli.github.com) (`gh auth login`), kein Schlüssel des Anbieters: Der Anbieter meldet jeden Build an GitHub, das Dashboard liest ihn dort. Er meldet ihn erst, wenn er fertig ist; der Balken dazwischen folgt der üblichen Dauer seiner Builds.
 
 ### Installation (ein Klick)
 
