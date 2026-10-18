@@ -725,6 +725,7 @@ const loadHue = async () => {
     $('#set-hue-alarm-color').value = h.alarmColor
     $('#set-hue-on-build').checked = h.onBuild !== false
     $('#set-hue-build-color').value = h.buildColor ?? '#f38020'
+    $('#set-hue-build-reverse').checked = h.buildReverse === true
     $('#set-hue-style').value = h.style
     $('#hue-pulses-row').hidden = h.style !== 'pulse'
     $('#set-hue-pulses').value = h.pulses
@@ -763,6 +764,7 @@ $('#set-hue-alarm').onclick = () => hueSet({ test: 'alarm' })
 $('#set-hue-on-build').onchange = e => hueSet({ onBuild: e.target.checked })
 $('#set-hue-build-color').onchange = e => hueSet({ buildColor: e.target.value })
 $('#set-hue-build').onclick = () => hueSet({ test: 'build' })
+$('#set-hue-build-reverse').onchange = e => hueSet({ buildReverse: e.target.checked })
 $('#set-hue-done').onclick = () => hueSet({ test: 'done' })
 $('#set-hue-ask').onclick = () => hueSet({ test: 'ask' })
 $('#set-voice-len').value = voice.len()

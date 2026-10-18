@@ -1138,7 +1138,7 @@ const server = http.createServer((req, res) => {
     const cfg = hueConfig()
     hueRooms().catch(() => []).then(rooms => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({
-        paired: !!cfg?.appKey, enabled: cfg?.enabled !== false, onDone: cfg?.onDone !== false, onAsk: cfg?.onAsk !== false, onAlarm: cfg?.onAlarm !== false, onBuild: cfg?.onBuild !== false,
+        paired: !!cfg?.appKey, enabled: cfg?.enabled !== false, onDone: cfg?.onDone !== false, onAsk: cfg?.onAsk !== false, onAlarm: cfg?.onAlarm !== false, onBuild: cfg?.onBuild !== false, buildReverse: cfg?.buildReverse === true,
         doneColor: cfg?.doneColor ?? '#8cf0be', askColor: cfg?.askColor ?? '#a78bfa', alarmColor: cfg?.alarmColor ?? '#f87171', buildColor: cfg?.buildColor ?? '#f38020', style: cfg?.style ?? 'glow', pulses: cfg?.pulses ?? 2,
         chosen: cfg?.lights ?? [], rooms, pairing,
       }))

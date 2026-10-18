@@ -24,7 +24,7 @@ export const setHueOptions = msg => {
   const raw = readRaw()
   if (!raw) return false
   const next = { ...raw }
-  for (const k of ['enabled', 'onDone', 'onAsk', 'onAlarm', 'onBuild']) if (typeof msg[k] === 'boolean') next[k] = msg[k]
+  for (const k of ['enabled', 'onDone', 'onAsk', 'onAlarm', 'onBuild', 'buildReverse']) if (typeof msg[k] === 'boolean') next[k] = msg[k]
   for (const k of ['doneColor', 'askColor', 'alarmColor', 'buildColor']) if (typeof msg[k] === 'string' && HEX.test(msg[k])) next[k] = msg[k]
   if (Number.isInteger(msg.pulses) && msg.pulses >= 1 && msg.pulses <= 5) next.pulses = msg.pulses
   if (msg.style === 'glow' || msg.style === 'pulse') next.style = msg.style
@@ -240,7 +240,11 @@ const buildEffect = async (force = false) => {
   const ids = await take(cfg)
   if (!ids.length) return
   const xy = xyOf(cfg.buildColor ?? DEFAULTS.buildColor)
+  // (a strip's first point is where its cable goes in: mounted the other way
+  // round, the bar runs the other way, as single lights then do too)
+  const flip = cfg.buildReverse === true
   const flat = ids.filter(id => !(gradientPoints.get(id) > 1))
+  if (flip) flat.reverse()
   const sent = new Map() // id -> what it shows now, so only a change is sent
   let step = 0
   while (build.active && !asking) {
@@ -251,7 +255,8 @@ const buildEffect = async (force = false) => {
       let body
       if (n > 1) {
         // the strip is the bar: its points from first to last
-        const points = Array.from({ length: n }, (_, i) => {
+        const points = Array.from({ length: n }, (_, p) => {
+          const i = flip ? n - 1 - p : p
           const lit = build.over ? i === step % n : build.progress * n > i + 0.25
           return { color: { xy: lit ? xy : DIM_WHITE } }
         })
