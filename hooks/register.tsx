@@ -1093,8 +1093,8 @@ const windowCode = (live: Focus, visible: View[]) => {
 // Each source depends only on slow-changing values, never on the frame, so a
 // redraw hands the surface the same markup and its SMIL animation runs on.
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-const svgOpen = (w: number, h: number) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
+const svgOpen = (w: number, ht: number) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${ht}" viewBox="0 0 ${w} ${ht}">`
 const FONT = 'font-family="ui-sans-serif,system-ui,Segoe UI,sans-serif"'
 const heat = (p: number) => (p < 50 ? '#22c55e' : p < 70 ? '#eab308' : p < 85 ? '#f97316' : '#ef4444')
 const DESK_ACTION: Record<Action, string> = {
@@ -1118,16 +1118,16 @@ const usageSvg = (use: Usage, width: number) => {
     })),
   ]
   const ctx = clampPct(use.percent ?? 0)
-  const h = Math.max(68, rows.length * 22 + 12)
-  const cy = h / 2
+  const ht = Math.max(68, rows.length * 22 + 12)
+  const cy = ht / 2
   const r = 25
   const c = 2 * Math.PI * r
   const x0 = 80
   const barX = x0 + 58
   const barW = Math.max(40, width - barX - 140)
-  const top = (h - rows.length * 22) / 2
+  const top = (ht - rows.length * 22) / 2
   let out =
-    svgOpen(width, h) +
+    svgOpen(width, ht) +
     `<defs><linearGradient id="heat" gradientUnits="userSpaceOnUse" x1="${barX}" x2="${barX + barW}">` +
     `<stop offset="0" stop-color="#22c55e"/><stop offset=".5" stop-color="#22c55e"/><stop offset=".62" stop-color="#eab308"/>` +
     `<stop offset=".78" stop-color="#f97316"/><stop offset=".92" stop-color="#ef4444"/></linearGradient></defs>` +
@@ -1153,15 +1153,15 @@ const usageSvg = (use: Usage, width: number) => {
 // forever, faded at both ends; otherwise a still, faint line of the same size,
 // so the row never changes height.
 const waveSvg = (width: number, isMoving: boolean) => {
-  const h = 16
+  const ht = 16
   const period = 64
   if (!isMoving) {
-    return `${svgOpen(width, h)}<line x1="0" y1="${h / 2}" x2="${width}" y2="${h / 2}" stroke="#94a3b8" stroke-opacity=".25" stroke-width="1"/></svg>`
+    return `${svgOpen(width, ht)}<line x1="0" y1="${ht / 2}" x2="${width}" y2="${ht / 2}" stroke="#94a3b8" stroke-opacity=".25" stroke-width="1"/></svg>`
   }
   const path = (amp: number, phase: number) => {
     let d = ''
     for (let x = 0; x <= width + period; x += 4) {
-      d += `${d === '' ? 'M' : ' L'}${x} ${(h / 2 + amp * Math.sin((x / period) * 2 * Math.PI + phase)).toFixed(1)}`
+      d += `${d === '' ? 'M' : ' L'}${x} ${(ht / 2 + amp * Math.sin((x / period) * 2 * Math.PI + phase)).toFixed(1)}`
     }
 
     return d
@@ -1170,10 +1170,10 @@ const waveSvg = (width: number, isMoving: boolean) => {
     `<animateTransform attributeName="transform" type="translate" from="0 0" to="-${period} 0" dur="${seconds}s" repeatCount="indefinite"/>`
 
   return (
-    svgOpen(width, h) +
+    svgOpen(width, ht) +
     `<defs><linearGradient id="fade" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".12" stop-color="#fff"/>` +
     `<stop offset=".88" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>` +
-    `<mask id="m"><rect width="${width}" height="${h}" fill="url(#fade)"/></mask></defs>` +
+    `<mask id="m"><rect width="${width}" height="${ht}" fill="url(#fade)"/></mask></defs>` +
     `<g mask="url(#m)" fill="none" stroke-linecap="round">` +
     `<path d="${path(2.5, 2)}" stroke="#818cf8" stroke-opacity=".45" stroke-width="1.2">${scroll(3.4)}</path>` +
     `<path d="${path(5, 0)}" stroke="#a78bfa" stroke-width="2">${scroll(2.4)}</path>` +
@@ -1214,18 +1214,18 @@ const fileBarSvg = (f: FileStat, most: number, width: number) => {
 // The turns as columns by what they cost (or their tokens, where no cost is
 // known); hovering a column names its turn.
 const turnsSvg = (turns: TurnStat[], width: number) => {
-  const h = 56
+  const ht = 56
   const value = (s: TurnStat) => s.usd ?? (s.tokensIn + s.tokensOut) / 1e6
   const most = Math.max(...turns.map(value), 1e-9)
   const slot = width / Math.max(turns.length, 12)
   const w = Math.max(3, slot - 3)
   const top = turns.reduce((a, b) => (value(b) > value(a) ? b : a), turns[0]!)
-  let out = `${svgOpen(width, h)}<line x1="0" y1="${h - 0.5}" x2="${width}" y2="${h - 0.5}" stroke="#94a3b8" stroke-opacity=".35"/>`
+  let out = `${svgOpen(width, ht)}<line x1="0" y1="${ht - 0.5}" x2="${width}" y2="${ht - 0.5}" stroke="#94a3b8" stroke-opacity=".35"/>`
   turns.forEach((s, i) => {
-    const bh = Math.max(2, (value(s) / most) * (h - 6))
+    const bh = Math.max(2, (value(s) / most) * (ht - 6))
     const color = s === top && turns.length > 1 ? '#f97316' : s.failed > 0 ? '#ef4444' : '#8b5cf6'
     const label = `Turn ${s.no}: ${s.usd === undefined ? '' : `$${s.usd.toFixed(2)} · `}${human(s.tokensIn + s.tokensOut)} tokens · ${dur(s.ms)} · ${plural(s.steps, 'step')}`
-    out += `<rect x="${(i * slot).toFixed(1)}" y="${(h - bh).toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${color}"><title>${esc(label)}</title></rect>`
+    out += `<rect x="${(i * slot).toFixed(1)}" y="${(ht - bh).toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${color}"><title>${esc(label)}</title></rect>`
   })
 
   return `${out}</svg>`
