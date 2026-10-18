@@ -99,8 +99,14 @@ button { font: inherit; color: inherit; }
 .btn { border: 1px solid var(--ring); background: var(--surface); padding: 3px 10px; border-radius: 7px; cursor: pointer; }
 .btn:hover, .seg button:hover { background: var(--surface-3); }
 .conn { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); white-space: nowrap; }
-.conn.on .dot { background: var(--good); }
-.conn.off .dot { background: var(--crit); }
+.conn.on .dot { background: var(--good); --g: var(--good); animation: conn-glow 2.4s ease-in-out infinite; }
+.conn.off .dot { background: var(--crit); --g: var(--crit); animation: conn-glow 1s ease-in-out infinite; }
+/* the dot glows in its own color, breathing slowly while live, quickly while reconnecting */
+@keyframes conn-glow {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--g) 18%, transparent), 0 0 6px color-mix(in srgb, var(--g) 55%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--g) 26%, transparent), 0 0 14px color-mix(in srgb, var(--g) 90%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .conn .dot { animation: none !important; box-shadow: 0 0 8px color-mix(in srgb, var(--g) 70%, transparent); } }
 
 main { padding: 16px 18px 40px; display: grid; gap: 14px; }
 .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; box-shadow: var(--shadow); padding: 14px 16px; min-width: 0; }
@@ -704,6 +710,12 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 .menu .it .t { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .menu .it .sub { grid-column: 2 / 4; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu hr { border: 0; border-top: 1px solid var(--grid); margin: 4px 6px; }
+.menu details.archive { border-top: 1px solid var(--grid); margin: 4px 6px 0; padding-top: 4px; }
+.menu details.archive summary { color: var(--muted); font-size: 12px; padding: 6px 4px; cursor: pointer; list-style: none; }
+.menu details.archive summary::-webkit-details-marker { display: none; }
+.menu details.archive summary::before { content: '▸'; display: inline-block; width: 14px; transition: transform .2s; }
+.menu details.archive[open] summary::before { transform: rotate(90deg); }
+.menu details.archive .it { opacity: .75; }
 
 /* ── transitions between actions ── */
 .live { --action: var(--s1); transition: --action .7s ease; }
@@ -771,8 +783,22 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 .brand-text { display: inline-flex; flex-direction: column; line-height: 1.05; }
 .byline { font-size: 10px; font-weight: 500; letter-spacing: .2px; color: var(--muted); text-decoration: none; margin-top: 2px; white-space: nowrap; }
 .byline:hover { color: var(--ink); }
-#app-version:not(:empty)::after { content: ' · '; }
-#app-version.update { color: var(--good); font-weight: 700; }
+/* the version installed above, the newest on GitHub below it */
+.versions { display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--grid); font-size: 10.5px; line-height: 1.15; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.versions:empty, .versions:not(:has(span:not(:empty))) { display: none; }
+.versions .v-installed { color: var(--muted); }
+.versions .v-latest { color: color-mix(in srgb, var(--good) 80%, var(--ink)); }
+.versions .v-latest.update { color: var(--serious); font-weight: 700; cursor: pointer; }
+.versions .v-latest.unknown { color: var(--muted); opacity: .7; }
+@media (max-width: 1400px) { .versions { display: none; } }
+/* the tile beside the others when a newer version is out: one click installs it */
+.tiles .tile.update-tile { --u: var(--serious); cursor: pointer; border-color: color-mix(in srgb, var(--u) 55%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--u) 14%, var(--surface)), var(--surface)); }
+.tiles .tile.update-tile:hover { box-shadow: 0 0 0 1px var(--u), 0 0 24px color-mix(in srgb, var(--u) 45%, transparent); }
+.tiles .tile.update-tile .value { color: var(--u); }
+.tiles .tile.update-tile.busy { cursor: progress; }
+.tiles .tile.update-tile.busy .value::after { content: ''; display: inline-block; width: 14px; height: 14px; margin-left: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: upd-spin .8s linear infinite; vertical-align: -1px; }
+.tiles .tile.update-tile.failed { --u: var(--crit); }
+@keyframes upd-spin { to { transform: rotate(360deg); } }
 .btn.sponsor { --sp: #db61a2; color: var(--sp); border-color: color-mix(in srgb, var(--sp) 55%, transparent); background: color-mix(in srgb, var(--sp) 10%, transparent); text-decoration: none; font-weight: 600; animation: sp-glow 2.8s ease-in-out infinite; }
 .btn.sponsor:hover { background: color-mix(in srgb, var(--sp) 20%, transparent); box-shadow: 0 0 0 1px var(--sp), 0 0 22px color-mix(in srgb, var(--sp) 70%, transparent); }
 @keyframes sp-glow {
@@ -783,7 +809,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 </head>
 <body>
 <header class="top">
-  <div class="brand"><img src="/icon.png" width="22" height="22" alt="" style="border-radius:6px"><span class="brand-text">Live Code<a class="byline" href="https://github.com/CNLynx" target="_blank" rel="noopener" title="CNLynx on GitHub"><span id="app-version"></span>Made by Lynx</a></span></div>
+  <div class="brand"><img src="/icon.png" width="22" height="22" alt="" style="border-radius:6px"><span class="brand-text">Live Code<a class="byline" href="https://github.com/CNLynx" target="_blank" rel="noopener" title="CNLynx on GitHub">Made by Lynx</a></span><span class="versions" id="versions"><span class="v-installed" id="ver-installed"></span><span class="v-latest" id="ver-latest"></span></span></div>
   <div class="picker-wrap">
     <button class="picker" id="sess-btn" title="Which session to watch"><span class="dot"></span><span class="name">Auto</span><span class="state"></span><span class="badge" title="Chats that finished while you watched another one"></span> ▾</button>
     <div class="menu" id="sess-menu" hidden></div>
@@ -1152,14 +1178,19 @@ const sessionState = snap => {
 }
 // Which session the live parts show. Auto keeps to the session it shows while
 // that one works, and moves to another only once it rests and another works.
+// A chat archived in the Claude app stays out of Auto, All sessions and the
+// list; the picker keeps it in its archive folder, to look at on purpose.
+const isArchived = s => s?.snap?.session?.hidden === 'archived'
+const shownSessions = () => [...S.sessions.values()].filter(s => !isArchived(s))
 const pickView = () => {
   if (S.selected !== 'auto' && S.selected !== 'all' && S.sessions.has(S.selected)) return S.selected
-  const cur = S.sessions.get(S.autoView)
+  const was = S.sessions.get(S.autoView)
+  const cur = isArchived(was) ? undefined : was
   if (cur && isBusy(cur.snap)) return cur.id
-  const busy = [...S.sessions.values()].filter(s => isBusy(s.snap)).sort((a, b) => activityAt(b.snap) - activityAt(a.snap))
+  const busy = shownSessions().filter(s => isBusy(s.snap)).sort((a, b) => activityAt(b.snap) - activityAt(a.snap))
   if (busy.length > 0) return (S.autoView = busy[0].id)
   if (cur) return cur.id
-  const latest = [...S.sessions.values()].sort((a, b) => activityAt(b.snap) - activityAt(a.snap))[0]
+  const latest = shownSessions().sort((a, b) => activityAt(b.snap) - activityAt(a.snap))[0]
   return (S.autoView = latest?.id ?? null)
 }
 
@@ -1173,13 +1204,13 @@ const addActions = list => {
 }
 
 // The actions the statistics cover: one session's, or every session's under 'all'.
-const scoped = () => (S.selected === 'all' ? S.actions : S.actions.filter(a => sidOf(a) === S.view))
+const scoped = () => (S.selected === 'all' ? S.actions.filter(a => !isArchived(S.sessions.get(sidOf(a)))) : S.actions.filter(a => sidOf(a) === S.view))
 const rangeStart = () => {
   const list = scoped()
   if (S.range === 'all') return list[0]?.startedAt ?? now() - 3600e3
   if (S.range === 'today') { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() }
   const starts = S.selected === 'all'
-    ? [...S.sessions.values()].map(s => s.snap?.session?.startedAt).filter(t => t > 0)
+    ? shownSessions().map(s => s.snap?.session?.startedAt).filter(t => t > 0)
     : [S.snap?.session?.startedAt].filter(t => t > 0)
   return starts.length > 0 ? Math.min(...starts) : (list[0]?.startedAt ?? now() - 3600e3)
 }
@@ -1824,7 +1855,7 @@ const drawTiles = () => {
     const costTurns = rc ? rc.turns : turns
     const costs = costTurns.map(t => t.usd ?? 0)
     const avg = costTurns.length ? sum(costTurns, t => t.usd) / costTurns.length : 0
-    const allCost = sum([...S.sessions.values()], s => s.snap?.usage?.usd)
+    const allCost = sum(shownSessions(), s => s.snap?.usage?.usd)
     // the money counts up to each new sum instead of jumping (the clock frame does it)
     const costNow = rc ? rc.usd : S.selected === 'all' ? allCost : u.usd
     const costLabel = S.range === 'today' ? 'Cost · today · all chats' : S.range === 'all' ? 'Cost · all time · all chats' : S.selected === 'all' ? 'Cost · all sessions' : 'Session cost'
@@ -1849,6 +1880,9 @@ const drawTiles = () => {
   tile(live ? 'This turn' : 'Last turn', live ? `<span class="num" data-since="${th.turnStartedAt}"></span>` : last ? dur(last.ms) : '—', turns.length ? `Ø ${dur(sum(turns, t => t.ms) / turns.length)} · longest ${dur(Math.max(...turns.map(t => t.ms)))}` : '')
   const errors = acts.filter(a => a.isError).length
   tile('Errors', `<span class="status-icon" style="color:${errors ? 'var(--crit)' : 'var(--good)'}">${errors ? '✗' : '✓'}</span> ${errors}`, acts.length ? `${((errors / acts.length) * 100).toFixed(1)}% of tool calls failed` : '')
+  // a newer version on GitHub: a tile to install it with one click (extras.js)
+  const up = !TILE_MODE && window.updateTile?.()
+  if (up) tiles.push(up)
   const html = tiles.join('')
   if (html === tilesHtml) return
   tilesHtml = html
@@ -1930,6 +1964,7 @@ const popTile = async (key, el, view = 'mini') => {
 // a click anywhere on a tile opens it large
 $('#tiles').addEventListener('click', e => {
   if (TILE_MODE) return
+  if (e.target.closest('.update-tile')) { window.startUpdate?.(); return }
   const el = e.target.closest('[data-tile]')
   if (el) openBig(el.dataset.tile)
 })
@@ -2067,19 +2102,18 @@ const drawPrompts = (force = false) => {
     text.classList.remove('open')
     if (isNewPrompt && !reduceMotion) text.animate(IN, { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' })
   }
-  const addedBox = $('#pc-added')
-  const addedHtml = added.map(p => `<div class="add-line"><span class="t">${p.at ? hm(p.at) : ''}</span><span class="x">${esc(p.text)}</span><span class="via">${p.viaDashboard ? 'from the dashboard' : 'typed while working'}</span></div>`).join('')
-  if (addedBox.innerHTML !== addedHtml) {
-    const grew = added.length > addedBox.children.length
-    addedBox.innerHTML = addedHtml
-    if (grew && !reduceMotion) addedBox.lastElementChild?.animate(IN, { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' })
-  }
-  addedBox.hidden = added.length === 0
-  // each earlier prompt runs until the next prompt that started a turn
-  const earlier = list.slice(0, ti).map((p, i, all) => ({ ...p, to: (all.slice(i + 1).find(n => !n.midTurn) ?? cur).at || now() })).reverse().slice(0, 6)
+  // what was typed while Claude worked on it joins the list on the right, newest first
+  $('#pc-added').hidden = true
+  // each prompt there runs until the next prompt that started a turn (the running turn: until now)
+  const earlier = list.map((p, i) => ({ ...p, i }))
+    .filter(p => p.i !== ti)
+    .map(p => ({ ...p, during: p.i > ti, to: list.slice(p.i + 1).find(n => !n.midTurn)?.at || now() }))
+    .sort((a, b) => (b.at || 0) - (a.at || 0) || b.i - a.i)
+    .slice(0, 8)
+  const via = p => (p.during ? (p.viaDashboard ? ' · from the dashboard' : ' · typed while working') : '')
   $('#pc-earlier').innerHTML = earlier.length === 0
     ? '<li style="cursor:default"><span class="t"></span><span class="x muted">No earlier prompt in this chat</span></li>'
-    : earlier.map(p => `<li data-from="${p.at}" data-to="${p.to}" class="${S.filter.window?.from === p.at ? 'on' : ''}" title="${esc(p.text)}"><span class="t">${p.at ? hm(p.at) : ''}</span><span class="x">${p.midTurn ? '<span class="muted">↳ </span>' : ''}${esc(p.text.replace(/\s+/g, ' '))}</span><button class="film" title="Watch what Claude did for it as a film">🎬</button></li>`).join('')
+    : earlier.map(p => `<li data-from="${p.at}" data-to="${p.to}" class="${S.filter.window?.from === p.at ? 'on' : ''}${p.during ? ' during' : ''}" title="${esc(p.text)}${via(p)}"><span class="t">${p.at ? hm(p.at) : ''}</span><span class="x">${p.midTurn ? '<span class="muted">↳ </span>' : ''}${esc(p.text.replace(/\s+/g, ' '))}</span><button class="film" title="Watch what Claude did for it as a film">🎬</button></li>`).join('')
   for (const li of $('#pc-earlier').querySelectorAll('li[data-from]')) {
     li.querySelector('.film').onclick = e => { e.stopPropagation(); window.playFilm?.(S.view, Number(li.dataset.from), Number(li.dataset.to), `Prompt at ${hm(Number(li.dataset.from))}`) }
     li.onclick = () => showTurn(Number(li.dataset.from), Number(li.dataset.to), `Prompt at ${hm(Number(li.dataset.from))}`)
@@ -2836,6 +2870,14 @@ const onFeed = (sid, snap, fresh) => {
   const before = S.sessions.get(sid)?.snap
   const finished = before && isLiveTurn(before) && !isLiveTurn(snap) && (snap?.thinking?.turnEndedAt ?? 0) > 0
   for (const l of snap?.usage?.limits ?? []) if (l.etaMs != null) l.fullAt = Date.now() + l.etaMs
+  // deleted in the Claude app: gone from here too
+  if (snap?.session?.hidden === 'deleted') {
+    S.sessions.delete(sid)
+    if (S.selected === sid) S.selected = 'auto'
+    if (S.view === sid || S.autoView === sid) showView(pickView())
+    else drawPicker()
+    return
+  }
   S.sessions.set(sid, { id: sid, snap })
   if (finished) setTimeout(() => celebrate(sid, snap), 0)
   const view = pickView()
@@ -2896,7 +2938,7 @@ const connect = () => {
       if (msg.run && msg.run !== document.querySelector('meta[name="lc-run"]')?.content) reloadWhenSafe()
       S.actions = []; S.byId.clear(); S.samples = msg.samples ?? []
       S.sessions.clear()
-      for (const s of msg.sessions ?? []) S.sessions.set(s.id, { id: s.id, snap: s.snapshot })
+      for (const s of msg.sessions ?? []) if (s.snapshot?.session?.hidden !== 'deleted') S.sessions.set(s.id, { id: s.id, snap: s.snapshot })
       addActions(msg.actions)
       // what already happened is not replayed; the newest action is shown settled
       showView(pickView())
@@ -2921,6 +2963,8 @@ const connect = () => {
       applyShared(msg.prefs)
     } else if (msg.type === 'reload') {
       reloadWhenSafe()
+    } else if (msg.type === 'update') {
+      window.onUpdateState?.(msg.update)
     } else if (msg.type === 'dictate' || msg.type === 'dictation') {
       // the Stream Deck's talk key (extras.js)
       window.onDictation?.(msg)
@@ -2939,6 +2983,7 @@ const connect = () => {
 const sessMenu = $('#sess-menu')
 const sessionsByRecent = () => [...S.sessions.values()].sort((a, b) => (isBusy(b.snap) - isBusy(a.snap)) || activityAt(b.snap) - activityAt(a.snap))
 let pickerKey = ''
+let archiveOpen = false
 const drawPicker = () => {
   const view = S.sessions.get(S.view)
   const st = sessionState(view?.snap)
@@ -2958,7 +3003,9 @@ const drawPicker = () => {
   if (!sessMenu.hidden) drawMenu()
 }
 const drawMenu = () => {
-  const list = sessionsByRecent()
+  const every = sessionsByRecent()
+  const list = every.filter(s => !isArchived(s))
+  const archived = every.filter(isArchived)
   const busy = list.filter(s => isBusy(s.snap)).length
   const item = (id, dot, title, right, sub) => {
     const isNew = doneUnseen.has(id)
@@ -2969,16 +3016,20 @@ const drawMenu = () => {
     item('auto', 'var(--s1)', 'Auto', 'follow whoever is working', 'Shows the session that works; stays while it works') +
     item('all', 'var(--s7)', 'All sessions', 'statistics of every session', 'The live view still follows the working session') +
     '<hr>' +
-    list.map(s => {
-      const st = sessionState(s.snap)
-      const snap = s.snap ?? {}
-      const cost = snap.usage?.usd != null ? ` · ${money(snap.usage.usd)}` : ''
-      const turn = snap.turnNo ? ` · T${snap.turnNo}` : ''
-      const folder = folderOf(s)
-      const sub = [snap.session?.title && folder ? `📁 ${folder}` : '', snap.prompt ? `“${snap.prompt}”` : ''].filter(Boolean).join(' · ') || (snap.session?.cwd ?? '')
-      return item(s.id, st.color, projectOf(s), st.label + turn, sub + cost)
-    }).join('')
+    list.map(row).join('') +
+    (archived.length === 0 ? '' : `<details class="archive"${archiveOpen || archived.some(s => s.id === S.selected) ? ' open' : ''}><summary>🗄 Archived · ${archived.length}</summary>${archived.map(row).join('')}</details>`)
   for (const el of sessMenu.querySelectorAll('.it')) el.onclick = () => selectSession(el.dataset.id)
+  const folder = sessMenu.querySelector('details.archive')
+  if (folder) folder.ontoggle = () => { archiveOpen = folder.open }
+  function row(s) {
+    const st = sessionState(s.snap)
+    const snap = s.snap ?? {}
+    const cost = snap.usage?.usd != null ? ` · ${money(snap.usage.usd)}` : ''
+    const turn = snap.turnNo ? ` · T${snap.turnNo}` : ''
+    const folder = folderOf(s)
+    const sub = [snap.session?.title && folder ? `📁 ${folder}` : '', snap.prompt ? `“${snap.prompt}”` : ''].filter(Boolean).join(' · ') || (snap.session?.cwd ?? '')
+    return item(s.id, st.color, projectOf(s), st.label + turn, sub + cost)
+  }
 }
 const selectSession = id => {
   S.selected = id

@@ -8,18 +8,51 @@
 const post = (url, body) =>
   fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify(body) })
 
-// the version that runs, beside the byline, and a newer one where there is one
+// beside the byline: the version installed, and the newest on GitHub
 const newer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false }
+let versions = { version: '', latest: '' }
+let updateState = { state: 'idle' }
 const showVersion = () => fetch('/about').then(r => r.json()).then(a => {
   if (!a.version) return
+  versions = a
   const up = a.latest && newer(a.latest, a.version)
-  $('#app-version').textContent = up ? `v${a.version} → v${a.latest} available` : `v${a.version}`
-  $('#app-version').classList.toggle('update', !!up)
-  if (up) $('.byline').href = 'https://github.com/CNLynx/Live-Code-Dashboard#updating'
+  const checked = a.latestCheckedAt ? new Date(a.latestCheckedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
+  $('#ver-installed').textContent = `installed v${a.version}`
+  const el = $('#ver-latest')
+  el.textContent = !a.latest ? 'latest: checking…' : up ? `v${a.latest} available ↑` : `latest v${a.latest} ✓`
+  el.className = `v-latest${up ? ' update' : !a.latest ? ' unknown' : ''}`
+  el.title = `Newest on GitHub: ${a.latest ? `v${a.latest}` : 'not known yet'}${checked ? ` (checked ${checked})` : ''}${up ? '\nClick to install it' : ''}`
+  el.onclick = up ? () => startUpdate() : null
+  drawTiles()
 }).catch(() => {})
 showVersion()
-// (the first answer may come before GitHub's)
+// (the first answer may come before GitHub's), then now and then
 setTimeout(showVersion, 8000)
+setInterval(showVersion, 10 * 60_000)
+
+// The update tile: there while a newer version is out, or while one installs.
+window.updateTile = () => {
+  const up = versions.latest && newer(versions.latest, versions.version)
+  const st = updateState.state
+  if (!up && st !== 'running' && st !== 'done' && st !== 'failed') return ''
+  const [cls, label, value, foot] =
+    st === 'running' ? ['busy', 'Updating', `v${versions.latest}`, esc(updateState.step || 'Working…')]
+    : st === 'done' ? ['busy', 'Updated', `v${updateState.version || versions.latest}`, esc(updateState.step || 'Restarting…') + '<br>Restart Claude for the mod part']
+    : st === 'failed' ? ['failed', 'Update failed', '✗ Try again', esc(updateState.error || 'Something went wrong')]
+    : ['', 'Update available', `v${versions.latest}`, `installed v${esc(versions.version)} · click to install`]
+  return `<div class="card tile update-tile ${cls}" title="${st === 'idle' || st === 'failed' ? 'Install the newest version from GitHub' : ''}"><div class="label">⬆ ${label}</div><div class="value">${value}</div><div class="foot">${foot}</div></div>`
+}
+window.onUpdateState = u => {
+  updateState = u ?? { state: 'idle' }
+  drawTiles()
+}
+window.startUpdate = () => {
+  if (updateState.state === 'running' || updateState.state === 'done') return
+  updateState = { state: 'running', step: 'Starting…' }
+  drawTiles()
+  post('/update', {}).then(r => r.json()).then(j => window.onUpdateState(j.update)).catch(() => window.onUpdateState({ state: 'failed', error: 'The dashboard server did not answer' }))
+}
+fetch('/update').then(r => r.json()).then(j => { if (j.update?.state !== 'idle') window.onUpdateState(j.update) }).catch(() => {})
 
 // A few notes, as the chime is made: a question rings brighter, the alarm lower.
 const playNotes = (notes, { type = 'sine', vol = 0.5, decay = 0.7, force = false } = {}) => {
@@ -751,7 +784,7 @@ const loadVoices = async () => {
   const rows = $('#voice-chats')
   if (store.get('lc.voicePerChat') === 'on' && typeof picked !== 'string' && list.length) {
     const opt = (value, label, pick) => `<option value="${esc(value)}"${value === pick ? ' selected' : ''}>${esc(label)}</option>`
-    rows.innerHTML = [...S.sessions.values()].map(s => {
+    rows.innerHTML = shownSessions().map(s => {
       const v = voiceFor(s.id)
       return `<div class="row voice-chat" data-sid="${esc(s.id)}"><span style="flex:0 0 96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(projectOf(s))}">${esc(projectOf(s))}</span><select style="flex:1;min-width:0">${voiceGroups(v?.name, opt).join('')}</select><button title="Hear it">▶</button></div>`
     }).join('')

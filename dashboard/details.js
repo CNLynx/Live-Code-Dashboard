@@ -82,7 +82,7 @@ DETAIL.cost = snap => {
     ...S.actions.filter(a => a.sid === S.view).map(a => a.startedAt),
   )
   const hours = Math.max(1 / 60, (Date.now() - (Number.isFinite(first) ? first : Date.now())) / 3600e3)
-  const all = sum([...S.sessions.values()], s => s.snap?.usage?.usd)
+  const all = sum(shownSessions(), s => s.snap?.usage?.usd)
   const points = turns.map((t, i) => ({
     y: t.usd,
     tip: `Turn ${t.no}${t.at ? `\nended ${at(t.at)}` : ''}\n${usd2(t.usd)}${i ? ` (${t.usd >= turns[i - 1].usd ? '▲' : '▼'} ${usd2(Math.abs(t.usd - turns[i - 1].usd))} vs the turn before)` : ''}\n${dur(t.ms)} · ${plural(t.steps, 'step')}${t.failed ? ` · ${t.failed} failed` : ''}\n${human(t.tokensIn)} tokens in · ${human(t.tokensOut)} out`,

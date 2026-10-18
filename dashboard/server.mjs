@@ -25,14 +25,15 @@ const LOG = process.env.LIVE_CODE_LOG ?? path.join(HOME, 'live-code-log.jsonl')
 const PORT = Number(process.env.LIVE_CODE_PORT ?? 4477)
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(HERE, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version } catch { return '' } })()
-// the newest published version (GitHub), looked up at most every 6 hours, for the dashboard to offer
-const latest = { version: '', at: 0 }
+// the newest published version (GitHub), looked up at most hourly (after a failed
+// look, again in ten minutes), for the dashboard to show beside the installed one
+const latest = { version: '', at: 0, checkedAt: 0 }
 const checkLatest = async () => {
-  if (Date.now() - latest.at < 6 * 3600e3) return
+  if (Date.now() - latest.at < (latest.version ? 3600e3 : 600e3)) return
   latest.at = Date.now()
   try {
     const r = await fetch('https://raw.githubusercontent.com/CNLynx/Live-Code-Dashboard/main/.claude-plugin/plugin.json', { signal: AbortSignal.timeout(5000) })
-    if (r.ok) latest.version = String((await r.json()).version ?? '')
+    if (r.ok) { latest.version = String((await r.json()).version ?? ''); latest.checkedAt = Date.now() }
   } catch {}
 }
 const KEEP_ACTIONS = 6000
@@ -387,28 +388,112 @@ const refreshNotes = () => {
 
 // The snapshot as sent: its session carries the chat's title, its last prompts
 // and what Claude said for the newest one.
+// ── archived and deleted chats ──
+// The Claude app keeps a small file per Code-tab chat,
+// claude-code-sessions/<account>/<org>/local_<id>.json, with its "cliSessionId"
+// and "isArchived", and a deleted_<id> file for a chat deleted. An archived
+// chat goes into the picker's archive folder, a deleted one away; a chat the
+// app does not know (one in a terminal) stays as it is.
+const APP_DIRS = [
+  process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Claude-Data'), // the Store app: <package>/claude-code-sessions
+  process.env.APPDATA && path.join(process.env.APPDATA, 'Claude'),
+  path.join(os.homedir(), 'Library', 'Application Support', 'Claude'),
+  path.join(os.homedir(), '.config', 'Claude'),
+].filter(Boolean)
+const hidden = new Map() // sid -> 'archived' | 'deleted'
+const appFiles = new Map() // file -> { mtime, ids, archived }
+const ARCHIVE_HEAD_BYTES = 16 * 1024
+
+const sessionDirs = () => {
+  const found = []
+  const tryDir = dir => { try { if (fs.statSync(dir).isDirectory()) found.push(dir) } catch {} }
+  for (const base of APP_DIRS) {
+    tryDir(path.join(base, 'claude-code-sessions'))
+    try { for (const sub of fs.readdirSync(base)) tryDir(path.join(base, sub, 'claude-code-sessions')) } catch {}
+  }
+  return found
+}
+
+const readHead = (file, bytes) => {
+  const fd = fs.openSync(file, 'r')
+  try {
+    const buf = Buffer.alloc(bytes)
+    const n = fs.readSync(fd, buf, 0, bytes, 0)
+    return buf.toString('utf8', 0, n)
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
+// every chat's state as the app has it now: sid -> 'archived' | 'deleted'
+const readHidden = () => {
+  const next = new Map()
+  const live = new Set()
+  for (const root of sessionDirs()) {
+    // <account>/<org>/ under the root
+    const leaves = []
+    try {
+      for (const a of fs.readdirSync(root)) for (const o of fs.readdirSync(path.join(root, a))) leaves.push(path.join(root, a, o))
+    } catch {}
+    for (const dir of leaves) {
+      let names
+      try { names = fs.readdirSync(dir) } catch { continue }
+      for (const name of names) {
+        const deleted = /^deleted_([0-9a-f-]{36})$/.exec(name)
+        if (deleted) { next.set(deleted[1], 'deleted'); continue }
+        if (!/^local_[0-9a-f-]{36}\.json$/.test(name)) continue
+        const file = path.join(dir, name)
+        live.add(file)
+        let st
+        try { st = fs.statSync(file) } catch { continue }
+        let known = appFiles.get(file)
+        if (known?.mtime !== st.mtimeMs) {
+          try {
+            const head = readHead(file, ARCHIVE_HEAD_BYTES)
+            const cli = /"cliSessionId":"([0-9a-f-]{36})"/.exec(head)?.[1]
+            known = { mtime: st.mtimeMs, ids: [name.slice(6, 42), cli].filter(Boolean), archived: /"isArchived":true/.test(head) }
+            appFiles.set(file, known)
+          } catch {
+            continue
+          }
+        }
+        if (known.archived) for (const id of known.ids) if (!next.has(id)) next.set(id, 'archived')
+      }
+    }
+  }
+  for (const file of appFiles.keys()) if (!live.has(file)) appFiles.delete(file)
+  return next
+}
+
 const titled = (sid, snapshot) => {
   const title = titles.get(sid)
   const said = prompts.get(sid)
   const told = notes.get(sid)
-  if (!snapshot || (!title && !said && !told)) return snapshot
-  return { ...snapshot, session: { ...(snapshot.session ?? {}), ...(title ? { title } : {}), ...(said ? { prompts: said } : {}), ...(told ? { notes: told } : {}) } }
+  const gone = hidden.get(sid)
+  if (!snapshot || (!title && !said && !told && !gone)) return snapshot
+  return { ...snapshot, session: { ...(snapshot.session ?? {}), ...(title ? { title } : {}), ...(said ? { prompts: said } : {}), ...(told ? { notes: told } : {}), ...(gone ? { hidden: gone } : {}) } }
 }
 
 const refreshTitles = () => {
+  let now = new Map()
+  try { now = readHidden() } catch {}
   for (const s of sessions.values()) {
     if (s.id === 'legacy') continue
     const title = readTitle(s.id)
     const isRenamed = title !== undefined && title !== titles.get(s.id)
     if (isRenamed) titles.set(s.id, title)
     const hasNewPrompts = readPrompts(s.id)
-    if (isRenamed || hasNewPrompts) broadcast({ type: 'feed', now: Date.now(), sid: s.id, snapshot: titled(s.id, s.snapshot), actions: [], samples: [] })
+    const isMoved = now.get(s.id) !== hidden.get(s.id)
+    if (isMoved) { if (now.has(s.id)) hidden.set(s.id, now.get(s.id)); else hidden.delete(s.id) }
+    if (isRenamed || hasNewPrompts || isMoved) broadcast({ type: 'feed', now: Date.now(), sid: s.id, snapshot: titled(s.id, s.snapshot), actions: [], samples: [] })
   }
+  for (const [sid, state] of now) if (!sessions.has(sid)) hidden.set(sid, state)
 }
+try { for (const [sid, state] of readHidden()) hidden.set(sid, state) } catch {}
 
 const sessionList = () =>
   [...sessions.values()]
-    .filter(s => Date.now() - s.mtime < SESSION_MAX_AGE_MS)
+    .filter(s => Date.now() - s.mtime < SESSION_MAX_AGE_MS && hidden.get(s.id) !== 'deleted')
     .map(s => ({ id: s.id, snapshot: titled(s.id, s.snapshot) }))
 
 const initPayload = () => {
@@ -902,6 +987,73 @@ const openTileWindow = (key, b) => {
   }
 }
 
+// ── updating from the dashboard ──
+// The update tile's click: Claude Code fetches the newest version from GitHub
+// (marketplace "cnlynx"), the new copy's setup runs quietly, and this server
+// hands its port to the new copy's server. The mod inside Claude Code takes
+// the new version with Claude's next start.
+const PLUGIN_ID = 'live-code@cnlynx'
+let update = { state: 'idle', step: '', error: '', version: '' }
+const tellUpdate = patch => { update = { ...update, ...patch }; broadcast({ type: 'update', now: Date.now(), update }) }
+const run = (cmd, args, timeoutMs = 180_000) =>
+  new Promise(resolve => {
+    let out = ''
+    let child
+    try {
+      // claude is a .cmd on Windows: through the shell; the arguments are fixed, none from outside
+      child = spawn(cmd, args, { shell: process.platform === 'win32' && cmd === 'claude', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    } catch (e) {
+      resolve({ code: -1, out: e.message })
+      return
+    }
+    const timer = setTimeout(() => child.kill(), timeoutMs)
+    child.stdout.on('data', d => { out += d })
+    child.stderr.on('data', d => { out += d })
+    child.on('error', e => { out += e.message })
+    child.on('close', code => { clearTimeout(timer); resolve({ code, out }) })
+  })
+const installedCopy = async () => {
+  const r = await run('claude', ['plugin', 'list', '--json'])
+  try {
+    const list = JSON.parse(r.out.slice(r.out.indexOf('[')))
+    const me = list.find(p => p.id === PLUGIN_ID)
+    if (!me) return null
+    // a copy read from a folder (while developing) runs from that folder
+    return { dir: me.readFromFolder ?? me.installPath, version: me.folderVersion ?? me.version }
+  } catch {
+    return null
+  }
+}
+const runUpdate = async () => {
+  if (update.state === 'running') return
+  tellUpdate({ state: 'running', step: 'Fetching the newest version from GitHub…', error: '', version: '' })
+  await run('claude', ['plugin', 'marketplace', 'update', 'cnlynx'])
+  tellUpdate({ step: 'Installing it…' })
+  const r = await run('claude', ['plugin', 'update', PLUGIN_ID])
+  const copy = await installedCopy()
+  if (!copy?.dir) { tellUpdate({ state: 'failed', step: '', error: (r.out.trim().split('\n').pop() || 'Claude Code could not update the plugin.').slice(0, 300) }); return }
+  latest.at = 0
+  void checkLatest()
+  const next = path.join(copy.dir, 'dashboard', 'server.mjs')
+  if (!copy.version || !newerVersion(copy.version, VERSION) || !fs.existsSync(next)) {
+    tellUpdate({ state: 'failed', step: '', error: r.code === 0 ? `Still v${copy.version || VERSION}: nothing newer was installed.` : (r.out.trim().split('\n').pop() || 'The update failed.').slice(0, 300) })
+    return
+  }
+  tellUpdate({ step: `Setting up v${copy.version}…`, version: copy.version })
+  await run(process.execPath, [path.join(copy.dir, 'bin', 'setup.mjs'), '--auto'], 120_000)
+  tellUpdate({ state: 'done', step: `v${copy.version} installed. The dashboard restarts…` })
+  // hand the port over: close, start the new copy, go
+  setTimeout(() => {
+    for (const res of clients) { try { res.end() } catch {} }
+    server.close(() => {
+      try { spawn(process.execPath, [next], { cwd: path.dirname(next), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, LIVE_CODE_PORT: String(PORT) } }).unref() } catch {}
+      setTimeout(() => process.exit(0), 300)
+    })
+    server.closeAllConnections?.()
+  }, 1500)
+}
+const newerVersion = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false }
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost')
   // only this machine's own name for the server: a foreign name pointed here
@@ -1014,10 +1166,17 @@ const server = http.createServer((req, res) => {
     })
   } else if (url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok')
+  } else if (url.pathname === '/update' && req.method === 'POST') {
+    // only the dashboard page (its secret) may start an update
+    if (!isTrusted(req)) { res.writeHead(403).end('{}'); return }
+    void runUpdate()
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ update }))
+  } else if (url.pathname === '/update') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ update }))
   } else if (url.pathname === '/about') {
     // which copy runs: the mod starts its own one in its place after an update
     void checkLatest()
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: VERSION, latest: latest.version }))
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: VERSION, latest: latest.version, latestCheckedAt: latest.checkedAt }))
   } else if (url.pathname === '/events') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
     res.write('retry: 2000\n\n')

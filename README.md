@@ -113,6 +113,8 @@ Then, in Claude Code, type `/live-code-setup` for the shortcuts and the Stream D
 
 ### Updating
 
+The dashboard shows the installed version and the newest one on GitHub at the top left. When a newer one is out, an **Update available** tile appears next to the others: one click installs it and restarts the dashboard (the part inside Claude Code takes it with Claude's next start).
+
 In Claude Code: `/plugin` → *Marketplaces* → **cnlynx** → enable **auto-update**, and new versions arrive by themselves. Or update by hand:
 
 ```bash
@@ -251,7 +253,7 @@ Starte Claude Code danach einmal neu. Ab dann startet das Dashboard zusammen mit
 
 ### Updates
 
-In Claude Code: `/plugin` → *Marketplaces* → **cnlynx** → **Auto-Update** einschalten. Von Hand geht es mit `claude plugin marketplace update cnlynx` und danach `claude plugin update live-code@cnlynx`. Gibt es eine neue Version, zeigt das Dashboard neben seiner Versionsnummer **„→ vX.Y.Z available“**.
+In Claude Code: `/plugin` → *Marketplaces* → **cnlynx** → **Auto-Update** einschalten. Von Hand geht es mit `claude plugin marketplace update cnlynx` und danach `claude plugin update live-code@cnlynx`. Oben links zeigt das Dashboard die installierte Version und darunter die neuste auf GitHub. Gibt es eine neuere, erscheint neben den anderen Kacheln **„Update available“**: ein Klick installiert sie und startet das Dashboard neu (der Teil in Claude Code übernimmt sie beim nächsten Start von Claude).
 
 ### Live anpassen, per Prompt
 
