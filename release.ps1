@@ -1,4 +1,4 @@
-# Publishes a new version to GitHub: every user gets it with their next update.
+﻿# Publishes a new version to GitHub: every user gets it with their next update.
 #   .\release.ps1 "What changed"            1.0.0 -> 1.0.1
 #   .\release.ps1 "Big new thing" -Minor    1.0.1 -> 1.1.0
 # Checks the mod first (validate + tests); stops if anything fails.
@@ -17,7 +17,7 @@ $file = '.claude-plugin\plugin.json'
 $json = Get-Content $file -Raw
 $old = [regex]::Match($json, '"version":\s*"(\d+)\.(\d+)\.(\d+)"')
 $v = @([int]$old.Groups[1].Value, [int]$old.Groups[2].Value, [int]$old.Groups[3].Value)
-if ($Major) { $v = @($v[0] + 1, 0, 0) } elseif ($Minor) { $v = @($v[0], $v[1] + 1, 0) } else { $v[2]++ }
+if ($Major) { $v = @(($v[0] + 1), 0, 0) } elseif ($Minor) { $v = @($v[0], ($v[1] + 1), 0) } else { $v[2]++ }
 $new = $v -join '.'
 $json = $json.Replace($old.Value, "`"version`": `"$new`"")
 [IO.File]::WriteAllText((Resolve-Path $file), $json, (New-Object Text.UTF8Encoding $false))
