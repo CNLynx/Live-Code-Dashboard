@@ -91,6 +91,7 @@ const answersOn = () => store.get('lc.answers') !== 'off'
 const askKey = a => `${a.sid}|${a.id}`
 let shown = null // the ask in the popup
 const later = new Set() // asks put aside with "Later"
+const answered = new Map() // ask key -> when it was answered here: not shown again while its chat catches up
 const picks = new Map() // ask key -> per question: { set: Set of labels, other: text }
 let rang = { key: '', at: 0, times: 0 }
 let titleBlink = 0
@@ -168,6 +169,7 @@ const sendAnswer = async (a, answer) => {
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? r.status)
     later.delete(askKey(a))
     picks.delete(askKey(a))
+    answered.set(askKey(a), Date.now())
     closeAsk()
     smallToast(answer.decision === 'allow' ? `Allowed in “${a.chat}”` : answer.decision === 'deny' ? `Denied in “${a.chat}”` : answer.decision === 'dialog' ? `Now in the Claude window of “${a.chat}”` : `Answer sent to “${a.chat}”`)
   } catch (error) {
@@ -248,15 +250,16 @@ const drawAsks = (force = false) => {
   const keys = new Set(list.map(askKey))
   for (const k of later) if (!keys.has(k)) later.delete(k)
   for (const k of picks.keys()) if (!keys.has(k)) picks.delete(k)
+  for (const [k, at] of answered) if (!keys.has(k) || Date.now() - at > 60_000) answered.delete(k)
   // answered elsewhere (the Claude window, the Stream Deck): it goes away
   if (shown && !keys.has(askKey(shown))) closeAsk()
-  const open = list.filter(a => !later.has(askKey(a)))
+  const open = list.filter(a => !later.has(askKey(a)) && !answered.has(askKey(a)))
   if (!shown && open.length > 0) openAsk(open[0], list.indexOf(open[0]), list.length)
   else if (shown && force) openAsk(shown, list.findIndex(a => askKey(a) === askKey(shown)), list.length)
   // a gentle reminder now and then while it waits
   if (shown && Date.now() - rang.at > 45_000 && rang.times < 3 && toneOn('lc.toneAsk') && store.get('lc.askRemind') !== 'off') { rang.at = Date.now(); rang.times++; playNotes(shown.kind === 'permission' ? PERMISSION_TONE : QUESTION_TONE, { force: true, vol: 0.3 }) }
   for (const el of askBox.querySelectorAll('[data-since]')) setText(el, `waiting ${dur(Date.now() - Number(el.dataset.since))}`)
-  const aside = list.length - (shown ? 1 : 0)
+  const aside = list.filter(a => !answered.has(askKey(a))).length - (shown ? 1 : 0)
   if (askPill.hidden !== aside <= 0) askPill.hidden = aside <= 0
   setText(askPill, `❓ ${aside} ${aside === 1 ? 'question waits' : 'questions wait'}`)
   // the tab says it too

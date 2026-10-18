@@ -1295,7 +1295,7 @@ export const register: Register = on => {
       name: 'live-code-setup',
       description: 'Set up the Live Code dashboard: shortcuts, Stream Deck plugin, tile windows',
     })
-    void $.ui.open({ id: PANE, title: TITLE })
+    // (the pane opens on /live-code: the dashboard shows it all, outside Claude)
     void refreshUsage($)
     // the dashboard server starts with Claude: unless it runs, it is started, hidden
     void $.process.run(['node', `${$.plugin.root}/bin/ensure-server.mjs`], { timeoutMs: 10_000 }).catch(() => undefined)
