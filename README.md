@@ -149,6 +149,17 @@ Everything Live Code does outside of Claude Code itself, in full:
 
 No analytics, no tracking, no accounts.
 
+### What the mod does inside Claude Code
+
+The mod (`hooks/register.tsx`) only watches and reports, with three exceptions that you trigger yourself:
+
+- **Hooks it uses:** `session.start` / `session.end` (start the server, register the commands), `prompt.submit`, `classic.UserPromptSubmit`, `turn.start`, `turn.complete` (count turns, time and cost), `tool.call` for every tool (show what runs; the call itself goes through unchanged), `agent.spawn` (a lane per subagent; the event goes through unchanged), `ui.render` for its pane and a band above the prompt. It never changes a tool's input, a prompt or a setting.
+- **Prompts it submits:** only a message **you** type in the dashboard (or a Stream Deck prompt key you press) is sent to that chat, word for word, as if typed in Claude Code. The dashboard's ■ Stop stops the running turn.
+- **Questions answered from outside:** while a dashboard or Stream Deck that can answer is open, Claude's `AskUserQuestion` is shown there too, and the answer **you** pick there is given to Claude in place of the usual dialog. With nothing open, or with "Show the usual dialog", the normal dialog asks as always. It never answers by itself and never decides tool permissions.
+- **Files it writes:** `~/.claude/live-code-session-<id>.json` (the live feed the dashboard reads), and `~/.claude/live-code-answer-<id>.json` (your answer from the dashboard, read back by `bin/wait-answer.mjs`).
+- **Programs it starts:** `node bin/ensure-server.mjs` (starts the dashboard server, and once per version `bin/setup.mjs --auto`), `node bin/wait-answer.mjs` (waits up to 20 s for an answer you give in the dashboard), `node bin/setup.mjs` (only on `/live-code-setup`).
+- **Keys it reads:** the Hue Bridge key that pairing stored in `~/.claude/live-code-hue.json` (sent only to your own bridge), and an ElevenLabs key only if you put one in `~/.claude/live-code-voice.json` yourself (sent only to ElevenLabs).
+
 ### Good to know
 
 - **Privacy:** the dashboard listens on `127.0.0.1:4477` only; what leaves your PC is listed in the table above.

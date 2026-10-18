@@ -670,17 +670,14 @@ const animate = async ($: Engine, ms = 0) => {
   }
 }
 
-const setThinking = async ($: Engine, on: boolean) => {
+const setThinking = async ($: Engine, active: boolean) => {
   const at = await now($)
-  thinkingOn = on
+  thinkingOn = active
   thinkingSince = at
-  await update($, thinking, th => ({ ...th, active: on, since: on ? at : th.since }))
+  await update($, thinking, th => ({ ...th, active, since: active ? at : th.since }))
 }
 
-const addStep = (
-  $: Engine,
-  step: TurnStep,
-) => update($, turnSteps, list => [...list.filter(s => s.id !== step.id), step])
+const addStep = ($: Engine, step: TurnStep) => update($, turnSteps, list => [...list.filter(s => s.id !== step.id), step])
 
 const finishStep = async ($: Engine, id: string, status: 'done' | 'error') => {
   const at = await now($)
@@ -781,13 +778,8 @@ const explain = async ($: Engine, focus: Focus) => {
 }
 
 // Shows `focus` as the live spot while the tool runs, then files it into history.
-const track = async (
-  $: Engine,
-  draft: Omit<Focus, 'startedAt' | 'isDone' | 'isError' | 'stats'>,
-  stepKind: TurnStep['kind'],
-  run: () => Promise<ToolCallResult>,
-  after?: (ran: ToolCallResult) => Partial<Focus>,
-): Promise<ToolCallResult> => {
+type Draft = Omit<Focus, 'startedAt' | 'isDone' | 'isError' | 'stats'>
+const track = async ($: Engine, draft: Draft, stepKind: TurnStep['kind'], run: () => Promise<ToolCallResult>, after?: (ran: ToolCallResult) => Partial<Focus>): Promise<ToolCallResult> => {
   const t = await now($)
   const focus: Focus = { ...draft, stats: statsOf(draft.rows), startedAt: t, isDone: false, isError: false }
   await toolStart($, { id: draft.id, kind: stepKind, label: where(focus), status: 'running', startedAt: t, agentId: draft.agentId })
@@ -1512,7 +1504,7 @@ export const register: Register = on => {
     }
 
     return ran
-  })
+  }).catch(($, e, next) => next(e))
 
   // Every tool without a hook of its own: shells become a live spot with the
   // command, the rest a step in the turn pipeline.
@@ -1643,36 +1635,27 @@ export const register: Register = on => {
     }, 'write', () => next(e))
   }).catch(($, e, next) => next(e))
 
-  on('tool.call', { tool: 'NotebookEdit' }, ($, e, next) =>
-    track($, {
+  on('tool.call', { tool: 'NotebookEdit' }, async ($, e, next) => {
+    const focus: Draft = {
       id: e.tool_use_id,
       agentId: agentOf(e),
-      action:'editing',
+      action: 'editing',
       file: e.notebook_path,
       detail: e.cell_id !== undefined ? `cell ${e.cell_id}` : 'notebook',
       rows: cap(splitLines(e.new_source).map(text => ({ kind: 'add' as const, text }))),
-    }, 'edit', () => next(e)),
-  ).catch(($, e, next) => next(e))
+    }
+    return track($, focus, 'edit', () => next(e))
+  }).catch(($, e, next) => next(e))
 
-  on('tool.call', { tool: 'Grep' }, ($, e, next) =>
-    track(
-      $,
-      { id: e.tool_use_id, agentId: agentOf(e), action: 'searching', file: e.path ?? '.', detail: `“${e.pattern}”${e.glob ? ` (${e.glob})` : e.type ? ` (${e.type})` : ''}`, rows: [] },
-      'search',
-      () => next(e),
-      ran => ({ rows: hitsOf(ran) }),
-    ),
-  ).catch(($, e, next) => next(e))
+  on('tool.call', { tool: 'Grep' }, async ($, e, next) => {
+    const focus: Draft = { id: e.tool_use_id, agentId: agentOf(e), action: 'searching', file: e.path ?? '.', detail: `“${e.pattern}”${e.glob ? ` (${e.glob})` : e.type ? ` (${e.type})` : ''}`, rows: [] }
+    return track($, focus, 'search', () => next(e), ran => ({ rows: hitsOf(ran) }))
+  }).catch(($, e, next) => next(e))
 
-  on('tool.call', { tool: 'Glob' }, ($, e, next) =>
-    track(
-      $,
-      { id: e.tool_use_id, agentId: agentOf(e), action: 'searching', file: e.path ?? '.', detail: e.pattern, rows: [] },
-      'search',
-      () => next(e),
-      ran => ({ rows: hitsOf(ran) }),
-    ),
-  ).catch(($, e, next) => next(e))
+  on('tool.call', { tool: 'Glob' }, async ($, e, next) => {
+    const focus: Draft = { id: e.tool_use_id, agentId: agentOf(e), action: 'searching', file: e.path ?? '.', detail: e.pattern, rows: [] }
+    return track($, focus, 'search', () => next(e), ran => ({ rows: hitsOf(ran) }))
+  }).catch(($, e, next) => next(e))
 
   // ── the pane ───────────────────────────────────────────────────────────────
   // A fixed layout: every section keeps its height whatever happens, so nothing
