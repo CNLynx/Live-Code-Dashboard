@@ -723,6 +723,8 @@ const loadHue = async () => {
     $('#set-hue-ask-color').value = h.askColor
     $('#set-hue-on-alarm').checked = h.onAlarm
     $('#set-hue-alarm-color').value = h.alarmColor
+    $('#set-hue-on-build').checked = h.onBuild !== false
+    $('#set-hue-build-color').value = h.buildColor ?? '#f38020'
     $('#set-hue-style').value = h.style
     $('#hue-pulses-row').hidden = h.style !== 'pulse'
     $('#set-hue-pulses').value = h.pulses
@@ -758,6 +760,9 @@ $('#set-hue-on-alarm').onchange = e => hueSet({ onAlarm: e.target.checked })
 $('#set-hue-alarm-color').onchange = e => hueSet({ alarmColor: e.target.value })
 $('#set-hue-style').onchange = e => { hueSet({ style: e.target.value }); $('#hue-pulses-row').hidden = e.target.value !== 'pulse' }
 $('#set-hue-alarm').onclick = () => hueSet({ test: 'alarm' })
+$('#set-hue-on-build').onchange = e => hueSet({ onBuild: e.target.checked })
+$('#set-hue-build-color').onchange = e => hueSet({ buildColor: e.target.value })
+$('#set-hue-build').onclick = () => hueSet({ test: 'build' })
 $('#set-hue-done').onclick = () => hueSet({ test: 'done' })
 $('#set-hue-ask').onclick = () => hueSet({ test: 'ask' })
 $('#set-voice-len').value = voice.len()
@@ -997,4 +1002,70 @@ if (!TILE_MODE) {
     $('#deck-prompts').lastElementChild?.querySelector('[data-f="label"]')?.focus()
   }
   void loadDeckPrompts()
+}
+
+// ── the site's host building it ──
+// What the chat shown pushed is built by its host (Cloudflare, Vercel, Netlify):
+// the server reads the host's checks on GitHub (deploys.mjs). The host tells
+// only when a build is done, so the bar in between runs on how long its builds
+// usually take; a build done shows for a while, then the bar goes.
+{
+  const SHOW_DONE_MS = 15 * 60_000
+  const cloud = spin => `<svg class="${spin ? 'spin-cloud' : ''}" viewBox="0 0 32 22" width="22" height="16" aria-hidden="true"><path fill="#f38020" d="M25.6 21H7.2A6.2 6.2 0 0 1 6.4 8.7 8.4 8.4 0 0 1 22.3 6.1 6.5 6.5 0 0 1 25.6 21z"/><path fill="#faae40" d="M27.2 21h-5.4l.7-2.2a3 3 0 0 0-2-3.9l.8-.2a5.2 5.2 0 0 1 5.9 6.3z"/></svg>`
+  const mark = p => (p === 'Cloudflare' ? cloud : () => '◆')
+  const was = new Map() // sid|name|ref -> status, to flash a build that just finished
+  const flashUntil = new Map()
+  const draw = () => {
+    const box = $('#deploy-bar')
+    if (!box) return
+    const n = Date.now()
+    const list = (S.snap?.session?.deploys ?? [])
+      .filter(d => d.status !== 'completed' || n - (d.completedAt || 0) < SHOW_DONE_MS)
+      .sort((a, b) => (a.status === 'completed') - (b.status === 'completed') || (b.completedAt || b.startedAt) - (a.completedAt || a.startedAt))
+      .slice(0, 2)
+    // each row: what stays (its shape, drawn once) and what moves (time, fill)
+    const rows = list.map(d => {
+      const key = `${S.view}|${d.name}|${d.ref}|${d.sha}`
+      const before = was.get(key)
+      was.set(key, d.status)
+      if (before && before !== 'completed' && d.status === 'completed') flashUntil.set(key, n + 1600)
+      const site = esc(d.name.replace(/^[^:]*:\s*/, '') || d.repo)
+      const where = d.preview ? `preview of <b>${esc(d.ref)}</b>` : 'live'
+      const log = d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${d.conclusion === 'failure' ? 'Open the log ↗' : 'Details ↗'}</a>` : '<span></span>'
+      if (d.status !== 'completed') {
+        const elapsed = Math.max(0, n - d.startedAt)
+        const typical = d.typicalMs || 60_000
+        const over = elapsed > typical * 1.15
+        return {
+          key, cls: `dp${over ? ' over' : ''}`, pct: Math.min(96, (elapsed / typical) * 100),
+          time: `${dur(elapsed)} · ${over ? 'taking longer than usual' : `~${dur(Math.max(1000, typical - elapsed))} left`}`,
+          shape: `<span class="dp-logo">${mark(d.provider)(true)}</span><span class="dp-text"><b>${esc(d.provider)}</b> builds ${site} · ${where} · ${esc(d.sha)}</span><span class="dp-time"></span>${log}<div class="dp-track"><i></i></div>`,
+          tip: `${d.provider} tells only when a build is done: the bar follows how long its builds usually take (${dur(typical)})`,
+        }
+      }
+      const ok = d.conclusion === 'success'
+      return {
+        key, cls: `dp ${ok ? 'ok' : 'fail'}${(flashUntil.get(key) ?? 0) > n ? ' just' : ''}`, pct: null,
+        time: d.completedAt ? `${dur(Math.max(0, n - d.completedAt))} ago` : '',
+        shape: `<span class="dp-logo">${mark(d.provider)(false)}</span><span class="dp-text">${ok ? '✓' : '✗'} <b>${esc(d.provider)}</b> ${ok ? 'deployed' : d.conclusion === 'cancelled' ? 'cancelled' : 'build failed'} · ${site} · ${where} · ${esc(d.sha)}</span><span class="dp-time"></span>${log}`,
+        tip: '',
+      }
+    })
+    // the same rows as before: only their time and fill change, so the bar glides
+    const keys = rows.map(r => `${r.key}|${r.pct === null}`).join('\n')
+    if (box.dataset.keys !== keys) {
+      box.dataset.keys = keys
+      box.innerHTML = rows.map(r => `<div class="${r.cls}" title="${esc(r.tip)}">${r.shape}</div>`).join('')
+    }
+    rows.forEach((r, i) => {
+      const el = box.children[i]
+      if (el.className !== r.cls) el.className = r.cls
+      setText(el.querySelector('.dp-time'), r.time)
+      const fill = el.querySelector('.dp-track i')
+      if (fill && r.pct !== null) fill.style.width = `${r.pct.toFixed(1)}%`
+    })
+    box.hidden = rows.length === 0
+  }
+  setInterval(draw, 1000)
+  window.drawDeploys = draw
 }

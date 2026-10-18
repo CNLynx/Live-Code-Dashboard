@@ -13,7 +13,7 @@ import path from 'node:path'
 const FILE = path.join(process.env.LIVE_CODE_HOME ?? path.join(os.homedir(), '.claude'), 'live-code-hue.json')
 // what the settings can change, and its defaults
 // (the colors are the dashboard's own: its done-glow mint, its question violet, its alarm red)
-const DEFAULTS = { enabled: true, onDone: true, onAsk: true, onAlarm: true, doneColor: '#8cf0be', askColor: '#a78bfa', alarmColor: '#f87171', style: 'glow', pulses: 2 }
+const DEFAULTS = { enabled: true, onDone: true, onAsk: true, onAlarm: true, onBuild: true, doneColor: '#8cf0be', askColor: '#a78bfa', alarmColor: '#f87171', buildColor: '#f38020', style: 'glow', pulses: 2 }
 const readRaw = () => { try { return JSON.parse(fs.readFileSync(FILE, 'utf8')) } catch { return null } }
 const readConfig = () => { const raw = readRaw(); return raw ? { ...DEFAULTS, ...raw } : null }
 export const hueConfig = readConfig
@@ -24,8 +24,8 @@ export const setHueOptions = msg => {
   const raw = readRaw()
   if (!raw) return false
   const next = { ...raw }
-  for (const k of ['enabled', 'onDone', 'onAsk', 'onAlarm']) if (typeof msg[k] === 'boolean') next[k] = msg[k]
-  for (const k of ['doneColor', 'askColor', 'alarmColor']) if (typeof msg[k] === 'string' && HEX.test(msg[k])) next[k] = msg[k]
+  for (const k of ['enabled', 'onDone', 'onAsk', 'onAlarm', 'onBuild']) if (typeof msg[k] === 'boolean') next[k] = msg[k]
+  for (const k of ['doneColor', 'askColor', 'alarmColor', 'buildColor']) if (typeof msg[k] === 'string' && HEX.test(msg[k])) next[k] = msg[k]
   if (Number.isInteger(msg.pulses) && msg.pulses >= 1 && msg.pulses <= 5) next.pulses = msg.pulses
   if (msg.style === 'glow' || msg.style === 'pulse') next.style = msg.style
   if (Array.isArray(msg.lights) && msg.lights.every(id => typeof id === 'string' && /^[0-9a-f-]{36}$/.test(id))) {
@@ -84,6 +84,8 @@ const xyOf = hex => {
 
 // What a light was before it was taken over, to give it back.
 const saved = new Map()
+// how many color points a gradient light (a lightstrip) shows along itself; 0: one color
+const gradientPoints = new Map()
 // just given back, and still fading there: read now, a light reports the fade
 // half done, so the state given back stands for it a few seconds
 const givenBack = new Map() // id -> { state, until }
@@ -95,6 +97,7 @@ const take = async cfg => {
     if (recent && recent.until > Date.now()) { saved.set(id, recent.state); ids.push(id); continue }
     const l = (await call(cfg, 'GET', `/clip/v2/resource/light/${id}`))?.data?.[0]
     if (!l?.on?.on) continue
+    gradientPoints.set(id, l.gradient?.points_capable ?? 0)
     saved.set(id, {
       brightness: l.dimming?.brightness ?? 100,
       ...(l.color_temperature?.mirek_valid ? { mirek: l.color_temperature.mirek } : { xy: l.color?.xy }),
@@ -221,9 +224,88 @@ const alarmEffect = async (force = false) => {
 // (a question's breathing holds the queue, so the alarm runs beside it)
 export const hueAlarm = () => (asking ? alarmEffect() : run(() => alarmEffect()))
 
-// to try each from the settings, switched on or not: a question breathes 6 s
+// The site's host builds what a chat pushed (deploys.mjs): the lights show the
+// dashboard's build bar. A lightstrip with color points fills with the build
+// color from its first point to its last, the rest a dim white; lights of one
+// color fill one after the other, in the order the settings list them. Taking
+// longer than usual, a spot of the color runs along them again and again. At
+// the end a short green, or red for a failed build; then each light goes back.
+// A question of Claude's wins: the bar steps aside and comes back after it.
+let build = { active: false, progress: 0, over: false, result: null }
+let buildRunning = false
+const DIM_WHITE = { x: 0.3227, y: 0.329 }
+const buildEffect = async (force = false) => {
+  const cfg = usable()
+  if (!cfg || (cfg.onBuild === false && !force)) return
+  const ids = await take(cfg)
+  if (!ids.length) return
+  const xy = xyOf(cfg.buildColor ?? DEFAULTS.buildColor)
+  const flat = ids.filter(id => !(gradientPoints.get(id) > 1))
+  const sent = new Map() // id -> what it shows now, so only a change is sent
+  let step = 0
+  while (build.active && !asking) {
+    const sends = []
+    for (const id of ids) {
+      const full = saved.get(id)?.brightness ?? 60
+      const n = gradientPoints.get(id) ?? 0
+      let body
+      if (n > 1) {
+        // the strip is the bar: its points from first to last
+        const points = Array.from({ length: n }, (_, i) => {
+          const lit = build.over ? i === step % n : build.progress * n > i + 0.25
+          return { color: { xy: lit ? xy : DIM_WHITE } }
+        })
+        body = { gradient: { points }, dimming: { brightness: Math.max(20, full) } }
+      } else {
+        // one light of several: its share of the bar
+        const i = flat.indexOf(id)
+        const part = build.over ? (i === step % flat.length ? 1 : 0) : Math.min(1, Math.max(0, build.progress * flat.length - i))
+        body = { color: { xy }, dimming: { brightness: Math.max(1, full * (0.12 + 0.88 * part)) } }
+      }
+      const key = JSON.stringify(body)
+      if (sent.get(id) === key) continue
+      sent.set(id, key)
+      sends.push(put(cfg, id, { ...body, dynamics: { duration: build.over ? 450 : 900 } }))
+    }
+    await Promise.all(sends)
+    step++
+    await sleepWhile(build.over ? 550 : 1000, () => build.active && !asking)
+  }
+  if (asking) return // the question takes the lights over as they are; it gives them back
+  if (build.result) {
+    const ok = build.result === 'success'
+    const rxy = xyOf(ok ? cfg.doneColor : cfg.alarmColor)
+    const all = ids.map(id => put(cfg, id, { color: { xy: rxy }, dimming: { brightness: Math.max(20, saved.get(id)?.brightness ?? 60) }, dynamics: { duration: 400 } }))
+    await Promise.all(all)
+    if (ok) await sleep(1600)
+    else for (let i = 0; i < 2; i++) { await sleep(500); await sameLevel(cfg, ids, rxy, 0.35, 400); await sleep(500); await sameLevel(cfg, ids, rxy, 1, 400) }
+  }
+  await giveBack(cfg, ids, 1200)
+}
+// The build now: { active, progress 0..1, over: taking longer than usual,
+// result once it ends: 'success' | 'failure' | … }. Called as it goes, every second.
+export const hueBuild = state => {
+  build = { ...build, ...state }
+  if (!build.active || buildRunning || asking) return
+  buildRunning = true
+  run(async () => { try { await buildEffect() } finally { buildRunning = false } })
+}
+
+// to try each from the settings, switched on or not: a question breathes 6 s,
+// a build fills in 8 s and ends green
 export const hueTest = kind => run(async () => {
   if (kind === 'alarm') return alarmEffect(true)
+  if (kind === 'build') {
+    if (asking || buildRunning) return
+    const start = Date.now()
+    build = { active: true, progress: 0, over: false, result: null }
+    const ticker = setInterval(() => {
+      const p = (Date.now() - start) / 8000
+      build = p >= 1 ? { active: false, progress: 1, over: false, result: 'success' } : { ...build, progress: p }
+      if (p >= 1) clearInterval(ticker)
+    }, 250)
+    return buildEffect(true)
+  }
   if (kind !== 'ask') return doneEffect(true)
   const cfg = usable()
   if (!cfg || asking) return

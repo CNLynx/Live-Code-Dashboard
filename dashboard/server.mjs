@@ -15,8 +15,11 @@ import os from 'node:os'
 import path from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
 import { fileURLToPath } from 'node:url'
-import { hueAlarm, hueAsks, hueConfig, hueDone, huePair, hueRooms, pairing, hueTest, setHueOptions } from './hue.mjs'
+import { hueAlarm, hueAsks, hueBuild, hueConfig, hueDone, huePair, hueRooms, pairing, hueTest, setHueOptions } from './hue.mjs'
 import { ensureWebView2, hasWebView2 } from './webview2.mjs'
+import { deploysFor, followDeploys, pokeDeploys } from './deploys.mjs'
+
+const PUSHED = /git(?:\.exe)?\s+push|gh(?:\.exe)?\s+pr\s+merge/
 
 const HOME = process.env.LIVE_CODE_HOME ?? path.join(os.homedir(), '.claude')
 const LEGACY_FEED = path.join(HOME, 'live-code-feed.json') // an older mod's one shared feed
@@ -504,8 +507,9 @@ const titled = (sid, snapshot) => {
   const said = prompts.get(sid)
   const told = notes.get(sid)
   const gone = hidden.get(sid)
-  if (!snapshot || (!title && !said && !told && !gone)) return snapshot
-  return { ...snapshot, session: { ...(snapshot.session ?? {}), ...(title ? { title } : {}), ...(said ? { prompts: said } : {}), ...(told ? { notes: told } : {}), ...(gone ? { hidden: gone } : {}) } }
+  const builds = snapshot?.session?.cwd ? deploysFor(snapshot.session.cwd) : []
+  if (!snapshot || (!title && !said && !told && !gone && builds.length === 0)) return snapshot
+  return { ...snapshot, session: { ...(snapshot.session ?? {}), ...(title ? { title } : {}), ...(said ? { prompts: said } : {}), ...(told ? { notes: told } : {}), ...(gone ? { hidden: gone } : {}), ...(builds.length ? { deploys: builds } : {}) } }
 }
 
 const refreshTitles = () => {
@@ -559,6 +563,8 @@ const ingest = (sid, feed) => {
     actions.set(a.id, a)
     fresh.push(a)
     append({ k: 'a', d: a })
+    // a push or a merge: the site's host builds now, so its state is looked at again soon
+    if (was === undefined && a.action === 'running' && PUSHED.test(JSON.stringify(a.detail ?? a.rows ?? ''))) pokeDeploys(feed.session?.cwd)
   }
 
   const fresher = []
@@ -1120,7 +1126,7 @@ const server = http.createServer((req, res) => {
         let msg = {}
         try { msg = JSON.parse(body) } catch {}
         if (msg.pair) void huePair(msg.address)
-        else if (msg.test === 'done' || msg.test === 'ask' || msg.test === 'alarm') hueTest(msg.test)
+        else if (msg.test === 'done' || msg.test === 'ask' || msg.test === 'alarm' || msg.test === 'build') hueTest(msg.test)
         // the stuck-alarm is the dashboard's to see; it tells the lights
         // (once, however many dashboard windows saw it)
         else if (msg.event === 'alarm') { if (Date.now() - lastHueAlarm > 10_000) { lastHueAlarm = Date.now(); hueAlarm() } }
@@ -1132,8 +1138,8 @@ const server = http.createServer((req, res) => {
     const cfg = hueConfig()
     hueRooms().catch(() => []).then(rooms => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({
-        paired: !!cfg?.appKey, enabled: cfg?.enabled !== false, onDone: cfg?.onDone !== false, onAsk: cfg?.onAsk !== false, onAlarm: cfg?.onAlarm !== false,
-        doneColor: cfg?.doneColor ?? '#8cf0be', askColor: cfg?.askColor ?? '#a78bfa', alarmColor: cfg?.alarmColor ?? '#f87171', style: cfg?.style ?? 'glow', pulses: cfg?.pulses ?? 2,
+        paired: !!cfg?.appKey, enabled: cfg?.enabled !== false, onDone: cfg?.onDone !== false, onAsk: cfg?.onAsk !== false, onAlarm: cfg?.onAlarm !== false, onBuild: cfg?.onBuild !== false,
+        doneColor: cfg?.doneColor ?? '#8cf0be', askColor: cfg?.askColor ?? '#a78bfa', alarmColor: cfg?.alarmColor ?? '#f87171', buildColor: cfg?.buildColor ?? '#f38020', style: cfg?.style ?? 'glow', pulses: cfg?.pulses ?? 2,
         chosen: cfg?.lights ?? [], rooms, pairing,
       }))
     })
@@ -1279,6 +1285,35 @@ loadLog()
 scan()
 setInterval(scan, SCAN_MS)
 setInterval(refreshTitles, TITLE_EVERY_MS)
+// the builds of each active chat's site (deploys.mjs): a change goes to the pages at once
+followDeploys(
+  () => [...sessions.values()].filter(s => s.id !== 'legacy' && hidden.get(s.id) === undefined).map(s => ({ sid: s.id, cwd: s.snapshot?.session?.cwd, at: s.mtime })),
+  sid => { const s = sessions.get(sid); if (s) broadcast({ type: 'feed', now: Date.now(), sid, snapshot: titled(sid, s.snapshot), actions: [], samples: [] }) },
+)
+// the Hue lights show the newest build running, as the dashboard's bar does, and how it ended
+let hueBuildOf = null // "repo|ref" of the build the lights show
+setInterval(() => {
+  const seen = new Map()
+  for (const s of sessions.values()) {
+    const cwd = s.snapshot?.session?.cwd
+    if (!cwd || hidden.get(s.id) !== undefined) continue
+    for (const d of deploysFor(cwd)) seen.set(`${d.repo}|${d.ref}|${d.sha}|${d.name}`, d)
+  }
+  const all = [...seen.values()]
+  const now = Date.now()
+  const running = all.filter(d => d.status !== 'completed').sort((a, b) => b.startedAt - a.startedAt)[0]
+  if (running) {
+    hueBuildOf = `${running.repo}|${running.ref}`
+    const typical = running.typicalMs || 60_000
+    const elapsed = now - running.startedAt
+    hueBuild({ active: true, progress: Math.min(0.96, elapsed / typical), over: elapsed > typical * 1.15, result: null })
+  } else if (hueBuildOf) {
+    const [repo, ref] = hueBuildOf.split('|')
+    const done = all.filter(d => d.repo === repo && d.ref === ref && d.status === 'completed').sort((a, b) => b.completedAt - a.completedAt)[0]
+    hueBuildOf = null
+    hueBuild({ active: false, result: done && now - done.completedAt < 5 * 60_000 ? done.conclusion : null })
+  }
+}, 1000)
 setInterval(refreshNotes, NOTES_EVERY_MS)
 setInterval(() => {
   for (const res of clients) res.write(': ping\n\n')

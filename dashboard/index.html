@@ -792,6 +792,27 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 .versions { display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--grid); font-size: 10.5px; line-height: 1.15; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .versions:empty, .versions:not(:has(span:not(:empty))) { display: none; }
 .versions .v-installed { color: var(--muted); }
+/* the site's host building it (deploys.mjs): the host's mark, what it does, a bar */
+.deploy-bar { display: grid; gap: 6px; margin: 0 0 10px; }
+.deploy-bar[hidden] { display: none; }
+.dp { --dp: #f38020; display: grid; grid-template-columns: 22px 1fr auto auto; align-items: center; gap: 4px 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--dp) 40%, transparent); background: color-mix(in srgb, var(--dp) 9%, var(--surface)); font-size: 13px; }
+.dp.ok { --dp: var(--good); }
+.dp.fail { --dp: var(--crit); }
+.dp .dp-logo { display: grid; place-items: center; }
+.dp .dp-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.dp .dp-text b { color: var(--ink); font-weight: 650; }
+.dp .dp-time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dp a { color: var(--muted); font-size: 12px; text-decoration: none; white-space: nowrap; }
+.dp a:hover { color: var(--ink); }
+.dp .dp-track { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--dp) 16%, transparent); overflow: hidden; }
+.dp .dp-track i { display: block; height: 100%; border-radius: 2px; background: var(--dp); box-shadow: 0 0 8px color-mix(in srgb, var(--dp) 70%, transparent); transition: width .9s linear; }
+.dp.over .dp-track i { width: 100% !important; background: repeating-linear-gradient(90deg, var(--dp) 0 14px, color-mix(in srgb, var(--dp) 35%, transparent) 14px 28px); background-size: 28px 100%; animation: dp-slide .8s linear infinite; }
+.dp.just { animation: dp-flash 1.6s ease-out 1; }
+.dp .dp-logo svg.spin-cloud { animation: dp-bob 1.6s ease-in-out infinite; }
+@keyframes dp-slide { to { background-position: 28px 0; } }
+@keyframes dp-flash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dp) 70%, transparent); } 100% { box-shadow: 0 0 0 14px transparent; } }
+@keyframes dp-bob { 50% { transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .dp .dp-track i, .dp.over .dp-track i, .dp.just, .dp .dp-logo svg { animation: none; transition: none; } }
 /* the same version: plain; GitHub has a newer one: a light red; this one is newer than GitHub's: a light green */
 .versions .v-latest { color: var(--ink-2); }
 .versions .v-latest.update { color: color-mix(in srgb, var(--crit) 55%, var(--ink)); font-weight: 650; cursor: pointer; }
@@ -869,6 +890,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
         <div class="row"><label style="flex:1"><input type="checkbox" id="set-hue-on-done"> A task is done</label><input type="color" id="set-hue-done-color" title="Its color"><button id="set-hue-done">▶</button></div>
         <div class="row"><label style="flex:1"><input type="checkbox" id="set-hue-on-ask"> A question waits (until answered)</label><input type="color" id="set-hue-ask-color" title="Its color"><button id="set-hue-ask">▶</button></div>
         <div class="row"><label style="flex:1"><input type="checkbox" id="set-hue-on-alarm"> Claude seems stuck</label><input type="color" id="set-hue-alarm-color" title="Its color"><button id="set-hue-alarm">▶</button></div>
+        <div class="row"><label style="flex:1" title="Cloudflare, Vercel or Netlify building what a chat pushed: a lightstrip fills from its start to its end, single lights one after the other in the order listed below"><input type="checkbox" id="set-hue-on-build"> The site builds (a progress bar)</label><input type="color" id="set-hue-build-color" title="Its color"><button id="set-hue-build">▶</button></div>
         <h4>How</h4>
         <select id="set-hue-style"><option value="glow">As in the dashboard: done glows up and fades (3 s), a question breathes, the alarm flares 4×</option><option value="pulse">Pulse: dim and back, a number of times</option></select>
         <label class="vol" id="hue-pulses-row">Pulses <input type="range" id="set-hue-pulses" min="1" max="5" step="1"><span class="num" id="set-hue-pulses-n"></span></label>
@@ -952,6 +974,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
         <span class="pos" id="film-pos"></span>
         <button id="film-close" title="Back to live">✕ Live</button>
       </div>
+      <div class="deploy-bar" id="deploy-bar" hidden></div>
       <div class="live-head" id="live-head"><span class="muted">Waiting for Claude to touch a file…</span></div>
       <div class="path" id="live-path"></div>
       <div class="why" id="live-why" hidden></div>
