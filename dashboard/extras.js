@@ -19,8 +19,10 @@ const showVersion = () => fetch('/about').then(r => r.json()).then(a => {
   const checked = a.latestCheckedAt ? new Date(a.latestCheckedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
   $('#ver-installed').textContent = `installed v${a.version}`
   const el = $('#ver-latest')
-  el.textContent = !a.latest ? 'latest: checking…' : up ? `v${a.latest} available ↑` : `latest v${a.latest} ✓`
-  el.className = `v-latest${up ? ' update' : !a.latest ? ' unknown' : ''}`
+  // (newer than GitHub: a version not released yet, or one GitHub does not show yet)
+  const ahead = a.latest && newer(a.version, a.latest)
+  el.textContent = !a.latest ? 'latest: checking…' : up ? `v${a.latest} available ↑` : ahead ? `GitHub v${a.latest} · yours is newer` : `latest v${a.latest} ✓`
+  el.className = `v-latest${up ? ' update' : !a.latest || ahead ? ' unknown' : ''}`
   el.title = `Newest on GitHub: ${a.latest ? `v${a.latest}` : 'not known yet'}${checked ? ` (checked ${checked})` : ''}${up ? '\nClick to install it' : ''}`
   el.onclick = up ? () => startUpdate() : null
   drawTiles()

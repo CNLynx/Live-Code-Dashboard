@@ -25,14 +25,21 @@ const LOG = process.env.LIVE_CODE_LOG ?? path.join(HOME, 'live-code-log.jsonl')
 const PORT = Number(process.env.LIVE_CODE_PORT ?? 4477)
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(HERE, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version } catch { return '' } })()
-// the newest published version (GitHub), looked up at most hourly (after a failed
-// look, again in ten minutes), for the dashboard to show beside the installed one
+// the newest published version (GitHub), looked up at most hourly, for the
+// dashboard to show beside the installed one. Through GitHub's API, not its raw
+// file host, whose copies lag minutes behind a release; a failed look, or one
+// that still names an older version than the one running (a release only just
+// out), is tried again in five minutes.
 const latest = { version: '', at: 0, checkedAt: 0 }
 const checkLatest = async () => {
-  if (Date.now() - latest.at < (latest.version ? 3600e3 : 600e3)) return
+  const settled = latest.version && !newerVersion(VERSION, latest.version)
+  if (Date.now() - latest.at < (settled ? 3600e3 : 300e3)) return
   latest.at = Date.now()
   try {
-    const r = await fetch('https://raw.githubusercontent.com/CNLynx/Live-Code-Dashboard/main/.claude-plugin/plugin.json', { signal: AbortSignal.timeout(5000) })
+    const r = await fetch('https://api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json?ref=main', {
+      headers: { Accept: 'application/vnd.github.raw+json', 'User-Agent': 'live-code-dashboard' },
+      signal: AbortSignal.timeout(5000),
+    })
     if (r.ok) { latest.version = String((await r.json()).version ?? ''); latest.checkedAt = Date.now() }
   } catch {}
 }
