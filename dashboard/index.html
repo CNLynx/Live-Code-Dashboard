@@ -425,6 +425,20 @@ main.gliding > .prompt-card ~ * { will-change: transform; contain: layout paint;
 .composer textarea:focus { border-color: color-mix(in srgb, var(--s1) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--s1) 20%, transparent); }
 .composer .send { border: 0; border-radius: 10px; padding: 9px 16px; font-weight: 650; cursor: pointer; color: #0b0b12; background: linear-gradient(135deg, var(--s1), var(--s7)); white-space: nowrap; }
 .composer .send:disabled { opacity: .45; cursor: default; }
+.composer .mic { border: 1px solid var(--ring); border-radius: 10px; padding: 8px 11px; cursor: pointer; background: var(--surface-2); font-size: 15px; line-height: 1; }
+.composer .mic[hidden] { display: none; }
+.composer .mic.on { border-color: var(--bad, #f87171); background: color-mix(in srgb, #f87171 18%, transparent); animation: mic-pulse 1.1s ease-in-out infinite; }
+@keyframes mic-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, #f87171 30%, transparent), 0 0 18px color-mix(in srgb, #f87171 45%, transparent); } }
+/* the Stream Deck's talk key: what is heard, live */
+.dictation { position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 20px); opacity: 0; z-index: 80; max-width: min(720px, calc(100vw - 32px)); display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 14px; background: var(--menu-bg, var(--surface)); border: 1px solid var(--ring); box-shadow: 0 16px 48px rgba(0,0,0,.45); transition: opacity .25s, transform .25s; pointer-events: none; }
+.dictation.show { opacity: 1; transform: translate(-50%, 0); }
+.dictation .dot { width: 12px; height: 12px; border-radius: 50%; background: #f87171; flex: none; animation: mic-dot 1s ease-in-out infinite; }
+.dictation.sent .dot { background: var(--good, #8cf0be); animation: none; }
+.dictation.empty .dot, .dictation.failed .dot { background: var(--muted); animation: none; }
+@keyframes mic-dot { 50% { transform: scale(1.35); opacity: .6; } }
+.dictation .what { font-size: 11px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.dictation .heard { font-size: 15px; color: var(--ink); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+@media (prefers-reduced-motion: reduce) { .composer .mic.on, .dictation .dot { animation: none; } }
 .pc-hint { margin-top: 6px; color: var(--muted); font-size: 12px; min-height: 16px; }
 .pc-hint.ok { color: var(--good-ink); }
 .pc-hint.err { color: var(--del-ink); }
@@ -615,6 +629,17 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 .hue-lights { display: grid; gap: 6px; max-height: 220px; overflow: auto; }
 .hue-lights .room { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .hue-lights label { padding-left: 4px; }
+.deck-prompts { display: grid; gap: 8px; max-height: 360px; overflow: auto; }
+.deck-prompt { display: grid; grid-template-columns: 40px 1fr auto; gap: 6px; align-items: start; padding: 8px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--ring); }
+.deck-prompt input, .deck-prompt textarea { min-width: 0; padding: 5px 7px; border-radius: 7px; border: 1px solid var(--ring); background: var(--page); color: var(--ink); font: inherit; font-size: 13px; }
+.deck-prompt .icon { text-align: center; }
+.deck-prompt textarea { grid-column: 1 / -1; resize: vertical; min-height: 44px; }
+.deck-prompt .tools { display: flex; gap: 2px; }
+.deck-prompt .tools button { border: 0; background: none; color: var(--ink-2); cursor: pointer; padding: 3px 5px; border-radius: 6px; }
+.deck-prompt .tools button:hover { background: var(--surface-3); color: var(--ink); }
+.deck-prompt .num { grid-column: 1 / -1; font-size: 11px; color: var(--muted); margin-bottom: -2px; }
+.deck-add { justify-self: start; border: 1px dashed var(--ring); background: none; color: var(--ink-2); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.deck-add:disabled { opacity: .4; cursor: default; }
 .hue-pair input { flex: 1; min-width: 0; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--ring); background: var(--surface-2); color: var(--ink); font: inherit; }
 .hue-pair[hidden], #hue-pulses-row[hidden] { display: none; }
 /* not paired yet: just the pairing */
@@ -768,7 +793,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
     <button id="set-btn" class="btn" title="Settings: sound, voice, lights, questions, alerts">⚙ <span id="sound-mark"></span></button>
     <div class="pop set" id="set-pop" hidden>
       <nav class="set-tabs" id="set-tabs">
-        <button data-tab="sound">🔔 Sound</button><button data-tab="voice">🗣 Voice <span id="voice-eq"></span></button><button data-tab="lights">💡 Lights</button><button data-tab="questions">❓ Questions</button><button data-tab="alerts">⚠ Alerts</button><button data-tab="display">🎨 Display</button>
+        <button data-tab="sound">🔔 Sound</button><button data-tab="voice">🗣 Voice <span id="voice-eq"></span></button><button data-tab="lights">💡 Lights</button><button data-tab="questions">❓ Questions</button><button data-tab="alerts">⚠ Alerts</button><button data-tab="display">🎨 Display</button><button data-tab="deck">🎛 Deck</button>
       </nav>
 
       <section class="set-pane" data-pane="sound">
@@ -829,6 +854,14 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
         <div class="hint">For the context window and the 5h / 7d limits.</div>
       </section>
 
+      <section class="set-pane" data-pane="deck">
+        <h4>Stream Deck prompt keys</h4>
+        <div class="hint">Up to 14, on the deck's Prompts page; the first one also sits on the main page. A key sends its text to the chat the deck follows. Saved as you type.</div>
+        <div id="deck-prompts" class="deck-prompts"></div>
+        <button id="deck-add" class="deck-add">＋ Add a prompt key</button>
+        <h4>Talk key</h4>
+        <div class="hint">On the deck's main page (bottom left): hold it and speak, let go and it is sent. This window does the listening, so it has to be open; the first time, allow the microphone.</div>
+      </section>
       <section class="set-pane" data-pane="display">
         <label class="big"><input type="checkbox" id="set-open-with-claude"> Open the dashboard when Claude starts</label>
         <div class="hint">With the first chat, if no dashboard window is open yet; an open one is left where it is.</div>
@@ -855,6 +888,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
       <button class="pc-link" id="pc-turn">Show what Claude did for it ↓</button>
       <form class="composer" id="composer" autocomplete="off">
         <textarea id="pc-input" rows="1" placeholder="Write to this chat…"></textarea>
+        <button type="button" class="mic" id="pc-mic" title="Dictate: click, speak, click again" hidden>🎤</button>
         <button type="submit" class="send" id="pc-send" title="Send (Enter) · new line: Shift+Enter">Send ↵</button>
       </form>
       <div class="pc-hint" id="pc-hint"></div>
@@ -2795,7 +2829,9 @@ const reloadWhenSafe = () => {
 let es = null
 const connect = () => {
   es?.close()
-  es = new EventSource('/events' + (store.get('lc.answers') !== 'off' ? '?answers=1' : ''))
+  // (?mic=1: the main window listens for the Stream Deck's talk key)
+  const q = [store.get('lc.answers') !== 'off' ? 'answers=1' : '', !TILE_MODE && (window.SpeechRecognition || window.webkitSpeechRecognition) ? 'mic=1' : ''].filter(Boolean).join('&')
+  es = new EventSource('/events' + (q ? '?' + q : ''))
   const conn = $('#conn')
   es.onopen = () => { S.connected = true; conn.className = 'conn on'; conn.querySelector('.label').textContent = 'live' }
   es.onerror = () => { S.connected = false; conn.className = 'conn off'; conn.querySelector('.label').textContent = 'reconnecting…' }
@@ -2833,6 +2869,9 @@ const connect = () => {
       applyShared(msg.prefs)
     } else if (msg.type === 'reload') {
       reloadWhenSafe()
+    } else if (msg.type === 'dictate' || msg.type === 'dictation') {
+      // the Stream Deck's talk key (extras.js)
+      window.onDictation?.(msg)
     } else if (msg.type === 'view') {
       // a chat key pressed on the Stream Deck
       if (S.sessions.has(msg.sid)) selectSession(msg.sid)

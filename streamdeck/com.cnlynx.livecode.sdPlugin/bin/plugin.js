@@ -227,8 +227,12 @@ const onLive = msg => {
     }
   } else if (msg.type === 'view') {
     if (live.sessions.has(msg.sid)) focus = msg.sid
+  } else if (msg.type === 'dictation') {
+    // what the dashboard hears while the talk key is held
+    dictation = { id: msg.id, sid: msg.sid, state: msg.state, text: msg.text ?? '', at: Date.now() }
   }
 }
+let dictation = null // { id, sid, state: 'asking' | 'listening' | 'finishing' | 'sent' | 'empty' | 'failed', text, at }
 
 // ════════════════════════════════════════════════════════════════════════════
 // what the keys show
@@ -349,6 +353,7 @@ const draw = (col, row) => {
   if (ask && page !== 'main') page = 'main'
   if (page === 'chats') return chatsPage(col, row, g, sid)
   if (page === 'more') return morePage(col, row, g, sid, snap)
+  if (page === 'prompts') return promptsPage(col, row, g, snap)
 
   // ── top row: the three busiest chats, the folder of all, the way back ──
   if (row === 0) {
@@ -425,17 +430,11 @@ const draw = (col, row) => {
     }
   }
 
-  // ── bottom row: prompts, stop, dashboard ──
+  // ── bottom row: talk, the first prompt, all prompts, stop, more ──
   if (row === 2) {
-    if (col <= 2) {
-      const p = config().prompts?.[col]
-      if (!p) return key('', { dim: true, edge: 0.1 })
-      const fl = flashKey.get(`p${col}`)
-      if (fl && Date.now() < fl.until) return key(text(72, 70, fl.text, { size: 20, weight: 700, fill: fl.color }) + text(72, 98, fl.sub ?? '', { size: 13, weight: 400, fill: INK2 }), { accent: fl.color, glow: 0.7 })
-      const can = !!snap?.session?.canReceive
-      return key(text(72, 66, p.icon ?? '▶', { size: 40, weight: 700, fill: can ? '#8b9cff' : MUTED }) + lines(wrap(p.label, 11, 2), 72, 108, 20, { size: 17, weight: 650, fill: can ? INK : MUTED }),
-        { accent: '#8b9cff', glow: g, edge: can ? 0.35 : 0.12, dim: !can })
-    }
+    if (col === 0) return talkKey(snap, g)
+    if (col === 1) return promptKey(0, snap, g)
+    if (col === 2) return promptsFolderKey(g)
     if (col === 3) {
       const busy = isBusy(snap)
       const armed = Date.now() < stopArmedUntil
@@ -457,6 +456,59 @@ const draw = (col, row) => {
     }
   }
   return key('', { dim: true })
+}
+
+// ── prompt keys: the first on the main page, all of them on the Prompts page ──
+const promptKey = (i, snap, g) => {
+  const p = config().prompts?.[i]
+  if (!p) return key(text(72, 76, '+', { size: 40, weight: 300, fill: MUTED }) + text(72, 116, 'in Settings', { size: 12, weight: 400, fill: MUTED }), { dim: true, edge: 0.1 })
+  const fl = flashKey.get(`p${i}`)
+  if (fl && Date.now() < fl.until) return key(text(72, 70, fl.text, { size: 20, weight: 700, fill: fl.color }) + text(72, 98, fl.sub ?? '', { size: 13, weight: 400, fill: INK2 }), { accent: fl.color, glow: 0.7 })
+  const can = !!snap?.session?.canReceive
+  return key(text(72, 66, p.icon ?? '▶', { size: 40, weight: 700, fill: can ? '#8b9cff' : MUTED }) + lines(wrap(p.label, 11, 2), 72, 108, 20, { size: 17, weight: 650, fill: can ? INK : MUTED }),
+    { accent: '#8b9cff', glow: g, edge: can ? 0.35 : 0.12, dim: !can })
+}
+const promptsFolderKey = g => {
+  const n = (config().prompts ?? []).length
+  const tiles = Array.from({ length: 6 }, (_, i) => `<rect x="${38 + (i % 3) * 24}" y="${30 + Math.floor(i / 3) * 24}" width="18" height="18" rx="4" fill="${i < n ? '#8b9cff' : '#ffffff'}" fill-opacity="${i < n ? 0.85 : 0.1}"/>`).join('')
+  return key(tiles + text(72, 106, 'Prompts', { size: 18, weight: 700 }) + text(72, 128, `${n} key${n === 1 ? '' : 's'}`, { size: 13, weight: 400, fill: INK2 }), { accent: '#8b9cff', glow: g, edge: 0.35 })
+}
+const promptsPage = (col, row, g, snap) => {
+  if (col === 4 && row === 0) return pageBack('Main', g)
+  const slot = row * 5 + col - (row > 0 ? 1 : 0)
+  return promptKey(slot, snap, g)
+}
+
+// ── the talk key: held, the dashboard listens; let go, it is sent ──
+const MIC = '#f87171'
+const micIcon = (color, size = 1) => `<g transform="translate(72 ${46}) scale(${size})"><rect x="-11" y="-24" width="22" height="36" rx="11" fill="${color}"/><path d="M-19 0 a19 19 0 0 0 38 0" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round"/><line x1="0" y1="19" x2="0" y2="27" stroke="${color}" stroke-width="4" stroke-linecap="round"/></g>`
+const talkKey = (snap, g) => {
+  const d = dictation && Date.now() - d_at() < 30_000 ? dictation : null
+  const can = !!snap?.session?.canReceive
+  if (d && (d.state === 'asking' || d.state === 'listening' || d.state === 'finishing')) {
+    const heard = d.text ? wrap(d.text.slice(-60), 12, 3) : [d.state === 'asking' ? 'starting…' : 'speak now…']
+    return key(`<circle cx="22" cy="22" r="7" fill="${MIC}" opacity="${0.45 + 0.55 * breath(700)}"/>` + text(36, 27, d.state === 'finishing' ? 'SENDING' : 'LISTEN', { size: 13, weight: 750, fill: MIC, anchor: 'start' }) + lines(heard, 72, 66, 22, { size: 16, weight: 600, fill: d.text ? INK : INK2 }),
+      { accent: MIC, glow: 0.35 + 0.45 * breath(700), edge: 0.8 })
+  }
+  if (d && Date.now() - d.at < 2200 && (d.state === 'sent' || d.state === 'empty' || d.state === 'failed')) {
+    const [t, sub, c] = d.state === 'sent' ? ['✓ sent', nameOf(live.sessions.get(d.sid)).slice(0, 14), GOOD] : d.state === 'empty' ? ['nothing', 'heard', MUTED] : ['no mic', (d.text || 'dashboard?').slice(0, 14), BAD]
+    return key(text(72, 70, t, { size: 22, weight: 700, fill: c }) + text(72, 98, sub, { size: 13, weight: 400, fill: INK2 }), { accent: c, glow: 0.6 })
+  }
+  return key(micIcon(can ? MIC : MUTED) + text(72, 112, 'Talk', { size: 17, weight: 700, fill: can ? INK : MUTED }) + text(72, 131, 'hold & speak', { size: 12, weight: 400, fill: INK2 }), { accent: MIC, glow: g, edge: can ? 0.35 : 0.12, dim: !can })
+}
+const d_at = () => dictation?.at ?? 0
+const talkStart = async context => {
+  const sid = focusId()
+  const snap = sid ? live.sessions.get(sid) : null
+  if (!sid || !snap?.session?.canReceive) { sdSend({ event: 'showAlert', context }); return }
+  dictation = { id: null, sid, state: 'asking', text: '', at: Date.now() }
+  const ok = await post({ sid, kind: 'dictate', state: 'start' })
+  // no dashboard window to listen: it opens, and the next press works
+  if (!ok) { dictation = { id: null, sid, state: 'failed', text: 'open dashboard', at: Date.now() }; openDashboard() }
+}
+const talkStop = () => {
+  if (!dictation || (dictation.state !== 'asking' && dictation.state !== 'listening')) return
+  void post({ sid: dictation.sid, kind: 'dictate', state: 'stop' })
 }
 
 // ── an action's progress, timed as the dashboard replays it ──
@@ -525,7 +577,7 @@ const idleFor = s => {
 }
 
 // ── pages: the deck switches what its keys show, no Stream Deck pages needed ──
-let page = 'main' // 'main' | 'chats' | 'more'
+let page = 'main' // 'main' | 'chats' | 'more' | 'prompts'
 let chatOffset = 0
 const CHATS_PER_PAGE = 13 // fifteen keys, less "back" and "next"
 const allChats = () => [...live.sessions.entries()]
@@ -791,6 +843,13 @@ const press = async (context, s, long) => {
     return
   }
 
+  // ── the Prompts page ──
+  if (page === 'prompts' && !ask) {
+    if (row === 0 && col === 4) { page = 'main'; return }
+    await sendPrompt(context, row * 5 + col - (row > 0 ? 1 : 0), sid, snap)
+    return
+  }
+
   // ⌂ Back: no profile named sends the deck back to the one shown before (the main page)
   if (row === 0 && col === 4) { log('back to the previous profile on', s.device); sdSend({ event: 'switchToProfile', context: PLUGIN_UUID, device: s.device, payload: {} }); return }
   if (row === 0 && col === 3) { page = 'chats'; chatOffset = 0; return }
@@ -815,14 +874,9 @@ const press = async (context, s, long) => {
     return
   }
   if (row === 1) { if (long) openDashboard(); else if (sid) await post({ sid, kind: 'view' }); return }
-  if (row === 2 && col <= 2) {
-    const p = config().prompts?.[col]
-    if (!p || !sid || !snap?.session?.canReceive) { sdSend({ event: 'showAlert', context }); return }
-    const ok = await post({ sid, kind: 'prompt', text: p.text })
-    if (ok) flash(`p${col}`, '✓ sent', GOOD, isBusy(snap) ? 'with the next step' : nameOf(snap).slice(0, 14))
-    else { flash(`p${col}`, 'not sent', BAD, 'server?'); sdSend({ event: 'showAlert', context }) }
-    return
-  }
+  // (the talk key, bottom left, works on press and release: see onDeck)
+  if (row === 2 && col === 1) { await sendPrompt(context, 0, sid, snap); return }
+  if (row === 2 && col === 2) { page = 'prompts'; return }
   if (row === 2 && col === 3) {
     if (!sid || !isBusy(snap)) return
     // two presses within three seconds: one stray press stops nothing
@@ -833,11 +887,21 @@ const press = async (context, s, long) => {
     return
   }
 }
+const sendPrompt = async (context, i, sid, snap) => {
+  const p = config().prompts?.[i]
+  if (!p || !sid || !snap?.session?.canReceive) { sdSend({ event: 'showAlert', context }); return }
+  const ok = await post({ sid, kind: 'prompt', text: p.text })
+  if (ok) flash(`p${i}`, '✓ sent', GOOD, isBusy(snap) ? 'with the next step' : nameOf(snap).slice(0, 14))
+  else { flash(`p${i}`, 'not sent', BAD, 'server?'); sdSend({ event: 'showAlert', context }) }
+}
+// the talk key: bottom left of the main page, while no question takes the page
+const isTalkKey = s => s && page === 'main' && s.row === 2 && s.col === 0 && !pendingAsk() && live.connected
 const openWall = () => {
   const key = live.key ?? readKey()
   try { spawn('cmd.exe', ['/c', 'start', '', `http://127.0.0.1:${key?.port ?? 4477}/wall`], { detached: true, stdio: 'ignore', windowsHide: true }).unref() } catch (e) { log('open wall', e.message) }
 }
 
+let talking = null // the talk key's context while it is held
 const onDeck = msg => {
   const { event, context, action, device, payload } = msg
   if (event === 'willAppear') {
@@ -855,9 +919,11 @@ const onDeck = msg => {
     syncAnswering()
   } else if (event === 'keyDown') {
     pressedAt.set(context, Date.now())
+    if (isTalkKey(slots.get(context))) { talking = context; talkStart(context).catch(e => log('talk', e.stack || e)) }
   } else if (event === 'keyUp') {
     const long = Date.now() - (pressedAt.get(context) ?? Date.now()) > 600
     pressedAt.delete(context)
+    if (talking === context) { talking = null; talkStop(); return }
     if (action === OPEN) { log('to the Live Code profile on', device); sdSend({ event: 'switchToProfile', context: PLUGIN_UUID, device, payload: { profile: PROFILE } }); return }
     const s = slots.get(context)
     if (s) press(context, s, long).catch(e => log('press', e.stack || e))

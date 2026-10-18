@@ -822,3 +822,141 @@ setInterval(() => {
     raiseAlarm(s.id, stuck)
   }
 }, 1000)
+
+// ── dictation: speech into a prompt ──
+// Edge's (and Chrome's) speech recognition, in the person's language. The
+// Stream Deck's talk key: held, this window listens and the deck shows what it
+// hears; let go, the server sends it to the chat. The 🎤 beside "Send" types
+// into the box instead, for a look before sending.
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
+const listen = ({ onText, onEnd, onError }) => {
+  const r = new Recognition()
+  r.lang = navigator.language || 'en-US'
+  r.interimResults = true
+  r.continuous = true
+  let done = '', heard = ''
+  r.onresult = e => {
+    let interim = ''
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript
+      if (e.results[i].isFinal) done += (done && !/\s$/.test(done) ? ' ' : '') + t.trim()
+      else interim += t
+    }
+    heard = `${done} ${interim}`.replace(/\s+/g, ' ').trim()
+    onText?.(heard)
+  }
+  r.onerror = e => { if (e.error !== 'no-speech' && e.error !== 'aborted') onError?.(e.error) }
+  // the last words still being worked out count too, when the key is let go
+  r.onend = () => onEnd?.(heard || done)
+  r.start()
+  return r
+}
+
+// what the deck's talk key hears, shown here too
+const dictationBox = (() => {
+  const el = document.createElement('div')
+  el.className = 'dictation'
+  el.innerHTML = '<span class="dot"></span><div><div class="what"></div><div class="heard"></div></div>'
+  document.body.append(el)
+  let hideAt = 0
+  return (state, text, chat) => {
+    if (TILE_MODE) return
+    el.className = `dictation show ${state}`
+    el.querySelector('.what').textContent = state === 'listening' ? `🎤 Listening · to ${chat}` : state === 'finishing' ? 'Finishing…' : state === 'sent' ? `✓ Sent to ${chat}` : state === 'failed' ? 'Microphone' : 'Nothing heard'
+    el.querySelector('.heard').textContent = text || (state === 'listening' ? 'Speak now…' : '')
+    clearTimeout(hideAt)
+    if (state !== 'listening' && state !== 'finishing') hideAt = setTimeout(() => el.classList.remove('show'), state === 'sent' ? 2600 : 3200)
+  }
+})()
+
+let deckEar = null // { id, rec }
+const chatTitle = sid => S.sessions.get(sid)?.snap?.session?.title || 'the chat'
+window.onDictation = msg => {
+  if (msg.type === 'dictation') { dictationBox(msg.state, msg.text, chatTitle(msg.sid)); return }
+  if (!Recognition) return
+  if (msg.state === 'start') {
+    try { deckEar?.rec.abort() } catch {}
+    const id = msg.id
+    let last = 0, pending = null
+    const tell = (text, extra = {}) => post('/dictation', { id, text, ...extra }).catch(() => {})
+    try {
+      const rec = listen({
+        // at most every 150 ms, the newest words to the deck
+        onText: text => { pending = text; const now = Date.now(); if (now - last > 150) { last = now; tell(text); pending = null } },
+        onEnd: text => { tell(text ?? pending ?? '', { final: true }); if (deckEar?.id === id) deckEar = null },
+        onError: error => tell('', { error: error === 'not-allowed' ? 'Allow the microphone for the dashboard' : error }),
+      })
+      deckEar = { id, rec }
+    } catch (e) { tell('', { error: String(e.message || e) }) }
+  } else if (msg.state === 'stop' && deckEar?.id === msg.id) {
+    try { deckEar.rec.stop() } catch {}
+  }
+}
+
+// the 🎤 beside "Send": into the box, to look over before sending
+if (Recognition && !TILE_MODE) {
+  const mic = $('#pc-mic'), input = $('#pc-input')
+  mic.hidden = false
+  let rec = null, before = ''
+  mic.onclick = () => {
+    if (rec) { rec.stop(); return }
+    before = input.value.trim()
+    mic.classList.add('on')
+    const show = text => { input.value = [before, text].filter(Boolean).join(' '); input.dispatchEvent(new Event('input', { bubbles: true })) }
+    try {
+      rec = listen({
+        onText: show,
+        onEnd: text => { show(text); rec = null; mic.classList.remove('on'); input.focus() },
+        onError: error => { if (error === 'not-allowed') dictationBox('failed', 'Allow the microphone for the dashboard (the lock icon in the address bar, or Edge settings → Site permissions).', '') },
+      })
+    } catch { rec = null; mic.classList.remove('on') }
+  }
+}
+
+// ── the Stream Deck's prompt keys, edited here (kept by the server in live-code-deck.json) ──
+const DECK_MAX = 14
+let deckPrompts = []
+const drawDeckPrompts = () => {
+  const box = $('#deck-prompts')
+  box.innerHTML = deckPrompts.map((p, i) => `<div class="deck-prompt" data-i="${i}">
+    <div class="num">Key ${i + 1}${i === 0 ? ' · also on the main page' : ''}</div>
+    <input class="icon" data-f="icon" maxlength="2" value="${esc(p.icon ?? '▶')}" title="One character or emoji">
+    <input data-f="label" maxlength="24" placeholder="Label on the key" value="${esc(p.label ?? '')}">
+    <span class="tools"><button data-m="up" title="Earlier">↑</button><button data-m="down" title="Later">↓</button><button data-m="del" title="Remove">✕</button></span>
+    <textarea data-f="text" placeholder="What the key sends to Claude">${esc(p.text ?? '')}</textarea>
+  </div>`).join('')
+  $('#deck-add').disabled = deckPrompts.length >= DECK_MAX
+}
+let deckSaveAt = 0
+const saveDeckPrompts = () => {
+  clearTimeout(deckSaveAt)
+  deckSaveAt = setTimeout(() => post('/deck-prompts', { prompts: deckPrompts }).catch(() => {}), 500)
+}
+const loadDeckPrompts = async () => {
+  try { deckPrompts = (await (await fetch('/deck-prompts', { headers: { 'X-Live-Code-Secret': SECRET } })).json()).prompts ?? [] } catch { deckPrompts = [] }
+  drawDeckPrompts()
+}
+if (!TILE_MODE) {
+  $('#deck-prompts').addEventListener('input', e => {
+    const row = e.target.closest('.deck-prompt'), f = e.target.dataset.f
+    if (!row || !f) return
+    deckPrompts[Number(row.dataset.i)][f] = e.target.value
+    saveDeckPrompts()
+  })
+  $('#deck-prompts').addEventListener('click', e => {
+    const m = e.target.dataset?.m, row = e.target.closest('.deck-prompt')
+    if (!m || !row) return
+    const i = Number(row.dataset.i)
+    if (m === 'del') deckPrompts.splice(i, 1)
+    else { const j = m === 'up' ? i - 1 : i + 1; if (j < 0 || j >= deckPrompts.length) return; [deckPrompts[i], deckPrompts[j]] = [deckPrompts[j], deckPrompts[i]] }
+    drawDeckPrompts()
+    saveDeckPrompts()
+  })
+  $('#deck-add').onclick = () => {
+    if (deckPrompts.length >= DECK_MAX) return
+    deckPrompts.push({ icon: '▶', label: '', text: '' })
+    drawDeckPrompts()
+    $('#deck-prompts').lastElementChild?.querySelector('[data-f="label"]')?.focus()
+  }
+  void loadDeckPrompts()
+}

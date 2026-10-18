@@ -63,9 +63,13 @@ The plugin turns a 15-key Stream Deck into a Claude console:
 |---|---|
 | top | your chats (switch with a press), ⌂ back |
 | middle | what Claude does now, turn time, context, 5-hour limit, cost |
-| bottom | three prompt keys ("Go on", "Test it", "Sum up"; editable), ■ stop, open the dashboard |
+| bottom | 🎤 **Talk** (hold and speak), your first prompt key, **Prompts** (a page of up to 14 prompt keys), ■ stop, more |
 
-When Claude asks something, the keys turn into the question and its answers: answer with one press. When a task is done, the deck glows. The setup installs it automatically when the Stream Deck app is on your PC (confirm once in the Stream Deck app). Edit the prompt keys in `~/.claude/live-code-deck.json`.
+- **Talk:** hold the key and speak; the deck shows what it hears, live. Let go and it is sent to the chat the deck follows. The dashboard window does the listening (Edge's speech recognition, in your language), so it has to be open; the first time, allow the microphone there. The 🎤 next to **Send** in the dashboard dictates into the box instead, to look over before sending.
+- **Prompt keys:** set them up in the dashboard: ⚙ Settings → 🎛 Deck (icon, label, the text it sends, order).
+- When Claude asks something, the keys turn into the question and its answers: answer with one press. When a task is done, the deck glows.
+
+The setup installs the plugin automatically when the Stream Deck app is on your PC (confirm once in the Stream Deck app).
 
 ### Philips Hue
 
@@ -211,9 +215,13 @@ Das Plugin macht aus einem Stream Deck mit 15 Tasten eine Claude-Konsole:
 - **Oben:** deine Chats.
 - **Mitte:** was Claude gerade tut, Zeit, Kontext, 5h-Limit und Kosten.
 - **Unten:**
-  - drei Prompt-Tasten („Weiter“, „Teste es“, „Fazit“, anpassbar in `~/.claude/live-code-deck.json`);
+  - 🎤 **Sprechen:** gedrückt halten und reden, das Deck zeigt live, was es hört; loslassen schickt es an den Chat. Das Zuhören macht das Dashboard-Fenster (Spracherkennung von Edge), es muss also offen sein; beim ersten Mal das Mikrofon erlauben;
+  - deine erste Prompt-Taste;
+  - **Prompts:** eine Seite mit bis zu 14 Prompt-Tasten, einzurichten im Dashboard unter ⚙ Einstellungen → 🎛 Deck;
   - Stopp;
-  - Dashboard öffnen.
+  - Mehr.
+
+Im Dashboard selbst diktiert das 🎤 neben **Send** in das Textfeld, zum Nachlesen vor dem Senden.
 
 Fragt Claude etwas, werden die Tasten zur Frage mit den Antworten, und du antwortest mit einem Tastendruck. Ist eine Aufgabe fertig, leuchtet das Deck. Das Setup installiert das Plugin automatisch, wenn die Stream-Deck-App da ist; du bestätigst einmal in der App.
 

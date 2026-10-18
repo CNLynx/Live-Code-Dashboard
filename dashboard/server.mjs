@@ -546,6 +546,7 @@ const ORIGINS = new Set([`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`]
 const HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`])
 const INBOX_KEEP_MS = 60 * 60_000
 const MAX_TEXT = 20_000
+const DECK_PROMPTS = 14 // the Stream Deck's prompt page: fifteen keys, less "back"
 
 const readBody = (req, limit) =>
   new Promise((resolve, reject) => {
@@ -625,9 +626,37 @@ const handleSend = async (req, res) => {
     return
   }
 
+  // the Stream Deck's talk key: held, a dashboard window listens; let go, what it heard is sent
+  if (kind === 'dictate') {
+    const state = body.state
+    if (state === 'start') {
+      const ear = [...listeners].at(-1)
+      if (!ear) { reply(409, { error: 'no dashboard window open to listen' }); return }
+      clearTimeout(dictation?.timer)
+      dictation = { id: crypto.randomUUID(), sid, state: 'listening', text: '', ear, at: Date.now() }
+      send(ear, { type: 'dictate', id: dictation.id, state: 'start' })
+      tellDictation()
+      reply(200, { ok: true, id: dictation.id })
+    } else if (state === 'stop' && dictation?.state === 'listening') {
+      dictation.state = 'finishing'
+      send(dictation.ear, { type: 'dictate', id: dictation.id, state: 'stop' })
+      // what was heard so far goes, if the window says no more within a few seconds
+      dictation.timer = setTimeout(() => finishDictation(dictation?.id, dictation?.text), 6000)
+      tellDictation()
+      reply(200, { ok: true })
+    } else reply(200, { ok: false })
+    return
+  }
+
   const text = typeof body?.text === 'string' ? body.text.trim() : ''
   if (kind === 'prompt' && (text === '' || text.length > MAX_TEXT)) { reply(400, { error: 'empty or too long' }); return }
   if (kind !== 'prompt' && kind !== 'stop') { reply(400, { error: 'unknown kind' }); return }
+  const id = queueMessage(sid, kind, text)
+  reply(200, { ok: true, id })
+}
+
+// A message for a chat's mod, in its inbox: a prompt, or a stop.
+const queueMessage = (sid, kind, text) => {
   const file = path.join(HOME, `live-code-inbox-${sid}.json`)
   let list = []
   try { list = JSON.parse(fs.readFileSync(file, 'utf8')) } catch { list = [] }
@@ -635,12 +664,31 @@ const handleSend = async (req, res) => {
   const message = kind === 'stop' ? { id: crypto.randomUUID(), kind: 'stop', at: Date.now() } : { id: crypto.randomUUID(), text, at: Date.now() }
   list = [...list.filter(m => Date.now() - (m.at ?? 0) < INBOX_KEEP_MS), message]
   writeAtomic(file, JSON.stringify(list))
-  reply(200, { ok: true, id: message.id })
   // the prompt list shows it at once
   if (kind === 'prompt') {
     promptsRead.delete(sid)
     if (readPrompts(sid)) broadcast({ type: 'feed', now: Date.now(), sid, snapshot: titled(sid, sessions.get(sid)?.snapshot), actions: [], samples: [] })
   }
+  return message.id
+}
+
+// ── dictation: one at a time ──
+// windows that can listen (a dashboard's main window), the newest one hears
+const listeners = new Set()
+let dictation = null // { id, sid, state: 'listening' | 'finishing' | 'sent' | 'empty' | 'failed', text, ear, at }
+const tellDictation = () => {
+  if (!dictation) return
+  const { id, sid, state, text } = dictation
+  broadcast({ type: 'dictation', now: Date.now(), id, sid, state, text })
+}
+const finishDictation = (id, heard) => {
+  if (!dictation || dictation.id !== id || (dictation.state !== 'finishing' && dictation.state !== 'listening')) return
+  clearTimeout(dictation.timer)
+  const text = String(heard ?? '').trim().slice(0, MAX_TEXT)
+  dictation.text = text
+  if (text === '' || !sessions.has(dictation.sid)) dictation.state = 'empty'
+  else { queueMessage(dictation.sid, 'prompt', text); dictation.state = 'sent' }
+  tellDictation()
 }
 
 // ── a dashboard is here ──
@@ -940,12 +988,43 @@ const server = http.createServer((req, res) => {
     // a window that answers questions (the dashboard unless switched off, the Stream Deck)
     const answers = url.searchParams.get('answers') === '1'
     if (answers) { answerers.add(res); markRemote() }
+    // a window that can listen, for the Stream Deck's talk key
+    if (url.searchParams.get('mic') === '1') listeners.add(res)
     req.on('close', () => {
       clients.delete(res)
       answerers.delete(res)
+      listeners.delete(res)
       if (answers) markRemote()
       lastClientAt = Date.now()
     })
+  } else if (url.pathname === '/dictation' && req.method === 'POST') {
+    // what the listening window heard: on the way (shown on the deck), and in the end (sent)
+    if (!isTrusted(req)) { res.writeHead(403).end('{}'); return }
+    readBody(req, MAX_TEXT * 4 + 500).then(raw => {
+      let m = {}
+      try { m = JSON.parse(raw) } catch {}
+      if (dictation && m.id === dictation.id && typeof m.text === 'string') {
+        if (m.final) finishDictation(m.id, m.text)
+        else if (dictation.state === 'listening' || dictation.state === 'finishing') { dictation.text = m.text.slice(0, MAX_TEXT); tellDictation() }
+        if (m.error && dictation.state !== 'sent') { dictation.state = 'failed'; dictation.text = String(m.error).slice(0, 80); clearTimeout(dictation.timer); tellDictation() }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{}')
+    }, () => res.writeHead(400).end('{}'))
+  } else if (url.pathname === '/deck-prompts') {
+    // the Stream Deck's prompt keys, edited in the dashboard's settings
+    if (!isTrusted(req)) { res.writeHead(403).end('{}'); return }
+    const file = path.join(HOME, 'live-code-deck.json')
+    const read = () => { try { return JSON.parse(fs.readFileSync(file, 'utf8').replace(/^﻿/, '')) } catch { return {} } }
+    if (req.method !== 'POST') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ prompts: read().prompts ?? [] })); return }
+    readBody(req, 64 * 1024).then(raw => {
+      let m = {}
+      try { m = JSON.parse(raw) } catch {}
+      if (!Array.isArray(m.prompts)) { res.writeHead(400).end('{}'); return }
+      const prompts = m.prompts.slice(0, DECK_PROMPTS).map(p => ({ label: String(p?.label ?? '').trim().slice(0, 24), icon: [...String(p?.icon ?? '▶').trim()].slice(0, 2).join('') || '▶', text: String(p?.text ?? '').trim().slice(0, 2000) })).filter(p => p.label && p.text)
+      writeAtomic(file, `${JSON.stringify({ ...read(), prompts }, null, 2)}\n`)
+      broadcast({ type: 'deck-prompts', now: Date.now(), prompts })
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true, prompts }))
+    }, () => res.writeHead(400).end('{}'))
   } else if (url.pathname.startsWith('/action/')) {
     const action = actions.get(decodeURIComponent(url.pathname.slice('/action/'.length)))
     if (action === undefined) res.writeHead(404).end('{}')
