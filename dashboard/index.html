@@ -346,10 +346,7 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 /* today's prompts, quiet beside the range */
 .today-count { font-size: 12px; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; cursor: default; }
 .today-count b { color: var(--ink-2); font-weight: 650; }
-.today-count[hidden] { display: none; }
-.pc-written { font-size: 12px; color: var(--muted); white-space: nowrap; }
-.pc-written:empty { display: none; }
-main.gliding > .prompt-card ~ * { will-change: transform; contain: layout paint; }
+.today-count[hidden] { display: none; }main.gliding > .prompt-card ~ * { will-change: transform; contain: layout paint; }
 
 /* ── thinking: the code blurs back, an owl ponders in a violet orb ──
    only opacity, transform and one static blur move: the compositor's work */
@@ -928,7 +925,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
     <button class="pc-fold" id="pc-fold" title="Fold the card to one line / open it"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="pc-fold right" title="Fold the card to one line / open it"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="pc-main">
-      <div class="pc-head"><span class="pc-label">Your prompt</span><span class="muted num" id="pc-meta"></span><span class="pc-written num" id="pc-written" title="Every prompt you wrote in this chat, and their words"></span><span class="pc-state" id="pc-state"></span><button class="pc-stop" id="pc-stop" hidden title="Stop Claude's running turn, as Esc does">■ Stop</button></div>
+      <div class="pc-head"><span class="pc-label">Your prompt</span><span class="muted num" id="pc-meta"></span><span class="pc-state" id="pc-state"></span><button class="pc-stop" id="pc-stop" hidden title="Stop Claude's running turn, as Esc does">■ Stop</button></div>
       <div class="pc-text" id="pc-text" title="Click to show it whole"></div>
       <div class="pc-added" id="pc-added" hidden></div>
       <div class="pc-said" id="pc-said" hidden></div>
@@ -2112,9 +2109,6 @@ const drawPrompts = (force = false) => {
   const live = isLiveTurn(S.snap)
   const last = (S.snap?.turnStats ?? []).slice(-1)[0]
   setText($('#pc-meta'), [S.snap?.turnNo ? `Turn ${S.snap.turnNo}` : '', cur.at ? `${hm(cur.at)} · ${ago(cur.at)}` : ''].filter(Boolean).join(' · '))
-  // all that was written in this chat so far
-  const written = writtenIn(S.view)
-  setText($('#pc-written'), written ? `${written} in this chat` : '')
   const state = $('#pc-state')
   const since = turnStartOf(S.snap) || now()
   const stateHtml = live
@@ -2852,29 +2846,43 @@ const clockFrame = t => {
   requestAnimationFrame(clockFrame)
 }
 requestAnimationFrame(clockFrame)
-// today's prompts over every chat, from the server's count of the transcripts
+// In the header: what was written in the chat shown, all its prompts; today's
+// over every chat in its tooltip (and in its place while the chat has none).
+// (var and function declarations: a chat may be shown before these lines run)
+var todayTotals = null
+var chatCounts = new Map()
+function drawWritten() {
+  const el = $('#today-count')
+  if (!el) return
+  // exact, never rounded to "2.5k"
+  const exact = n => n.toLocaleString()
+  const c = chatCounts?.get(S.view)
+  const t = todayTotals
+  const html = c?.prompts
+    ? `✎ <b>${exact(c.prompts)}</b> ${c.prompts === 1 ? 'prompt' : 'prompts'} · <b>${exact(c.words)}</b> words in this chat`
+    : t ? `✎ <b>${exact(t.prompts)}</b> ${t.prompts === 1 ? 'prompt' : 'prompts'} · <b>${exact(t.words)}</b> words today` : ''
+  if (!html) return
+  el.hidden = false
+  setHtml(el, html)
+  el.title = [
+    c?.prompts ? `This chat: ${exact(c.prompts)} prompts with ${exact(c.words)} words · Ø ${Math.round(c.words / c.prompts)} words per prompt` : '',
+    t ? `Today, all chats: ${exact(t.prompts)} prompts with ${exact(t.words)} words in ${plural(t.chats, 'chat')}` : '',
+  ].filter(Boolean).join('\n')
+}
 const drawToday = async () => {
   try {
-    const c = await (await fetch('/today')).json()
-    const el = $('#today-count')
-    el.hidden = false
-    // exact, never rounded to "2.5k"
-    const exact = n => n.toLocaleString()
-    setHtml(el, `✎ <b>${exact(c.prompts)}</b> ${c.prompts === 1 ? 'prompt' : 'prompts'} · <b>${exact(c.words)}</b> words today`)
-    el.title = `Today: ${c.prompts.toLocaleString()} prompts with ${c.words.toLocaleString()} words in ${plural(c.chats, 'chat')}` +
-      (c.prompts ? ` · Ø ${Math.round(c.words / c.prompts)} words per prompt` : '')
+    todayTotals = await (await fetch('/today')).json()
+    drawWritten()
   } catch {}
 }
 drawToday()
 setInterval(drawToday, 20_000)
-// how much was written in each chat, all its prompts (shown on the prompt card and in the picker)
-// (var and a function declaration: the prompt card may draw before this line runs)
-var chatCounts = new Map()
+// how much was written in each chat, all its prompts (in the header and the picker)
 const loadChatCounts = async () => {
   try {
     const c = await (await fetch('/chat-counts')).json()
     for (const [sid, n] of Object.entries(c)) chatCounts.set(sid, n)
-    drawPrompts(true)
+    drawWritten()
   } catch {}
 }
 function writtenIn(sid) {
@@ -2914,7 +2922,7 @@ const showView = id => {
   if (cur && R.follow) { R.seen.add(cur.id); start(cur, true) }
   else if (!cur) { R.item = null; R.els = []; codeBox.innerHTML = '<div class="empty">Nothing from this session yet.</div>'; $('#live-head').innerHTML = '<span class="muted">Waiting for Claude to touch a file…</span>'; $('#live-path').textContent = '' }
   S.filter.window = null
-  drawNow(); drawPicker(); drawPrompts(true); drawFilters(); scheduleCharts(50)
+  drawNow(); drawPicker(); drawPrompts(true); drawFilters(); drawWritten(); scheduleCharts(50)
 }
 
 // One session's new state; only the session shown live replays its actions.
