@@ -130,9 +130,28 @@ and watch the change appear while Claude is still typing:
 
 This works in Claude Code (terminal, desktop app, IDE), not in the claude.ai chat, since Claude needs to edit the files on your PC. Tip: fork this repository first and install from your fork, so an update does not overwrite your changes.
 
+### What it runs, sends and fetches
+
+Everything Live Code does outside of Claude Code itself, in full:
+
+| What | When | Where it goes |
+|---|---|---|
+| Writes each chat's live feed to `~/.claude/live-code-session-<id>.json` | while Claude works | your PC only |
+| Asks **Claude Haiku** for the one-line "what it is for" note of each action (the prompt, the recent steps and the change) | on each read, edit and search | Anthropic, through Claude Code's own model access |
+| Starts the dashboard server, `node dashboard/server.mjs`, listening on `127.0.0.1:4477` only | when a chat starts | your PC only |
+| Opens the dashboard in Microsoft Edge (app window), tile windows through PowerShell + WebView2 | when you open them | your PC only |
+| Reads your chats' transcripts in `~/.claude/projects` to count today's prompts and words | while the dashboard is open | your PC only |
+| Sends light commands to **your own Philips Hue Bridge** (local network, HTTPS) | only after you pair it, on done / question / stuck | your bridge |
+| Looks up the latest version number: `raw.githubusercontent.com/CNLynx/Live-Code-Dashboard/main/.claude-plugin/plugin.json` | at most every 6 hours | GitHub |
+| Downloads Microsoft's WebView2 SDK (`Microsoft.Web.WebView2` 1.0.2365.46 from nuget.org) for the frameless tile windows | once, at setup or the first tile window | nuget.org |
+| Setup: Start menu / desktop shortcut, launcher in `%LOCALAPPDATA%\live-code-dashboard`, Stream Deck plugin package opened in the Stream Deck app (you confirm there) | `/live-code-setup`, `install.ps1`, once per version | your PC only |
+| Optional: ElevenLabs voices, only if you put your own key in `~/.claude/live-code-voice.json` | when a summary is read aloud | ElevenLabs |
+
+No analytics, no tracking, no accounts.
+
 ### Good to know
 
-- **Privacy:** everything stays on your PC. The dashboard listens on `127.0.0.1:4477` only. Nothing is sent anywhere, except the Hue commands to your own bridge and a once-every-6-hours look at this repository's version number.
+- **Privacy:** the dashboard listens on `127.0.0.1:4477` only; what leaves your PC is listed in the table above.
 - **Tokens:** the "what it is for" notes are written by Claude Haiku: about one small call per action, roughly 1% of what the chats themselves cost.
 - **Files it keeps:** `~/.claude/live-code-*` (feeds, settings, Hue key) and `%LOCALAPPDATA%\live-code-dashboard` (window profile, WebView2 files).
 - **Browser:** the dashboard opens as an app window in Microsoft Edge (for its natural voices); Chrome works too.

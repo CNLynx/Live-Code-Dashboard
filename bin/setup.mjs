@@ -42,7 +42,26 @@ fs.writeFileSync(launcher, `# Opens the Live Code dashboard, wherever the mod is
 $deck = Get-Content (Join-Path $env:USERPROFILE '.claude\\live-code-deck.json') -Raw | ConvertFrom-Json
 & (Join-Path (Split-Path -Parent $deck.server) 'start.ps1') @args
 `)
-fs.copyFileSync(path.join(DASH, 'icons', 'diff.ico'), path.join(LOCAL, 'live-code.ico'))
+// the shortcut's icon: a Windows .ico made here from the PNGs (each size kept as PNG inside)
+const ico = sizes => {
+  const pngs = sizes.map(s => fs.readFileSync(path.join(DASH, 'icons', `diff-${s}.png`)))
+  const head = Buffer.alloc(6 + 16 * pngs.length)
+  head.writeUInt16LE(1, 2)
+  head.writeUInt16LE(pngs.length, 4)
+  let offset = head.length
+  pngs.forEach((png, i) => {
+    const e = 6 + 16 * i, s = sizes[i]
+    head[e] = s >= 256 ? 0 : s
+    head[e + 1] = s >= 256 ? 0 : s
+    head.writeUInt16LE(1, e + 4)
+    head.writeUInt16LE(32, e + 6)
+    head.writeUInt32LE(png.length, e + 8)
+    head.writeUInt32LE(offset, e + 12)
+    offset += png.length
+  })
+  return Buffer.concat([head, ...pngs])
+}
+fs.writeFileSync(path.join(LOCAL, 'live-code.ico'), ico([16, 24, 32, 48, 64, 256]))
 const shortcut = async where => ps(`$s = (New-Object -ComObject WScript.Shell).CreateShortcut('${where.replace(/'/g, "''")}')
 $s.TargetPath = "$env:SystemRoot\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
 $s.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${launcher}"'

@@ -6,3 +6,5 @@ dashboard/icons/active.txt
 dashboard/tilewin/*.dll
 .claude-plugin/types/
 node_modules/
+dashboard/icons/*.ico
+streamdeck/*.sdPlugin/*.streamDeckProfile
