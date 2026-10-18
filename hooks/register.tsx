@@ -299,7 +299,7 @@ const playback = (focus: Focus) => {
 }
 
 // ── engine glue ──────────────────────────────────────────────────────────────
-const now = ($: Engine) => $.clock.now().catch(() => 0)
+const clockNow = ($: Engine) => $.clock.now().catch(() => 0)
 const readText = ($: Engine, path: string) =>
   $.fs.read(path).then(
     text => (typeof text === 'string' ? text : undefined),
@@ -383,7 +383,7 @@ const taskList = new Map<string, PlanItem>() // TaskCreate/TaskUpdate, by task i
 const planStatus = (s: unknown): PlanItem['status'] => (s === 'completed' ? 'done' : s === 'in_progress' ? 'running' : 'pending')
 const notePlan = async ($: Engine, tool: string, input: Record<string, unknown>, ran: ToolCallResult) => {
   if (ran.deny !== undefined || ran.isError === true) return
-  const t = await now($)
+  const t = await clockNow($)
   let next: Plan | null | undefined
   if (tool === 'TodoWrite' && Array.isArray(input.todos)) {
     const items = (input.todos as Record<string, unknown>[]).map(x => ({
@@ -447,7 +447,7 @@ const remoteActive = async ($: Engine) => {
   if (text === undefined) return false
   try {
     const at = (JSON.parse(text) as { at?: unknown }).at
-    return typeof at === 'number' && Math.abs((await now($)) - at) < 7000
+    return typeof at === 'number' && Math.abs((await clockNow($)) - at) < 7000
   } catch {
     return false
   }
@@ -527,7 +527,7 @@ const publish = ($: Engine) => {
         turnStats: turns,
         asks: waiting,
         plan: planned,
-        session: { id: sessionId, cwd: sessionCwd, title: sessionTitle, startedAt: started, updatedAt: await now($), isEnded, canReceive: true, canStop: true, canAnswer: true },
+        session: { id: sessionId, cwd: sessionCwd, title: sessionTitle, startedAt: started, updatedAt: await clockNow($), isEnded, canReceive: true, canStop: true, canAnswer: true },
       }
       const home = claudeHome($.plugin.root)
       const text = JSON.stringify(feed)
@@ -590,7 +590,7 @@ const warnLimits = ($: Engine, limits: Limit[]) => {
 const refreshUsage = async ($: Engine) => {
   const live = await $.session.usage().catch(() => undefined)
   if (live === undefined) return
-  const t = await now($)
+  const t = await clockNow($)
   const limits: Limit[] = live.rateLimits.map(limit => ({
     kind: limit.kind,
     percent: limit.percentUsed,
@@ -638,14 +638,14 @@ const touched = new Set<string>()
 // at a quarter of it, read by every drawing for its timers and spinners. So
 // the band and an idle pane redraw a few times a second, never every frame.
 const animate = async ($: Engine, ms = 0) => {
-  const t = await now($)
+  const t = await clockNow($)
   animateUntil = Math.max(animateUntil, t + ms + FLASH_MS)
   await Promise.all([update($, tick, () => t), update($, beat, () => t)])
   if (ticker !== undefined) return
   try {
     ticker = $.clock.every(FRAME_MS, () => {
       void (async () => {
-        const at = await now($)
+        const at = await clockNow($)
         frames++
         const isFast = at < animateUntil
         const isSlow = running > 0 || (thinkingOn && at - thinkingSince < THINK_MAX_MS)
@@ -671,7 +671,7 @@ const animate = async ($: Engine, ms = 0) => {
 }
 
 const setThinking = async ($: Engine, active: boolean) => {
-  const at = await now($)
+  const at = await clockNow($)
   thinkingOn = active
   thinkingSince = at
   await update($, thinking, th => ({ ...th, active, since: active ? at : th.since }))
@@ -680,7 +680,7 @@ const setThinking = async ($: Engine, active: boolean) => {
 const addStep = ($: Engine, step: TurnStep) => update($, turnSteps, list => [...list.filter(s => s.id !== step.id), step])
 
 const finishStep = async ($: Engine, id: string, status: 'done' | 'error') => {
-  const at = await now($)
+  const at = await clockNow($)
   await update($, turnSteps, list => list.map(s => (s.id === id ? { ...s, status, doneAt: at } : s)))
 }
 
@@ -780,7 +780,7 @@ const explain = async ($: Engine, focus: Focus) => {
 // Shows `focus` as the live spot while the tool runs, then files it into history.
 type Draft = Omit<Focus, 'startedAt' | 'isDone' | 'isError' | 'stats'>
 const track = async ($: Engine, draft: Draft, stepKind: TurnStep['kind'], run: () => Promise<ToolCallResult>, after?: (ran: ToolCallResult) => Partial<Focus>): Promise<ToolCallResult> => {
-  const t = await now($)
+  const t = await clockNow($)
   const focus: Focus = { ...draft, stats: statsOf(draft.rows), startedAt: t, isDone: false, isError: false }
   await toolStart($, { id: draft.id, kind: stepKind, label: where(focus), status: 'running', startedAt: t, agentId: draft.agentId })
   try {
@@ -810,7 +810,7 @@ const track = async ($: Engine, draft: Draft, stepKind: TurnStep['kind'], run: (
       ...(seen?.id === focus.id && seen.why ? { why: seen.why } : {}),
       ...extra,
       stats: statsOf(extra.rows ?? focus.rows),
-      doneAt: await now($),
+      doneAt: await clockNow($),
       isDone: true,
       isError: isFailed(ran),
     }
@@ -1266,7 +1266,7 @@ const hitsOf = (ran: ToolCallResult): Row[] => {
 // A new message: a new turn begins and Claude starts thinking. Both prompt
 // hooks call it; the second one, moments later, is the same turn.
 const beginTurn = async ($: Engine, text: string) => {
-  const t = await now($)
+  const t = await clockNow($)
   if (inTurn && t - ((await read($, thinking)).turnStartedAt ?? 0) < 10_000) return
   const n = (await read($, turnNo)) + 1
   const usdAtStart = (await read($, usage))?.usd
@@ -1300,7 +1300,7 @@ export const register: Register = on => {
     // the dashboard server starts with Claude: unless it runs, it is started, hidden
     void $.process.run(['node', `${$.plugin.root}/bin/ensure-server.mjs`], { timeoutMs: 10_000 }).catch(() => undefined)
     // a reload fires session.start again: the session's first start stays
-    const t = await now($)
+    const t = await clockNow($)
     await update($, sessionStart, was => (was > 0 ? was : t)).catch(() => undefined)
     sessionCwd = e.cwd
     isEnded = false
@@ -1402,7 +1402,7 @@ export const register: Register = on => {
     if (questions.length === 0) return next(e)
     const answer = await awaitAnswer(
       $,
-      { id: e.tool_use_id, kind: 'question', tool: 'AskUserQuestion', title: questions[0]!.question, detail: '', questions, at: await now($), agentId: agentOf(e) },
+      { id: e.tool_use_id, kind: 'question', tool: 'AskUserQuestion', title: questions[0]!.question, detail: '', questions, at: await clockNow($), agentId: agentOf(e) },
       next.signal,
     )
     if (answer?.decision !== 'answer' || answer.answers === undefined) return next(e)
@@ -1426,7 +1426,7 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const ran = await next(e)
     try {
-      const t = await now($)
+      const t = await clockNow($)
       // a subagent's turn ends its lane, not the main turn
       const agentId = agentOf(e)
       if (agentId !== undefined) {
@@ -1493,7 +1493,7 @@ export const register: Register = on => {
           name: e.name ?? e.description,
           type: e.subagentType,
           status: 'running',
-          startedAt: await now($),
+          startedAt: await clockNow($),
         }
         await update($, agents, list => [...list.filter(a => a.id !== agentId), lane])
         await animate($)
@@ -1526,7 +1526,7 @@ export const register: Register = on => {
       return carry(e, await track($, { id, agentId: agentOf(e), action: 'running', file: tool, detail: description, rows }, 'bash', () => next(e)))
     }
 
-    const t = await now($)
+    const t = await clockNow($)
     await toolStart($, { id, kind: stepKindOf(tool), label: stepLabelOf(tool, input), status: 'running', startedAt: t, agentId: agentOf(e) })
     await animate($)
     let ran: ToolCallResult
