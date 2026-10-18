@@ -240,13 +240,14 @@ tbody tr.err td { color: var(--del-ink); }
 .bar-cell div { height: 6px; border-radius: 3px; background: var(--s1); }
 
 /* ── the prompt ── */
-.prompt-card { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); gap: 22px; position: relative; overflow: hidden; padding: 16px 18px 14px 64px; }
+.prompt-card { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); gap: 22px; position: relative; overflow: hidden; padding: 16px 64px 14px 64px; }
 .prompt-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--s1), var(--s7), var(--s5)); }
 .pc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 #pc-meta { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* folded: one line, the prompt and how it stands; the rest waits behind ▾ */
 /* the fold handle: a tall strip down the card's left side */
 .pc-fold { position: absolute; left: 14px; top: 10px; bottom: 10px; width: 38px; display: flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--ring); background: var(--surface-2); color: var(--ink-2); border-radius: 11px; cursor: pointer; z-index: 1; transition: background-color .2s, color .2s, border-color .2s; }
+.pc-fold.right { left: auto; right: 14px; }
 .pc-fold svg { transition: transform .3s cubic-bezier(.2,.8,.2,1); }
 .pc-fold:hover { color: var(--ink); background: var(--surface-3); border-color: color-mix(in srgb, var(--s1) 50%, var(--ring)); }
 .prompt-card.folded .pc-list, .prompt-card.folded .pc-added, .prompt-card.folded .pc-said, .prompt-card.folded #pc-turn,
@@ -889,6 +890,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 
   <section class="card prompt-card" id="prompt-card" hidden>
     <button class="pc-fold" id="pc-fold" title="Fold the card to one line / open it"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="pc-fold right" title="Fold the card to one line / open it"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="pc-main">
       <div class="pc-head"><span class="pc-label">Your prompt</span><span class="muted num" id="pc-meta"></span><span class="pc-state" id="pc-state"></span><button class="pc-stop" id="pc-stop" hidden title="Stop Claude's running turn, as Esc does">■ Stop</button></div>
       <div class="pc-text" id="pc-text" title="Click to show it whole"></div>
@@ -1182,6 +1184,29 @@ const rangeStart = () => {
   return starts.length > 0 ? Math.min(...starts) : (list[0]?.startedAt ?? now() - 3600e3)
 }
 const inRange = () => { const t0 = rangeStart(); return scoped().filter(a => a.startedAt >= t0) }
+
+// The cost under "Today" or "All time": every chat's, as the report counts it,
+// from the server, which holds every reading (this page only the newest); the
+// chat shown, its share. Fetched when the range or chat changes, and again every
+// 15 s. null under "Session", or until it is here.
+let rangeCostGot = null, rangeCostAsking = false
+const rangeCostKey = () => `${S.range}|${S.selected === 'all' ? 'all' : S.view}`
+const rangeCost = () => {
+  if (S.range === 'session') return null
+  const key = rangeCostKey()
+  const fresh = rangeCostGot?.key === key && now() - rangeCostGot.at < 15_000
+  if (!fresh && !rangeCostAsking) {
+    rangeCostAsking = true
+    const d = new Date(); d.setHours(0, 0, 0, 0)
+    const from = S.range === 'today' ? d.getTime() : 0
+    const one = S.selected === 'all' ? null : S.view
+    Promise.all([
+      fetch(`/cost-range?from=${from}`).then(r => r.json()),
+      one ? fetch(`/cost-range?from=${from}&sid=${encodeURIComponent(one)}`).then(r => r.json()) : null,
+    ]).then(([all, mine]) => { rangeCostGot = { key, at: now(), usd: all.usd, turns: all.turns ?? [], mine: mine?.usd }; drawTiles() }).catch(() => {}).finally(() => { rangeCostAsking = false })
+  }
+  return rangeCostGot?.key === key ? rangeCostGot : null
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // syntax highlighting: a small tokenizer per language family
@@ -1793,12 +1818,19 @@ const drawTiles = () => {
       tile(`${limitName(l.kind)} limit`, pct(l.percent), eta, `<div class="meter"><div style="width:${clamp(l.percent, 0, 100)}%;background:${meterColor(l.percent)}"></div></div>`, more,
         (window.limitFlash?.[l.kind] ?? 0) > now() ? 'lvl-reset' : levelClass(l.percent))
     }
-    const costs = turns.map(t => t.usd ?? 0)
-    const avg = turns.length ? sum(turns, t => t.usd) / turns.length : 0
+    // "Today" and "All time": what was spent in that range, as the report counts
+    // it (the server keeps every reading); "Session": this chat's own total
+    const rc = rangeCost()
+    const costTurns = rc ? rc.turns : turns
+    const costs = costTurns.map(t => t.usd ?? 0)
+    const avg = costTurns.length ? sum(costTurns, t => t.usd) / costTurns.length : 0
     const allCost = sum([...S.sessions.values()], s => s.snap?.usage?.usd)
     // the money counts up to each new sum instead of jumping (the clock frame does it)
-    const costNow = S.selected === 'all' ? allCost : u.usd
-    tile(S.selected === 'all' ? 'Cost · all sessions' : 'Session cost', (costNow != null ? counter(`cost:${S.selected === 'all' ? 'all' : S.view}`, costNow, 'money') : '—') + costTrend(costs), turns.length ? `Ø ${money(avg)} per turn · ${plural(turns.length, 'turn')}` : 'no finished turn yet', costLine(costs.slice(-30)),
+    const costNow = rc ? rc.usd : S.selected === 'all' ? allCost : u.usd
+    const costLabel = S.range === 'today' ? 'Cost · today · all chats' : S.range === 'all' ? 'Cost · all time · all chats' : S.selected === 'all' ? 'Cost · all sessions' : 'Session cost'
+    // (in a range, the chat shown: its share under the sum)
+    const share = rc && S.selected !== 'all' && rc.mine != null ? `this chat ${money(rc.mine)} · ` : ''
+    tile(costLabel, (costNow != null ? counter(`cost:${S.range}:${S.selected === 'all' ? 'all' : S.view}`, costNow, 'money') : '—') + costTrend(costs), costTurns.length ? `${share}Ø ${money(avg)} per turn · ${plural(costTurns.length, 'turn')}` : 'no finished turn yet', costLine(costs.slice(-30)),
       costs.length >= 2 ? `Cost of each turn, the newest right: red where it rose over the turn before, green where it fell.\nLast turn ${money(costs[costs.length - 1])}, the one before ${money(costs[costs.length - 2])}; on average ${money(avg)}` : '')
     tile('Tokens', `${counter(`out:${S.view}`, u.output, 'human')}<small>out</small>`, `${human(u.input)} in · ratio ${u.output ? (u.input / u.output).toFixed(0) : '—'}:1`, '', 'Tokens in count the cache reads too')
   }
@@ -2063,7 +2095,7 @@ let folding = null
 let foldedHeight = 0 // as it was last seen folded
 const setFolded = async (on, animate = true) => {
   const card = $('#prompt-card')
-  $('#pc-fold').title = on ? 'Open the card' : 'Fold the card to one line'
+  for (const b of document.querySelectorAll('.pc-fold')) b.title = on ? 'Open the card' : 'Fold the card to one line'
   store.set('lc.pcFolded', on ? 'on' : 'off')
   if (card.classList.contains('folded') === on) return
   if (!animate || reduceMotion || card.hidden) { card.classList.toggle('folded', on); return }
@@ -2106,7 +2138,7 @@ const setFolded = async (on, animate = true) => {
   main.classList.remove('gliding')
   if (on) { card.classList.add('folded'); for (const el of parts) el.getAnimations().forEach(a => a.cancel()); foldedHeight = card.getBoundingClientRect().height }
 }
-$('#pc-fold').onclick = e => { e.stopPropagation(); setFolded(!$('#prompt-card').classList.contains('folded')) }
+for (const b of document.querySelectorAll('.pc-fold')) b.onclick = e => { e.stopPropagation(); setFolded(!$('#prompt-card').classList.contains('folded')) }
 setFolded(store.get('lc.pcFolded') === 'on', false)
 
 // ── writing to the chat shown ──

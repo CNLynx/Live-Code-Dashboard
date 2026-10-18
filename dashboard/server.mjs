@@ -826,6 +826,39 @@ const reportData = () => ({
   samples: samples.filter((s, i) => i % 3 === 0 || i === samples.length - 1).map(s => ({ sid: s.sid, t: s.t, usd: s.usd, ctx: s.ctx, output: s.output })),
 })
 
+// What was spent since `from` (all chats, or one), as the report counts it: each
+// session's running total, by how much it grew inside the range (a drop means it
+// started over; its first reading counts whole only when it began inside). And
+// the turns that ended inside it, for the cost tile's line.
+const costSince = (from, sid) => {
+  const firstOf = id => meta[id]?.first ?? sessions.get(id)?.snapshot?.session?.startedAt ?? 0
+  const bySid = new Map()
+  for (const s of samples) {
+    if (s.usd == null || !s.sid || (sid && s.sid !== sid)) continue
+    if (!bySid.has(s.sid)) bySid.set(s.sid, [])
+    bySid.get(s.sid).push(s)
+  }
+  let usd = 0
+  for (const [id, list] of bySid) {
+    list.sort((a, b) => a.t - b.t)
+    let prev = null
+    const startedInside = firstOf(id) >= from
+    for (const s of list) {
+      const grew = prev === null ? (startedInside ? s.usd : 0) : s.usd >= prev.usd ? s.usd - prev.usd : s.usd
+      if (s.t >= from && grew > 0) usd += grew
+      prev = s
+    }
+  }
+  const turns = []
+  const all = { ...Object.fromEntries([...sessions.values()].filter(s => s.id !== 'legacy').map(s => [s.id, { last: s.mtime, turns: s.snapshot?.turnStats ?? [] }])), ...meta }
+  for (const [id, m] of Object.entries(all)) {
+    if (sid && id !== sid) continue
+    for (const t of m.turns ?? []) { const at = t.at ?? t.endedAt ?? m.last ?? 0; if (at >= from && typeof t.usd === 'number') turns.push({ usd: t.usd, at, ms: t.ms }) }
+  }
+  turns.sort((a, b) => a.at - b.at)
+  return { from, usd, turns: turns.slice(-400) }
+}
+
 const sendFile = (res, file, type) =>
   fs.readFile(file, (error, body) => {
     if (error) res.writeHead(404).end()
@@ -966,6 +999,11 @@ const server = http.createServer((req, res) => {
     todayCounts().then(
       c => res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(c)),
       () => res.writeHead(500).end('{}'))
+  } else if (url.pathname === '/cost-range') {
+    // the cost tile under "Today" and "All time": /cost-range?from=<ms>[&sid=<chat>]
+    const from = Number(url.searchParams.get('from')) || 0
+    const sid = url.searchParams.get('sid') || null
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(costSince(from, sid && /^[A-Za-z0-9_-]+$/.test(sid) ? sid : null)))
   } else if (url.pathname === '/report-data') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(reportData()))
   } else if (url.pathname === '/icon.png') {
