@@ -90,6 +90,25 @@ public class TileWindow : Form {
     else if (m == "pin") { TopMost = !TopMost; Save(); web.CoreWebView2.PostWebMessageAsString(TopMost ? "pinned" : "unpinned"); }
     else if (m == "ready") { web.CoreWebView2.PostWebMessageAsString(TopMost ? "pinned" : "unpinned"); }
     else if (m == "close") { closedByHand = true; Close(); }
+    else if (m != null && m.StartsWith("size:")) FitTo(m.Substring(5));
+  }
+
+  // "size:<w>,<h>,<scale>": the page's content in CSS pixels; the window grows or
+  // shrinks to show it whole, within the screen it is on, staying where it is
+  // as far as the screen allows
+  void FitTo(string spec) {
+    var p = spec.Split(',');
+    double w, h, s;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    if (p.Length != 3 || !double.TryParse(p[0], System.Globalization.NumberStyles.Float, inv, out w) || !double.TryParse(p[1], System.Globalization.NumberStyles.Float, inv, out h) || !double.TryParse(p[2], System.Globalization.NumberStyles.Float, inv, out s)) return;
+    if (WindowState != FormWindowState.Normal || s <= 0) return;
+    Rectangle area = Screen.FromControl(this).WorkingArea;
+    int nw = Math.Min(Math.Max((int)Math.Ceiling(w * s) + 2 * EDGE, MinimumSize.Width), area.Width);
+    int nh = Math.Min(Math.Max((int)Math.Ceiling(h * s) + 2 * EDGE, MinimumSize.Height), area.Height);
+    int nx = Math.Max(area.X, Math.Min(Left, area.Right - nw));
+    int ny = Math.Max(area.Y, Math.Min(Top, area.Bottom - nh));
+    Bounds = new Rectangle(nx, ny, nw, nh);
+    Save();
   }
 
   // ~/.claude/live-code-tiles.json: { "<tile>": { x, y, w, h, top } } for each open window

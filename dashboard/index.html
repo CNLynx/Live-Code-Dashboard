@@ -325,6 +325,12 @@ html.tile-mode .tiles > .tile { display: none; width: 240px; }
 /* a window of its own, detailed: the panel fills it and scrolls */
 html.tile-detail .tiles { position: absolute; visibility: hidden; height: 0; overflow: hidden; }
 html.tile-detail, html.tile-detail body { overflow: auto; }
+/* a window of its own: should it scroll after all, a thin bar that barely shows until touched */
+html.tile-mode { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 18%, transparent) transparent; }
+html.tile-mode:hover { scrollbar-color: color-mix(in srgb, var(--ink) 35%, transparent) transparent; }
+html.tile-mode ::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+html.tile-mode ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink) 18%, transparent); border-radius: 3px; }
+html.tile-mode ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--ink) 40%, transparent); }
 #tile-detail { padding: 10px; }
 #tile-detail .d-panel { width: auto; max-height: none; overflow: visible; box-shadow: none; border: 0; background: none; padding: 14px 16px; }
 /* the frameless window: the tile is the window, no card around it */
@@ -2027,6 +2033,24 @@ if (TILE_MODE) {
     })
     host.postMessage('ready')
     addEventListener('keydown', e => { if (e.key === 'Escape') host.postMessage('close') })
+    // Detailed, the window opens as large as its panel, so nothing scrolls (the
+    // host keeps it within the screen); measured once drawn and once its charts
+    // are, then left as the person sizes it.
+    if (TILE_VIEW === 'detail') {
+      let tries = 0
+      const fitWindow = () => {
+        const d = $('#tile-detail')
+        if (!d?.firstElementChild) { if (++tries < 40) setTimeout(fitWindow, 150); return }
+        const de = document.documentElement
+        const bottom = Math.max(...[...d.children].map(c => c.getBoundingClientRect().bottom)) + scrollY
+        const pad = parseFloat(getComputedStyle(d).paddingBottom) || 0
+        const needH = Math.ceil(bottom + pad + 2)
+        const needW = Math.max(innerWidth, Math.ceil(de.scrollWidth))
+        if (Math.abs(needH - innerHeight) > 4 || needW > innerWidth) host.postMessage(`size:${needW},${needH},${devicePixelRatio || 1}`)
+      }
+      setTimeout(fitWindow, 300)
+      setTimeout(fitWindow, 1600)
+    }
   }
 }
 
