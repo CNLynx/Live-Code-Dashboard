@@ -658,6 +658,7 @@ const bindNumber = (id, key, def, unit, after) => {
   el.oninput = () => { store.set(key, el.value); n.textContent = `${el.value}${unit}`; after?.() }
 }
 bindNumber('#set-voice-rate', 'lc.voiceRate', 100, '%')
+bindCheck('#set-open-with-claude', 'lc.openWithClaude', 'on')
 bindCheck('#set-think', 'lc.think', 'on')
 bindNumber('#set-think-after', 'lc.thinkAfter', 2.5, ' s')
 bindNumber('#set-warn-at', 'lc.warnAt', 70, '%', () => drawTiles())

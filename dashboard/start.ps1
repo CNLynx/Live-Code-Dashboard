@@ -1,4 +1,4 @@
-# Opens the Live Code dashboard in a window of its own.
+﻿# Opens the Live Code dashboard in a window of its own.
 # Starts the dashboard server (hidden) unless it already runs, then opens the
 # dashboard: in Edge's app mode (no tabs, no address bar, a profile of its
 # own, so it keeps its size and place, a second screen included). Edge first,
@@ -7,7 +7,8 @@
 #   start.ps1                  Edge first
 #   start.ps1 -Browser chrome  Chrome first
 #   start.ps1 -Browser opera   Opera GX first
-param([int]$Port = 4477, [ValidateSet('chrome', 'opera', 'edge')][string]$Browser = 'edge')
+#   start.ps1 -IfClosed        only when no dashboard window is open (Claude starting)
+param([int]$Port = 4477, [ValidateSet('chrome', 'opera', 'edge')][string]$Browser = 'edge', [switch]$IfClosed)
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -58,6 +59,7 @@ public static class LcWin {
 }
 '@
 $open = @(Get-CimInstance Win32_Process -Filter "Name = 'msedge.exe' OR Name = 'chrome.exe'" | Where-Object { $_.CommandLine -match 'live-code-dashboard' } | ForEach-Object { [uint32]$_.ProcessId })
+if ($IfClosed -and $open.Count -gt 0) { return }
 if ($open.Count -gt 0 -and [LcWin]::Raise($open)) { return }
 
 function First-Existing($paths) { $paths | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1 }

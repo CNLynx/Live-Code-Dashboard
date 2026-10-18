@@ -830,6 +830,8 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
       </section>
 
       <section class="set-pane" data-pane="display">
+        <label class="big"><input type="checkbox" id="set-open-with-claude"> Open the dashboard when Claude starts</label>
+        <div class="hint">With the first chat, if no dashboard window is open yet; an open one is left where it is.</div>
         <label class="big"><input type="checkbox" id="set-think"> Thinking animation in the live view</label>
         <div class="hint">While Claude thinks longer, the code blurs back and an owl ponders over it.</div>
         <label class="vol">Only after <input type="range" id="set-think-after" min="1" max="10" step="0.5"><span class="num" id="set-think-after-n"></span></label>
@@ -1019,7 +1021,7 @@ const store = { get: k => { try { return localStorage.getItem(k) } catch { retur
 // The look and the steps where tiles color up are the main window's: a tile
 // window keeps a storage of its own (WebView2), so the main window tells the
 // server, and the server tells the tile windows (on connecting, and on change).
-const SHARED = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme']
+const SHARED = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme', 'lc.openWithClaude']
 const sharedPrefs = {}
 const sendPrefs = () => {
   const secret = document.querySelector('meta[name="lc-secret"]')?.content ?? ''

@@ -63,6 +63,18 @@ if (await get('/health')) {
   process.stdout.write(`started ${server}`)
 }
 
+// Claude starting (no chat busy in the last 5 minutes): the dashboard opens,
+// unless switched off in its settings or already open (that one stays where it is)
+const prefs = readJson(path.join(HOME, 'live-code-prefs.json')) ?? {}
+const recent = (() => {
+  try {
+    return fs.readdirSync(HOME).filter(n => /^live-code-session-.+\.json$/.test(n)).some(n => Date.now() - fs.statSync(path.join(HOME, n)).mtimeMs < 5 * 60_000)
+  } catch { return false }
+})()
+if (process.platform === 'win32' && server && prefs['lc.openWithClaude'] !== 'off' && !recent && !isDevCopy(BIN)) {
+  spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', path.join(path.dirname(server), 'start.ps1'), '-IfClosed'], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+}
+
 // once per version: shortcuts, WebView2, the Stream Deck plugin brought up to date
 const version = readJson(path.join(BIN, '..', '.claude-plugin', 'plugin.json'))?.version
 if (process.platform === 'win32' && !isDevCopy(BIN) && version && readJson(path.join(HOME, 'live-code-setup.json'))?.version !== version) {
