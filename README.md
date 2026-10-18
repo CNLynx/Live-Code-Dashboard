@@ -4,10 +4,11 @@
 
 **Watch Claude Code work, live.** Every file it reads, every line it changes, what it costs, how close you are to your limits, all in one dashboard on your second screen, with a **Stream Deck** plugin and **Philips Hue** lights built in.
 
-[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%99%A5-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/CNLynx)
+<a href="https://github.com/sponsors/CNLynx"><img src="https://img.shields.io/badge/%E2%99%A5%20Sponsor%20Live%20Code-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white" height="46" alt="Sponsor Live Code on GitHub"></a>
+
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-mod-d97757)
-![License: MIT](https://img.shields.io/badge/license-MIT-green)
+![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
 [English](#english) · [Deutsch](#deutsch)
 
@@ -24,7 +25,7 @@
 #### Live code view
 The change Claude is making right now, typed out line by line with syntax colors, and under it a short note on *what it is for* ("Caches API answers for ten minutes so switching cities stays instant"). Reads, searches and commands show up too, one after another, so you never miss a step.
 
-![Live code view](docs/live-view.gif)
+![Claude's edits typed out live, each with what it is for](docs/live-code.gif)
 
 #### Limits & costs at a glance
 Context window, 5-hour and 7-day limits with a live reset countdown and a projection of when you would hit them, session cost as a stock-style chart (red going up, green going down), tokens, lines changed, files, tool calls, errors. Tiles turn yellow and red at thresholds you choose, and a chime plays when a limit resets.
@@ -32,9 +33,18 @@ Context window, 5-hour and 7-day limits with a live reset countdown and a projec
 #### Every tile opens up
 Click any tile for exact numbers and charts you can hover, or pop it out into its own **frameless window** (minimal or detailed) that remembers its place and screen.
 
-| Session cost, turn by turn | 5-hour limit over time |
-|---|---|
-| ![Cost tile opened](docs/tile-cost.gif) | ![Limit tile opened](docs/tile-limit.gif) |
+**Session cost:** every turn's cost, red where it got dearer, green where cheaper; hover a point for its details.
+
+![The cost tile opened, hovering the turns](docs/tile-cost.gif)
+
+**5-hour limit:** when it resets, how fast you use it now, and the pace that lasts until the reset.
+
+![The 5-hour limit tile opened](docs/tile-limit.gif)
+
+#### The whole session in charts
+Context and limits over time (with every compaction), activity by tool, cost per turn, code churn, how long tools take, output tokens, which files were touched when, and when you work.
+
+![The dashboard's charts](docs/charts.png)
 
 #### And more
 - **Talk back:** send Claude a message, stop it, or answer its questions straight from the dashboard.
@@ -130,7 +140,13 @@ This works in Claude Code (terminal, desktop app, IDE), not in the claude.ai cha
 
 ### Support
 
-If Live Code saves you time, you can support its development: **[♥ Sponsor on GitHub](https://github.com/sponsors/CNLynx)**. Thank you!
+If Live Code saves you time, you can support its development. Thank you!
+
+<a href="https://github.com/sponsors/CNLynx"><img src="https://img.shields.io/badge/%E2%99%A5%20Sponsor%20on%20GitHub-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white" height="46" alt="Sponsor on GitHub"></a>
+
+### License
+
+[PolyForm Noncommercial 1.0.0](LICENSE): free to use, change and share for any **noncommercial** purpose (personal use, hobby, study, research, nonprofits). **Selling it or using it commercially is not allowed** without the author's permission. Ask via [GitHub](https://github.com/CNLynx).
 
 ---
 
@@ -217,10 +233,16 @@ Die Änderung erscheint, während Claude noch tippt. Das geht in Claude Code (Te
 
 ### Unterstützen
 
-Wenn dir Live Code Zeit spart, kannst du die Weiterentwicklung unterstützen: **[♥ Auf GitHub sponsern](https://github.com/sponsors/CNLynx)**. Danke!
+Wenn dir Live Code Zeit spart, kannst du die Weiterentwicklung unterstützen. Danke!
+
+<a href="https://github.com/sponsors/CNLynx"><img src="https://img.shields.io/badge/%E2%99%A5%20Auf%20GitHub%20sponsern-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white" height="46" alt="Auf GitHub sponsern"></a>
+
+### Lizenz
+
+[PolyForm Noncommercial 1.0.0](LICENSE): kostenlos nutzen, anpassen und teilen für jeden **nicht-kommerziellen** Zweck (privat, Hobby, Lernen, Forschung, gemeinnützige Organisationen). **Verkaufen oder kommerziell nutzen ist nicht erlaubt**, ausser mit Erlaubnis des Autors. Anfragen über [GitHub](https://github.com/CNLynx).
 
 ---
 
 <div align="center">
-Made by <a href="https://github.com/CNLynx">Lynx</a> · MIT License
+Made by <a href="https://github.com/CNLynx">Lynx</a> · <a href="LICENSE">PolyForm Noncommercial 1.0.0</a>
 </div>

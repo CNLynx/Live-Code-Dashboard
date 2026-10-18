@@ -22,8 +22,12 @@ $new = $v -join '.'
 $json = $json.Replace($old.Value, "`"version`": `"$new`"")
 [IO.File]::WriteAllText((Resolve-Path $file), $json, (New-Object Text.UTF8Encoding $false))
 
-git add -A
-git commit -m "v$new - $Message"
+# (git writes notes such as line-ending warnings to stderr: not errors)
+$ErrorActionPreference = 'Continue'
+git add -A 2>$null
+git commit -q -m "v$new - $Message"
+if ($LASTEXITCODE -ne 0) { throw 'commit failed' }
 git tag "v$new"
 git push origin main --tags
+if ($LASTEXITCODE -ne 0) { throw "push failed: run 'git push origin main --tags' here" }
 Write-Host "Released v$new" -ForegroundColor Green
