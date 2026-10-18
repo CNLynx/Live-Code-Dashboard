@@ -269,6 +269,50 @@ const countLine = (state, line, dayStart) => {
   state.prompts++
   state.words += said.split(/\s+/).filter(Boolean).length
 }
+// (a decoder of its own: a piece may end inside a character)
+const newCount = () => ({ offset: 0, rest: '', prompts: 0, words: 0, recent: [], decoder: new StringDecoder('utf8') })
+// reads a transcript on from where it was left, a piece at a time
+const countOn = async (file, state, size, dayStart) => {
+  const fd = fs.openSync(file, 'r')
+  try {
+    const CHUNK = 4 * 1024 * 1024
+    while (state.offset < size) {
+      const len = Math.min(CHUNK, size - state.offset)
+      const buf = Buffer.alloc(len)
+      fs.readSync(fd, buf, 0, len, state.offset)
+      state.offset += len
+      const lines = (state.rest + state.decoder.write(buf)).split('\n')
+      state.rest = lines.pop()
+      for (const line of lines) countLine(state, line, dayStart)
+      await new Promise(r => setImmediate(r))
+    }
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
+// ── each chat's prompts, all of them ──
+// How much the person wrote in each chat listed: its whole transcript read once,
+// then followed, as today's count is.
+const perChat = new Map() // sid -> count state
+const chats = { at: 0, busy: null }
+const countChats = async () => {
+  for (const s of sessions.values()) {
+    if (s.id === 'legacy') continue
+    const file = transcriptOf(s.id)
+    if (!file) continue
+    let size
+    try { size = fs.statSync(file).size } catch { continue }
+    const state = perChat.get(s.id) ?? newCount()
+    perChat.set(s.id, state)
+    if (size > state.offset) await countOn(file, state, size, 0)
+  }
+  chats.at = Date.now()
+}
+const chatCounts = async () => {
+  if (Date.now() - chats.at > 500) { chats.busy ??= countChats().finally(() => { chats.busy = null }); await chats.busy }
+  return Object.fromEntries([...perChat].map(([sid, c]) => [sid, { prompts: c.prompts, words: c.words }]))
+}
 const countToday = async () => {
   const now = Date.now()
   if (today.day !== dayOf(now)) Object.assign(today, { day: dayOf(now), files: new Map(), prompts: 0, words: 0, chats: new Set() })
@@ -283,28 +327,11 @@ const countToday = async () => {
       let st
       try { st = fs.statSync(file) } catch { continue }
       if (st.mtimeMs < dayStart) continue
-      // (a decoder of its own: a piece may end inside a character)
-      const state = today.files.get(file) ?? { offset: 0, rest: '', prompts: 0, words: 0, recent: [], decoder: new StringDecoder('utf8') }
+      const state = today.files.get(file) ?? newCount()
       if (st.size <= state.offset) continue
-      // read on from where it was left, a piece at a time
-      const fd = fs.openSync(file, 'r')
-      try {
-        const CHUNK = 4 * 1024 * 1024
-        while (state.offset < st.size) {
-          const len = Math.min(CHUNK, st.size - state.offset)
-          const buf = Buffer.alloc(len)
-          fs.readSync(fd, buf, 0, len, state.offset)
-          state.offset += len
-          const lines = (state.rest + state.decoder.write(buf)).split('\n')
-          state.rest = lines.pop()
-          const before = state.prompts
-          for (const line of lines) countLine(state, line, dayStart)
-          if (state.prompts > before) today.chats.add(name)
-          await new Promise(r => setImmediate(r))
-        }
-      } finally {
-        fs.closeSync(fd)
-      }
+      const before = state.prompts
+      await countOn(file, state, st.size, dayStart)
+      if (state.prompts > before) today.chats.add(name)
       today.files.set(file, state)
     }
   }
@@ -313,7 +340,7 @@ const countToday = async () => {
   today.at = Date.now()
 }
 const todayCounts = async () => {
-  if (Date.now() - today.at > 5000) { today.busy ??= countToday().finally(() => { today.busy = null }); await today.busy }
+  if (Date.now() - today.at > 500) { today.busy ??= countToday().finally(() => { today.busy = null }); await today.busy }
   return { prompts: today.prompts, words: today.words, chats: today.chats.size, day: today.day }
 }
 
@@ -1156,6 +1183,10 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ opened }))
   } else if (url.pathname === '/today') {
     todayCounts().then(
+      c => res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(c)),
+      () => res.writeHead(500).end('{}'))
+  } else if (url.pathname === '/chat-counts') {
+    chatCounts().then(
       c => res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(c)),
       () => res.writeHead(500).end('{}'))
   } else if (url.pathname === '/cost-range') {
