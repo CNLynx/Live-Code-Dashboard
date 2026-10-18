@@ -1048,7 +1048,7 @@ const runUpdate = async () => {
   }
   tellUpdate({ step: `Setting up v${copy.version}…`, version: copy.version })
   await run(process.execPath, [path.join(copy.dir, 'bin', 'setup.mjs'), '--auto'], 120_000)
-  tellUpdate({ state: 'done', step: `v${copy.version} installed. The dashboard restarts…` })
+  tellUpdate({ state: 'done', step: 'Installed · restarting…' })
   // hand the port over: close, start the new copy, go
   setTimeout(() => {
     for (const res of clients) { try { res.end() } catch {} }

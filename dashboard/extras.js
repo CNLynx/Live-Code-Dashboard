@@ -39,7 +39,7 @@ window.updateTile = () => {
   if (!up && st !== 'running' && st !== 'done' && st !== 'failed') return ''
   const [cls, label, value, foot] =
     st === 'running' ? ['busy', 'Updating', `v${versions.latest}`, esc(updateState.step || 'Working…')]
-    : st === 'done' ? ['busy', 'Updated', `v${updateState.version || versions.latest}`, esc(updateState.step || 'Restarting…') + '<br>Restart Claude for the mod part']
+    : st === 'done' ? ['busy', 'Updated', `v${updateState.version || versions.latest}`, `${esc(updateState.step || 'Restarting…')}<br>Restart Claude for the mod`]
     : st === 'failed' ? ['failed', 'Update failed', '✗ Try again', esc(updateState.error || 'Something went wrong')]
     : ['', 'Update available', `v${versions.latest}`, `installed v${esc(versions.version)} · click to install`]
   return `<div class="card tile update-tile ${cls}" title="${st === 'idle' || st === 'failed' ? 'Install the newest version from GitHub' : ''}"><div class="label">⬆ ${label}</div><div class="value">${value}</div><div class="foot">${foot}</div></div>`
