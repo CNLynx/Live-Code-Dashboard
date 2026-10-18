@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Code Dashboard</title>
+<link rel="icon" href="/icon.png">
+<!--
+  The dashboard's frame: the dashboard itself runs in a frame here, so that a
+  new version of it can load behind the shown one, fill with its data, and
+  fade in over it. No blank moment, as a reload of the page itself has.
+-->
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0b11; }
+  @media (prefers-color-scheme: light) { html, body { background: #f4f4f1; } }
+  iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; transition: opacity .28s ease; }
+  iframe.loading { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<script>
+'use strict'
+const APP = '/app'
+let shown = null
+let loading = null
+let again = false
+
+const frame = src => {
+  const f = document.createElement('iframe')
+  f.src = src
+  f.allow = 'autoplay'
+  f.title = 'Live Code dashboard'
+  return f
+}
+
+// the first one: the chat asked for in the address rides along. A tile's
+// window (?tile=…) keeps its address: each new version is that tile again.
+const KEEP = new URLSearchParams(location.search).has('tile') ? location.search : ''
+shown = frame(APP + location.search)
+document.body.append(shown)
+if (location.search && !KEEP) history.replaceState(null, '', '/')
+shown.addEventListener('load', () => shown.contentWindow.focus(), { once: true })
+
+// a new version behind the shown one; in when it says it is ready
+const swapIn = () => {
+  if (loading) { again = true; return }
+  loading = frame(APP + KEEP)
+  loading.className = 'loading'
+  document.body.append(loading)
+  // one that never says so comes in all the same
+  loading.dataset.timer = setTimeout(done, 10_000)
+}
+const done = () => {
+  const next = loading, old = shown
+  if (!next) return
+  clearTimeout(Number(next.dataset.timer))
+  loading = null
+  shown = next
+  next.classList.remove('loading')
+  next.contentWindow.focus()
+  setTimeout(() => { old.remove(); if (again) { again = false; swapIn() } }, 320)
+}
+
+addEventListener('message', e => {
+  if (e.origin !== location.origin || !e.data?.lc) return
+  if (e.data.lc === 'reload' && e.source === shown.contentWindow) swapIn()
+  else if (e.data.lc === 'ready' && loading && e.source === loading.contentWindow) done()
+})
+
+// In a tile's frameless window (WebView2) only this top page reaches the
+// window's host: the dashboard inside hands its asks (move, pin, close) up
+// here, and what the host answers goes back down to it.
+const host = window.chrome?.webview
+if (host) {
+  addEventListener('message', e => { if (e.origin === location.origin && e.data?.lc === 'host' && e.source === shown.contentWindow) host.postMessage(e.data.m) })
+  host.addEventListener('message', e => shown?.contentWindow?.postMessage({ lc: 'host-msg', data: e.data }, location.origin))
+}
+
+// the window's title is the shown dashboard's (a question waiting blinks there)
+setInterval(() => {
+  try { const t = shown.contentDocument?.title; if (t && document.title !== t) document.title = t } catch {}
+}, 400)
+</script>
+</body>
+</html>

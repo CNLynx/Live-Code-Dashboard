@@ -1,0 +1,8 @@
+# made on each PC, never published
+*.lnk
+*.log
+streamdeck/dist/
+dashboard/icons/active.txt
+dashboard/tilewin/*.dll
+.claude-plugin/types/
+node_modules/

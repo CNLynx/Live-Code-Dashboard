@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "com.cnlynx.livecode",
+  "Name": "Live Code",
+  "Version": "1.1.0.0",
+  "Author": "CNLynx",
+  "Description": "Claude Code live on your Stream Deck: what each chat does, context and limits, prompts at a press, Claude's questions answered with a key, stop, and a glow when a task is done.",
+  "Icon": "imgs/plugin",
+  "Category": "Live Code",
+  "CategoryIcon": "imgs/category",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 2,
+  "Nodejs": { "Version": "20" },
+  "OS": [{ "Platform": "windows", "MinimumVersion": "10" }],
+  "Software": { "MinimumVersion": "6.4" },
+  "Profiles": [
+    { "Name": "Live Code", "DeviceType": 0, "Readonly": false, "DontAutoSwitchWhenInstalled": true }
+  ],
+  "Actions": [
+    {
+      "UUID": "com.cnlynx.livecode.slot",
+      "Name": "Live Code key",
+      "Tooltip": "One key of the Live Code page: what it shows and does follows from where it sits. The Live Code profile has all fifteen.",
+      "Icon": "imgs/action",
+      "States": [{ "Image": "imgs/key", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": false,
+      "UserTitleEnabled": false
+    },
+    {
+      "UUID": "com.cnlynx.livecode.open",
+      "Name": "Open Live Code",
+      "Tooltip": "Put it on your main page: it shows whether Claude works, glows when a task is done, and opens the Live Code page.",
+      "Icon": "imgs/action",
+      "States": [{ "Image": "imgs/key", "ShowTitle": false }],
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": false,
+      "UserTitleEnabled": false
+    }
+  ]
+}

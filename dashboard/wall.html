@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="lc-secret" content="__LIVE_CODE_SECRET__">
+<title>Live Code Wall</title>
+<link rel="icon" href="/icon.png">
+<style>
+:root {
+  --page: #0a0b11; --surface: rgba(255,255,255,.035); --surface-2: rgba(255,255,255,.055); --surface-3: rgba(255,255,255,.085);
+  --ink: #eceef4; --ink-2: #a9adbf; --muted: #71768a; --grid: rgba(255,255,255,.06); --ring: rgba(255,255,255,.08);
+  --s1: #8b9cff; --s2: #f5a97f; --s3: #5ed6c0; --s4: #f2cc7a; --s5: #f29bc0; --s7: #b6a4ff;
+  --add: #7ddcae; --del: #f49aa8; --mod: #f5b48a; --good: #7ddcae;
+  --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; color: var(--ink); font: 14px/1.45 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  background: radial-gradient(900px 520px at 8% -6%, rgba(110,90,255,.20), transparent 70%), radial-gradient(900px 560px at 96% 4%, rgba(40,190,180,.12), transparent 70%), radial-gradient(1000px 600px at 60% 110%, rgba(230,90,160,.10), transparent 70%), var(--page); background-attachment: fixed; }
+header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 12px 20px; background: rgba(10,11,17,.75); backdrop-filter: blur(14px); border-bottom: 1px solid var(--grid); }
+header b { font-size: 16px; }
+header .sub { color: var(--muted); }
+header .grow { flex: 1; }
+header a, header button { color: var(--ink); text-decoration: none; border: 1px solid var(--ring); background: var(--surface-2); border-radius: 9px; padding: 5px 12px; font: inherit; cursor: pointer; }
+header button.on { background: var(--surface-3); font-weight: 650; }
+main { display: grid; gap: 14px; padding: 16px 20px 24px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); }
+.tile { position: relative; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; height: 440px; border-radius: 14px; overflow: hidden; cursor: pointer;
+  border: 1px solid transparent; background: linear-gradient(rgba(16,17,26,.92), rgba(16,17,26,.92)) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--action, var(--s1)) 65%, transparent), rgba(94,214,192,.16) 45%, rgba(242,155,192,.28)) border-box;
+  transition: transform .2s, box-shadow .3s; }
+.tile:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(0,0,0,.4); }
+.tile.idle { opacity: .72; }
+.tile.done { animation: done-glow 3s cubic-bezier(.2,.8,.2,1); }
+.tile.asks { box-shadow: 0 0 0 2px rgba(167,139,250,.9), 0 0 36px rgba(167,139,250,.5); }
+@keyframes done-glow { 12% { box-shadow: 0 0 0 2px rgba(220,255,236,.95), 0 0 36px 6px rgba(140,240,190,.65); } }
+.th { display: flex; align-items: center; gap: 8px; padding: 10px 14px 4px; }
+.th .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.th .dot.live { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.th b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.th .st { margin-left: auto; color: var(--ink-2); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pr { padding: 0 14px 6px; color: var(--ink-2); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr::before { content: '“'; color: var(--s7); }
+.cv { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); margin: 0 10px; border-radius: 10px; background: rgba(6,7,12,.55); border: 1px solid var(--grid); overflow: hidden; }
+.ah { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--grid); font-size: 12px; white-space: nowrap; overflow: hidden; }
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-weight: 650; font-size: 11px; background: color-mix(in srgb, var(--action, var(--s1)) 18%, transparent); color: var(--action, var(--s1)); }
+.ah .w { overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.ah .t { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.code { overflow: hidden; padding: 6px 0; font: 12px/1.6 var(--mono); }
+.ln { display: grid; grid-template-columns: 40px 14px minmax(0, 1fr); white-space: pre; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
+.ln .n { color: var(--muted); text-align: right; padding-right: 8px; }
+.ln.add { background: rgba(125,220,174,.10); } .ln.add .s { color: var(--add); }
+.ln.del { background: rgba(244,154,168,.10); text-decoration: line-through; opacity: .7; } .ln.del .s { color: var(--del); }
+.ln.mod { background: rgba(245,180,138,.10); } .ln.mod .s { color: var(--mod); }
+.ln.gap, .ln.hit { color: var(--ink-2); }
+.ln.new { animation: ln-in .35s ease-out backwards; }
+@keyframes ln-in { from { opacity: 0; transform: translateX(-6px); } }
+.empty { color: var(--muted); padding: 18px; text-align: center; }
+.tf { display: grid; gap: 4px; padding: 8px 14px 10px; font-size: 12px; color: var(--ink-2); }
+.tf .say { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tf .say::before { content: '✦ '; color: var(--s7); }
+.tf .meta { display: flex; gap: 12px; align-items: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tf .bar { width: 70px; height: 5px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.tf .bar i { display: block; height: 100%; background: var(--s1); }
+.tf .meta .grow { flex: 1; }
+.tf button { border: 1px solid rgba(248,113,113,.5); background: rgba(248,113,113,.12); color: var(--del); border-radius: 999px; padding: 1px 9px; font: inherit; font-size: 11.5px; cursor: pointer; }
+.none { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 80px 0; }
+@media (prefers-reduced-motion: reduce) { .tile, .ln.new, .th .dot.live, .tile.done { animation: none; transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <b>▦ Live Code Wall</b><span class="sub" id="sub">connecting…</span>
+  <span class="grow"></span>
+  <button data-show="active" class="on">Working & recent</button><button data-show="all">All chats</button>
+  <a href="/" title="The full dashboard">← Dashboard</a>
+</header>
+<main id="wall"></main>
+<script>
+'use strict'
+// Every chat at once: each tile a small live view of what it does now. A click
+// opens that chat in the full dashboard.
+const SECRET = document.querySelector('meta[name="lc-secret"]').content
+const $ = s => document.querySelector(s)
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const baseName = p => String(p ?? '').split(/[\\/]/).pop()
+const dur = ms => { const s = Math.max(0, ms) / 1000; if (s < 60) return s.toFixed(0) + 's'; const m = Math.floor(s / 60); return m < 60 ? `${m}m${String(Math.floor(s % 60)).padStart(2, '0')}s` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m` }
+const ago = t => { const s = Math.max(0, Date.now() - t) / 1000; return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : `${Math.floor(s / 86400)}d ago` }
+const ACTION = { reading: ['Reading', 'var(--s1)'], editing: ['Editing', 'var(--s2)'], writing: ['Writing', 'var(--s3)'], searching: ['Searching', 'var(--s7)'], running: ['Running', 'var(--s4)'] }
+const where = f => f.action === 'searching' ? `${f.detail ?? '…'} in ${f.file === '.' ? 'project' : baseName(f.file)}` : f.action === 'running' ? (f.detail || f.file) : f.line == null ? baseName(f.file) : `${baseName(f.file)}:${f.line}${f.endLine && f.endLine !== f.line ? '-' + f.endLine : ''}`
+const isLive = snap => { const th = snap?.thinking; return !!(th?.turnStartedAt && (th.turnEndedAt ?? 0) < th.turnStartedAt) }
+const isBusy = snap => !!snap && !snap.session?.isEnded && (isLive(snap) || (snap.current && !snap.current.isDone))
+const nameOf = (id, snap) => snap?.session?.title || baseName(String(snap?.session?.cwd ?? '').replace(/[\\/]+$/, '')) || 'Session'
+
+const sessions = new Map() // id -> snap
+const latest = new Map() // id -> newest action with rows
+const tiles = new Map() // id -> { el, key, actionId }
+let show = localStorage.getItem('lc.wallShow') || 'active'
+const doneSeen = new Map()
+
+const rowsHtml = (a, fresh) => {
+  const rows = (a?.rows ?? []).slice(-22)
+  if (rows.length === 0) return `<div class="empty">${a ? (a.action === 'searching' ? 'Searching…' : 'Nothing to show') : 'Waiting for a file…'}</div>`
+  return rows.map((r, i) => {
+    const sign = r.kind === 'add' ? '+' : r.kind === 'del' ? '−' : r.kind === 'mod' ? '~' : r.kind === 'gap' ? '⋯' : r.kind === 'hit' ? '◆' : ''
+    return `<div class="ln ${r.kind}${fresh ? ' new' : ''}" style="${fresh ? `animation-delay:${i * 40}ms` : ''}"><span class="n">${r.newNo ?? r.oldNo ?? ''}</span><span class="s">${sign}</span><span>${esc(r.text)}</span></div>`
+  }).join('')
+}
+
+const draw = () => {
+  const list = [...sessions.entries()]
+    .filter(([, snap]) => show === 'all' || isBusy(snap) || Date.now() - (snap?.session?.updatedAt ?? 0) < 6 * 3600e3)
+    .sort((a, b) => (isBusy(b[1]) - isBusy(a[1])) || (b[1]?.session?.updatedAt ?? 0) - (a[1]?.session?.updatedAt ?? 0))
+  const wall = $('#wall')
+  const busy = list.filter(([, s]) => isBusy(s)).length
+  $('#sub').textContent = `${list.length} chats · ${busy} working`
+  if (list.length === 0) { wall.innerHTML = '<div class="none">No chat to show yet.</div>'; tiles.clear(); return }
+  wall.querySelector('.none')?.remove()
+  const ids = new Set(list.map(([id]) => id))
+  for (const [id, t] of tiles) if (!ids.has(id)) { t.el.remove(); tiles.delete(id) }
+  list.forEach(([id, snap], index) => {
+    let t = tiles.get(id)
+    if (!t) {
+      const el = document.createElement('section')
+      el.className = 'tile'
+      el.onclick = e => { if (e.target.closest('button')) return; location.href = `/?session=${encodeURIComponent(id)}` }
+      t = { el, actionId: '', key: '' }
+      tiles.set(id, t)
+    }
+    if (wall.children[index] !== t.el) wall.insertBefore(t.el, wall.children[index] ?? null)
+    const live = isLive(snap)
+    const busyNow = isBusy(snap)
+    const th = snap?.thinking ?? {}
+    const cur = snap?.current
+    const a = cur ?? latest.get(id)
+    const color = a ? ACTION[a.action]?.[1] ?? 'var(--s1)' : 'var(--s1)'
+    t.el.style.setProperty('--action', color)
+    t.el.classList.toggle('idle', !busyNow)
+    t.el.classList.toggle('asks', (snap?.asks ?? []).length > 0)
+    // a turn that just ended glows once
+    if (th.turnEndedAt && doneSeen.get(id) !== th.turnEndedAt) {
+      if (doneSeen.has(id) && !live) { t.el.classList.remove('done'); void t.el.offsetWidth; t.el.classList.add('done') }
+      doneSeen.set(id, th.turnEndedAt)
+    }
+    const state = (snap?.asks ?? []).length > 0 ? '❓ waits for you' : snap?.session?.isEnded ? 'ended' : th.active && live ? `thinking · ${dur(Date.now() - th.since)}` : cur && !cur.isDone ? `${ACTION[cur.action]?.[0] ?? cur.action} · ${dur(Date.now() - cur.startedAt)}` : live ? `working · ${dur(Date.now() - th.turnStartedAt)}` : `idle · ${ago(snap?.session?.updatedAt ?? 0)}`
+    const notes = snap?.session?.notes?.list ?? []
+    const say = notes.at(-1)?.text?.replace(/[*`#]/g, '').replace(/\s+/g, ' ')
+    const pct = snap?.usage?.percent
+    const head = `<div class="th"><span class="dot${busyNow ? ' live' : ''}" style="background:${busyNow ? color : 'var(--muted)'}"></span><b>${esc(nameOf(id, snap))}</b><span class="st">${esc(state)}</span></div>` +
+      `<div class="pr">${esc(snap?.prompt ?? '')}</div>`
+    const actHead = a ? `<div class="ah"><span class="chip">${esc(ACTION[a.action]?.[0] ?? a.action)}</span><span class="w">${esc(where(a))}</span><span class="t">${a.stats?.add ? `<span style="color:var(--add)">+${a.stats.add}</span> ` : ''}${a.stats?.del ? `<span style="color:var(--del)">−${a.stats.del}</span>` : ''}</span></div>` : '<div class="ah"><span class="w" style="color:var(--muted)">No action yet</span></div>'
+    const foot = `<div class="tf">${say ? `<div class="say">${esc(say)}</div>` : ''}<div class="meta">${pct != null ? `<span>ctx</span><span class="bar"><i style="width:${pct}%"></i></span><span>${pct}%</span>` : ''}${snap?.usage?.usd != null ? `<span>$${snap.usage.usd.toFixed(2)}</span>` : ''}${snap?.turnNo ? `<span>turn ${snap.turnNo}</span>` : ''}<span class="grow"></span>${busyNow && snap?.session?.canStop ? `<button data-stop="${esc(id)}">■ Stop</button>` : ''}</div></div>`
+    const actionKey = a ? `${a.id}|${a.rows?.length ?? 0}|${a.isDone}` : ''
+    const key = head + actHead + foot + actionKey
+    if (key === t.key) return
+    const fresh = a && a.id !== t.actionId
+    t.key = key
+    t.actionId = a?.id ?? ''
+    t.el.innerHTML = head + `<div class="cv">${actHead}<div class="code">${rowsHtml(a, fresh)}</div></div>` + foot
+    const code = t.el.querySelector('.code')
+    code.scrollTop = code.scrollHeight
+    for (const b of t.el.querySelectorAll('[data-stop]')) b.onclick = async e => {
+      e.stopPropagation()
+      if (!confirm(`Stop “${nameOf(id, snap)}”?`)) return
+      await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ sid: id, kind: 'stop' }) })
+    }
+  })
+}
+
+for (const b of document.querySelectorAll('[data-show]')) {
+  b.classList.toggle('on', b.dataset.show === show)
+  b.onclick = () => { show = b.dataset.show; localStorage.setItem('lc.wallShow', show); for (const x of document.querySelectorAll('[data-show]')) x.classList.toggle('on', x === b); draw() }
+}
+
+const es = new EventSource('/events')
+es.onmessage = ev => {
+  const msg = JSON.parse(ev.data)
+  // its files changed: the wall has nothing to lose, it reloads at once
+  if (msg.type === 'reload') { setTimeout(() => location.reload(), 300); return }
+  if (msg.type === 'init') {
+    sessions.clear()
+    for (const s of msg.sessions ?? []) sessions.set(s.id, s.snapshot)
+    for (const a of msg.actions ?? []) if (a.sid && a.rows?.length) latest.set(a.sid, a)
+  } else if (msg.type === 'feed') {
+    sessions.set(msg.sid, msg.snapshot)
+    for (const a of msg.actions ?? []) if (a.rows?.length) latest.set(msg.sid, a)
+  }
+  draw()
+}
+es.onerror = () => { $('#sub').textContent = 'reconnecting…' }
+setInterval(draw, 1000)
+</script>
+</body>
+</html>

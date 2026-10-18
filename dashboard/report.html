@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Code Report</title>
+<link rel="icon" href="/icon.png">
+<style>
+:root {
+  --page: #0a0b11; --surface: rgba(255,255,255,.035); --surface-2: rgba(255,255,255,.055); --surface-3: rgba(255,255,255,.085);
+  --ink: #eceef4; --ink-2: #a9adbf; --muted: #71768a; --grid: rgba(255,255,255,.06); --ring: rgba(255,255,255,.08);
+  --s1: #8b9cff; --s2: #f5a97f; --s3: #5ed6c0; --s4: #f2cc7a; --s7: #b6a4ff;
+  --add: #7ddcae; --del: #f49aa8; --mod: #f5b48a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); font: 14px/1.45 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  background: radial-gradient(900px 520px at 8% -6%, rgba(110,90,255,.20), transparent 70%), radial-gradient(900px 560px at 96% 4%, rgba(40,190,180,.12), transparent 70%), var(--page); background-attachment: fixed; min-height: 100vh; }
+header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 20px; background: rgba(10,11,17,.78); backdrop-filter: blur(14px); border-bottom: 1px solid var(--grid); }
+header b { font-size: 16px; }
+header .grow { flex: 1; }
+.seg { display: inline-flex; border: 1px solid var(--ring); border-radius: 9px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--ink-2); padding: 5px 12px; font: inherit; cursor: pointer; }
+.seg button.on { background: var(--surface-3); color: var(--ink); font-weight: 650; }
+header a { color: var(--ink); text-decoration: none; border: 1px solid var(--ring); background: var(--surface-2); border-radius: 9px; padding: 5px 12px; }
+main { padding: 16px 20px 40px; display: grid; gap: 14px; max-width: 1500px; margin: 0 auto; }
+.card { border: 1px solid var(--ring); background: var(--surface); border-radius: 14px; padding: 14px 16px; backdrop-filter: blur(14px); min-width: 0; }
+.card h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .7px; text-transform: uppercase; color: var(--ink-2); font-weight: 650; }
+.card h2 span { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.tile .label { font-size: 11px; letter-spacing: .7px; text-transform: uppercase; color: var(--ink-2); font-weight: 600; }
+.tile .value { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; margin: 2px 0; }
+.tile .sub { color: var(--muted); font-size: 12px; }
+.grid2 { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+.hbar { display: grid; grid-template-columns: minmax(120px, 220px) minmax(0, 1fr) 80px; gap: 6px 10px; align-items: center; font-size: 13px; }
+.hbar .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar .tr { height: 14px; border-radius: 0 4px 4px 0; background: var(--surface-2); overflow: hidden; }
+.hbar .tr i { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--s1); }
+.hbar .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { color: var(--ink-2); font-weight: 600; font-size: 12px; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+td.f { max-width: 380px; overflow: hidden; text-overflow: ellipsis; }
+.add { color: var(--add); } .del { color: var(--del); } .muted { color: var(--muted); }
+.heat { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); gap: 3px; font-size: 11px; color: var(--muted); }
+.heat .c { aspect-ratio: 1; border-radius: 3px; background: var(--surface-2); }
+.heat .hl { text-align: center; }
+.empty { color: var(--muted); padding: 30px 0; text-align: center; }
+.legend { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 11px; margin-top: 8px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+#tip { position: fixed; pointer-events: none; z-index: 30; padding: 6px 10px; border-radius: 8px; background: rgba(18,19,28,.96); border: 1px solid var(--ring); font-size: 12px; white-space: pre; }
+</style>
+</head>
+<body>
+<header>
+  <b>📊 Live Code Report</b>
+  <div class="seg" id="range"><button data-r="today">Today</button><button data-r="7">7 days</button><button data-r="30">30 days</button><button data-r="all">All</button></div>
+  <span class="muted" id="span"></span>
+  <span class="grow"></span>
+  <a href="/">← Dashboard</a>
+</header>
+<main id="main"><div class="empty">Loading…</div></main>
+<div id="tip" hidden></div>
+<script>
+'use strict'
+// What Claude did over a day, a week, a month: cost per project, per day,
+// the busiest hours, the most changed files, the longest turns, the errors.
+const $ = s => document.querySelector(s)
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const baseName = p => String(p ?? '').replace(/[\\/]+$/, '').split(/[\\/]/).pop()
+const money = v => '$' + (v >= 100 ? v.toFixed(0) : v.toFixed(2))
+const human = n => n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(Math.round(n))
+const dur = ms => { const s = ms / 1000; if (s < 60) return s.toFixed(0) + 's'; const m = Math.floor(s / 60); return m < 60 ? `${m}m ${String(Math.floor(s % 60)).padStart(2, '0')}s` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` }
+const DAY = 86400e3
+const dayStart = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime() }
+let range = localStorage.getItem('lc.reportRange') || '7'
+let data = null
+
+const tip = $('#tip')
+document.addEventListener('mousemove', e => {
+  const el = e.target.closest('[data-tip]')
+  if (!el) { tip.hidden = true; return }
+  tip.textContent = el.dataset.tip
+  tip.hidden = false
+  tip.style.left = Math.min(innerWidth - tip.offsetWidth - 8, e.clientX + 14) + 'px'
+  tip.style.top = (e.clientY + 14) + 'px'
+})
+
+const projectOf = sid => {
+  const m = data.sessions[sid]
+  return m?.cwd ? baseName(m.cwd) : 'unknown'
+}
+const chatOf = sid => data.sessions[sid]?.title || projectOf(sid)
+
+const draw = () => {
+  const now = data.now
+  const from = range === 'today' ? dayStart(now) : range === 'all' ? 0 : dayStart(now) - (Number(range) - 1) * DAY
+  $('#span').textContent = range === 'all' ? 'everything recorded' : `${new Date(from).toLocaleDateString()} – ${new Date(now).toLocaleDateString()}`
+  const acts = data.actions.filter(a => a.startedAt >= from)
+
+  // cost: per session, what its running total grew by inside the range
+  const bySid = new Map()
+  for (const s of data.samples) { if (s.usd == null || !s.sid) continue; if (!bySid.has(s.sid)) bySid.set(s.sid, []); bySid.get(s.sid).push(s) }
+  const costPerSid = new Map()
+  const costPerDay = new Map()
+  for (const [sid, list] of bySid) {
+    list.sort((a, b) => a.t - b.t)
+    let prev = null
+    const startedInside = (data.sessions[sid]?.first ?? 0) >= from
+    for (const s of list) {
+      // a session's total only grows; a drop means it started over. Its first
+      // reading counts whole only when the session began inside the range.
+      const grew = prev === null ? (startedInside ? s.usd : 0) : s.usd >= prev.usd ? s.usd - prev.usd : s.usd
+      if (s.t >= from && grew > 0) {
+        costPerSid.set(sid, (costPerSid.get(sid) ?? 0) + grew)
+        const d = dayStart(s.t)
+        costPerDay.set(d, (costPerDay.get(d) ?? 0) + grew)
+      }
+      prev = s
+    }
+  }
+  const costPerProject = new Map()
+  for (const [sid, c] of costPerSid) costPerProject.set(projectOf(sid), (costPerProject.get(projectOf(sid)) ?? 0) + c)
+  const totalCost = [...costPerSid.values()].reduce((a, b) => a + b, 0)
+
+  const turns = []
+  for (const [sid, m] of Object.entries(data.sessions)) for (const t of m.turns ?? []) { const at = t.endedAt ?? m.last ?? 0; if (at >= from) turns.push({ ...t, sid, at }) }
+  const edits = acts.filter(a => a.action === 'editing' || a.action === 'writing')
+  const sum = (list, f) => list.reduce((a, x) => a + (f(x) || 0), 0)
+  const add = sum(edits, a => a.stats?.add), del = sum(edits, a => a.stats?.del), mod = sum(edits, a => a.stats?.mod)
+  const errors = acts.filter(a => a.isError)
+  const files = new Set(acts.filter(a => a.action !== 'running' && a.action !== 'searching').map(a => a.file))
+  const workMs = sum(turns, t => t.ms)
+  const chats = new Set(acts.map(a => a.sid))
+
+  const tile = (label, value, sub) => `<div class="card tile"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`
+  let html = `<section class="tiles">` +
+    tile('Cost', money(totalCost), `${costPerProject.size} projects · ${chats.size} chats`) +
+    tile('Claude worked', workMs ? dur(workMs) : '—', `${turns.length} turns · Ø ${turns.length ? dur(workMs / turns.length) : '—'}`) +
+    tile('Tool calls', human(acts.length), `${acts.filter(a => a.action === 'reading').length} reads · ${edits.length} edits · ${acts.filter(a => a.action === 'running').length} commands`) +
+    tile('Lines changed', human(add + mod + del), `<span class="add">+${human(add)}</span> · <span style="color:var(--mod)">~${human(mod)}</span> · <span class="del">−${human(del)}</span>`) +
+    tile('Files', String(files.size), `${new Set(edits.map(a => a.file)).size} changed`) +
+    tile('Errors', String(errors.length), acts.length ? `${((errors.length / acts.length) * 100).toFixed(1)}% of tool calls` : '') +
+    `</section>`
+
+  // cost per project, and per day
+  const projects = [...costPerProject].sort((a, b) => b[1] - a[1]).slice(0, 12)
+  const maxP = Math.max(1e-9, ...projects.map(p => p[1]))
+  const days = []
+  const firstDay = range === 'all' ? dayStart(Math.min(now, ...[...costPerDay.keys()])) : from
+  for (let d = firstDay; d <= now; d += DAY) days.push(dayStart(d + 3600e3))
+  const uniqDays = [...new Set(days)]
+  const maxD = Math.max(1e-9, ...uniqDays.map(d => costPerDay.get(d) ?? 0))
+  const W = 640, H = 170, pad = 22
+  const bw = Math.max(4, (W - pad) / Math.max(1, uniqDays.length) - 4)
+  const dayBars = uniqDays.map((d, i) => {
+    const v = costPerDay.get(d) ?? 0
+    const h = (v / maxD) * (H - 30)
+    const x = pad + i * ((W - pad) / uniqDays.length) + 2
+    return `<rect x="${x.toFixed(1)}" y="${(H - 18 - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(v > 0 ? 2 : 0, h).toFixed(1)}" rx="3" fill="var(--s1)" data-tip="${new Date(d).toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: '2-digit' })}\n${money(v)}"></rect>` +
+      (uniqDays.length <= 14 || i % Math.ceil(uniqDays.length / 10) === 0 ? `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 4}" text-anchor="middle">${new Date(d).toLocaleDateString(undefined, uniqDays.length <= 7 ? { weekday: 'short' } : { day: '2-digit', month: '2-digit' })}</text>` : '')
+  }).join('')
+  html += `<section class="grid2">` +
+    `<div class="card"><h2>Cost per project</h2>${projects.length ? `<div class="hbar">${projects.map(([p, c]) => `<span class="nm" title="${esc(p)}">${esc(p)}</span><span class="tr"><i style="width:${(c / maxP) * 100}%" data-tip="${esc(p)}\n${money(c)} · ${((c / totalCost) * 100).toFixed(0)}%"></i></span><span class="v">${money(c)}</span>`).join('')}</div>` : '<div class="empty">No cost recorded in this range.</div>'}</div>` +
+    `<div class="card"><h2>Cost per day</h2><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Cost per day"><line x1="${pad}" x2="${W}" y1="${H - 18}" y2="${H - 18}" stroke="rgba(255,255,255,.12)"/><text x="0" y="12">${money(maxD)}</text>${dayBars}</svg></div>` +
+    `</section>`
+
+  // when Claude works: weekday × hour
+  const heat = Array.from({ length: 7 }, () => new Array(24).fill(0))
+  for (const a of acts) { const d = new Date(a.startedAt); heat[(d.getDay() + 6) % 7][d.getHours()]++ }
+  const maxH = Math.max(1, ...heat.flat())
+  const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  html += `<section class="grid2"><div class="card"><h2>When Claude works <span>tool calls per hour of the week</span></h2><div class="heat"><span></span>${Array.from({ length: 24 }, (_, h) => `<span class="hl">${h % 3 === 0 ? h : ''}</span>`).join('')}` +
+    heat.map((row, d) => `<span>${WD[d]}</span>` + row.map((n, h) => `<span class="c" style="${n ? `background:color-mix(in srgb, var(--s1) ${Math.round(15 + (n / maxH) * 85)}%, transparent)` : ''}" data-tip="${WD[d]} ${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00\n${n} tool calls"></span>`).join('')).join('') +
+    `</div><div class="legend">fewer <i style="background:color-mix(in srgb, var(--s1) 18%, transparent)"></i><i style="background:color-mix(in srgb, var(--s1) 55%, transparent)"></i><i style="background:var(--s1)"></i> more</div></div>`
+
+  // the action mix
+  const KINDS = [['reading', 'Read', 'var(--s1)'], ['editing', 'Edit', 'var(--s2)'], ['writing', 'Write', 'var(--s3)'], ['searching', 'Search', 'var(--s7)'], ['running', 'Command', 'var(--s4)']]
+  const maxK = Math.max(1, ...KINDS.map(([k]) => acts.filter(a => a.action === k).length))
+  html += `<div class="card"><h2>What Claude did</h2><div class="hbar">${KINDS.map(([k, label, color]) => { const n = acts.filter(a => a.action === k).length; const e = acts.filter(a => a.action === k && a.isError).length; return `<span class="nm">${label}</span><span class="tr"><i style="width:${(n / maxK) * 100}%;background:${color}" data-tip="${label}: ${n}${e ? `\n${e} failed` : ''}"></i></span><span class="v">${human(n)}${e ? ` <span class="del">✗${e}</span>` : ''}</span>` }).join('')}</div></div></section>`
+
+  // the most changed files, the longest turns
+  const byFile = new Map()
+  for (const a of edits) { const f = byFile.get(a.file) ?? { file: a.file, sid: a.sid, n: 0, add: 0, del: 0, mod: 0, last: 0 }; f.n++; f.add += a.stats?.add ?? 0; f.del += a.stats?.del ?? 0; f.mod += a.stats?.mod ?? 0; f.last = Math.max(f.last, a.startedAt); byFile.set(a.file, f) }
+  const topFiles = [...byFile.values()].sort((a, b) => b.n - a.n || (b.add + b.del) - (a.add + a.del)).slice(0, 15)
+  const topTurns = turns.filter(t => t.ms > 0).sort((a, b) => b.ms - a.ms).slice(0, 10)
+  html += `<section class="grid2">` +
+    `<div class="card"><h2>Most changed files</h2>${topFiles.length ? `<table><tr><th>File</th><th>Project</th><th class="r">Edits</th><th class="r">+</th><th class="r">~</th><th class="r">−</th></tr>${topFiles.map(f => `<tr><td class="f" title="${esc(f.file)}"><b>${esc(baseName(f.file))}</b></td><td class="muted">${esc(projectOf(f.sid))}</td><td class="r">${f.n}</td><td class="r add">${f.add}</td><td class="r" style="color:var(--mod)">${f.mod}</td><td class="r del">${f.del}</td></tr>`).join('')}</table>` : '<div class="empty">No file changed in this range.</div>'}</div>` +
+    `<div class="card"><h2>Longest turns</h2>${topTurns.length ? `<table><tr><th>Chat</th><th>When</th><th class="r">Took</th><th class="r">Steps</th><th class="r">Cost</th></tr>${topTurns.map(t => `<tr><td class="f">${esc(chatOf(t.sid))} <span class="muted">· turn ${t.no}</span></td><td class="muted">${new Date(t.at).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</td><td class="r">${dur(t.ms)}</td><td class="r">${t.steps ?? ''}</td><td class="r">${t.usd != null ? money(t.usd) : ''}</td></tr>`).join('')}</table>` : '<div class="empty">No turn recorded in this range.</div>'}</div>` +
+    `</section>`
+
+  // errors by what failed
+  const errBy = new Map()
+  for (const a of errors) { const k = a.action === 'running' ? `Command: ${a.detail || a.file}` : `${a.action} ${baseName(a.file)}`; errBy.set(k, (errBy.get(k) ?? 0) + 1) }
+  const topErr = [...errBy].sort((a, b) => b[1] - a[1]).slice(0, 10)
+  html += `<section class="card"><h2>What failed most</h2>${topErr.length ? `<table>${topErr.map(([k, n]) => `<tr><td class="f">${esc(k)}</td><td class="r del">${n}×</td></tr>`).join('')}</table>` : '<div class="empty">Nothing failed in this range. 🎉</div>'}</section>`
+
+  $('#main').innerHTML = html
+}
+
+for (const b of document.querySelectorAll('#range button')) {
+  b.classList.toggle('on', b.dataset.r === range)
+  b.onclick = () => { range = b.dataset.r; localStorage.setItem('lc.reportRange', range); for (const x of document.querySelectorAll('#range button')) x.classList.toggle('on', x === b); draw() }
+}
+const load = async () => {
+  try {
+    data = await (await fetch('/report-data')).json()
+    draw()
+  } catch (error) {
+    $('#main').innerHTML = `<div class="empty">Could not load the data: ${esc(error.message)}</div>`
+  }
+}
+load()
+setInterval(load, 60_000)
+</script>
+</body>
+</html>

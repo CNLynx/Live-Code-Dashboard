@@ -1,0 +1,12 @@
+{
+  "name": "cnlynx",
+  "owner": { "name": "CNLynx", "url": "https://github.com/CNLynx" },
+  "metadata": { "description": "Claude Code mods by CNLynx" },
+  "plugins": [
+    {
+      "name": "live-code",
+      "source": "./",
+      "description": "Live dashboard for Claude Code: watch every read and edit as it happens, with costs, limits, context and charts. Stream Deck and Philips Hue built in."
+    }
+  ]
+}
