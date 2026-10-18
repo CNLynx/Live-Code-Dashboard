@@ -28,6 +28,6 @@ git add -A 2>$null
 git commit -q -m "v$new - $Message"
 if ($LASTEXITCODE -ne 0) { throw 'commit failed' }
 git tag "v$new"
-git push origin main --tags
+cmd /c "git push origin main --tags 2>&1"
 if ($LASTEXITCODE -ne 0) { throw "push failed: run 'git push origin main --tags' here" }
 Write-Host "Released v$new" -ForegroundColor Green
