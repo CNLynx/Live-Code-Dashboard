@@ -343,6 +343,10 @@ let modelPick = ''
 let effortPick = ''
 let modelUsed = ''
 let effortUsed = ''
+// a compaction of the main conversation running (since when), and the last one's
+// end with its token counts: the dashboard animates the one, shows the other
+let compactingSince = 0
+let compactedLast: { at: number; before?: number; after?: number; skip?: string } | undefined
 const compactWhenFree = async ($: Engine) => {
   if (compactTries === 0 || inTurn) return
   compactTries--
@@ -583,7 +587,7 @@ const publish = ($: Engine) => {
         turnStats: turns,
         asks: waiting,
         plan: planned,
-        session: { id: sessionId, cwd: sessionCwd, title: sessionTitle, startedAt: started, updatedAt: await clockNow($), isEnded, canReceive: true, canStop: true, canAnswer: true, canPickModel: true, model: modelUsed, effort: effortUsed, modelPick, effortPick },
+        session: { id: sessionId, cwd: sessionCwd, title: sessionTitle, startedAt: started, updatedAt: await clockNow($), isEnded, canReceive: true, canStop: true, canAnswer: true, canPickModel: true, model: modelUsed, effort: effortUsed, modelPick, effortPick, compactingSince, compactedLast },
       }
       const home = claudeHome($.plugin.root)
       const text = JSON.stringify(feed)
@@ -1441,6 +1445,24 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   // a dashboard message waiting mid-turn rides along with the main loop's next tool result
+
+  // A compaction of the chat (/compact, the engine's own, the dashboard's): the
+  // dashboard animates while it runs and shows how much it freed.
+  on('session.compact', async ($, e, next) => {
+    if (e.agentId !== undefined || e.trigger === 'precompute') return next(e)
+    compactingSince = (await clockNow($)) || Date.now()
+    await publish($)
+    try {
+      const r = await next(e)
+      compactedLast = r.skip !== undefined
+        ? { at: (await clockNow($)) || Date.now(), skip: r.skip }
+        : { at: (await clockNow($)) || Date.now(), before: r.tokensBefore, after: r.tokensAfter }
+      return r
+    } finally {
+      compactingSince = 0
+      void publish($)
+    }
+  })
 
   // the main loop's turn, for a stop from the dashboard
   on('turn.start', ($, e, next) => {

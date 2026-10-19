@@ -842,7 +842,9 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 .versions:empty, .versions:not(:has(span:not(:empty))) { display: none; }
 .versions .v-installed { color: var(--muted); }
 /* the model and effort of the chat shown, to pick as in Claude */
-.pc-model { display: inline-flex; gap: 6px; align-items: center; }
+.pc-model { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; max-width: 100%; }
+.prompt-card:not(.folded) .pc-head { flex-wrap: wrap; row-gap: 6px; min-width: 0; }
+.pc-model select { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 .pc-model[hidden] { display: none; }
 .pc-model select { font: inherit; font-size: 12px; font-weight: 600; color: var(--ink); background: var(--surface-2); border: 1px solid var(--ring); border-radius: 999px; padding: 3px 24px 3px 10px; cursor: pointer; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 13px) 55%, calc(100% - 9px) 55%; background-size: 4px 4px; background-repeat: no-repeat; transition: border-color .2s, box-shadow .2s; }
 .pc-model select:hover { border-color: color-mix(in srgb, var(--s1) 55%, var(--ring)); }
@@ -861,6 +863,24 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 .compact-bar button:disabled { opacity: .6; cursor: default; }
 @keyframes cb-pulse { 50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--cb) 40%, transparent), 0 0 18px color-mix(in srgb, var(--cb) 25%, transparent); } }
 :root.calm .compact-bar.crit { animation: none; }
+/* compacting: lines of the chat squeezed together, a sheen running across */
+.compact-bar.compacting { --cb: var(--accent, #60a5fa); position: relative; overflow: hidden; }
+.compact-bar.compacting::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--cb) 28%, transparent) 50%, transparent 70%); transform: translateX(-100%); animation: cb-sheen 1.6s ease-in-out infinite; }
+.compact-bar.compacted { --cb: var(--good, #4ade80); }
+.compact-bar .cb-time { font-variant-numeric: tabular-nums; color: var(--ink-2); font-weight: 600; }
+.cb-squeeze { width: 34px; height: 34px; flex: none; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 0 4px; }
+.cb-squeeze i { display: block; height: 3px; border-radius: 2px; background: var(--cb); animation: cb-squeeze 1.4s ease-in-out infinite; transform-origin: left center; }
+.cb-squeeze i:nth-child(1) { --sq: 6px; }
+.cb-squeeze i:nth-child(2) { --sq: 3px; width: 80%; animation-delay: .08s; }
+.cb-squeeze i:nth-child(3) { width: 92%; animation-delay: .16s; }
+.cb-squeeze i:nth-child(4) { --sq: -3px; width: 65%; animation-delay: .24s; }
+.cb-squeeze i:nth-child(5) { --sq: -6px; width: 85%; animation-delay: .32s; }
+@keyframes cb-squeeze { 0%, 100% { transform: translateY(0) scaleX(1); opacity: 1; } 50% { transform: translateY(var(--sq, 0)) scaleX(.45); opacity: .55; } }
+@keyframes cb-sheen { to { transform: translateX(100%); } }
+.tiles .tile.compacting .meter > div { background-image: linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent) !important; background-size: 50% 100% !important; background-repeat: no-repeat !important; animation: tile-sheen 1.2s linear infinite; }
+@keyframes tile-sheen { from { background-position: -100% 0; } to { background-position: 200% 0; } }
+:root.calm .compact-bar.compacting::after, :root.calm .tiles .tile.compacting .meter > div { animation-duration: 3s; }
+:root.calm .cb-squeeze i { animation-duration: 2.8s; }
 .tiles .tile .tile-compact { display: block; width: 100%; margin-top: 8px; font: inherit; font-size: 12px; font-weight: 650; padding: 5px 8px; border-radius: 7px; cursor: pointer; color: var(--ink); border: 1px solid color-mix(in srgb, var(--serious) 55%, transparent); background: color-mix(in srgb, var(--serious) 18%, transparent); }
 .tiles .tile.lvl-crit .tile-compact { border-color: color-mix(in srgb, var(--crit) 60%, transparent); background: color-mix(in srgb, var(--crit) 20%, transparent); }
 .tiles .tile .tile-compact:hover:not(:disabled) { filter: brightness(1.2); }
@@ -891,7 +911,13 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 .versions .v-latest.update { color: color-mix(in srgb, var(--crit) 55%, var(--ink)); font-weight: 650; cursor: pointer; }
 .versions .v-latest.ahead { color: color-mix(in srgb, var(--good) 60%, var(--ink)); }
 .versions .v-latest.unknown { color: var(--muted); opacity: .7; }
-@media (max-width: 1400px) { .versions { display: none; } }
+/* narrower (a tablet): the bar takes two lines instead of cutting off its right end, the version kept */
+@media (max-width: 1400px) { .top { flex-wrap: wrap; row-gap: 8px; } .top .prompt { order: 20; flex-basis: 100%; } }
+/* tiles spread evenly over their rows (--cols from extras.js), the last row filling the width */
+html:not(.tile-mode) .tiles { display: flex; flex-wrap: wrap; }
+html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1) * 12px) / var(--cols, 6)); min-width: 140px; }
+/* a chart left alone in its row takes the whole row */
+.grid2 > .card.lone, .grid3 > .card.lone { grid-column: 1 / -1; }
 /* the tile beside the others when a newer version is out: one click installs it */
 .tiles .tile.update-tile { --u: var(--serious); cursor: pointer; border-color: color-mix(in srgb, var(--u) 55%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--u) 14%, var(--surface)), var(--surface)); }
 .tiles .tile.update-tile:hover { box-shadow: 0 0 0 1px var(--u), 0 0 24px color-mix(in srgb, var(--u) 45%, transparent); }
@@ -2048,10 +2074,12 @@ const drawTiles = () => {
   if (u) {
     const p = u.percent ?? 0
     // from 70 %: a button to compact the chat now, in the tile itself (as the bar over the live view)
-    const compactBtn = p >= 70 && !TILE_MODE
+    const compacting = !!snap.session?.compactingSince
+    const compactBtn = compacting ? '<button class="tile-compact" disabled>🗜 Compacting…</button>'
+      : p >= 70 && !TILE_MODE
       ? (window.compactAsked?.(S.view) ? '<button class="tile-compact" disabled>⏳ Compacting soon</button>' : '<button class="tile-compact" title="As /compact does: Claude sums up the chat so far and goes on from that summary">🗜 Compact now</button>')
       : ''
-    tile('Context window', counter(`ctx:${S.view}`, p, 'pct'), `${human(u.tokens ?? 0)} of ${human(u.window ?? 0)} tokens`, `<div class="meter"><div style="width:${clamp(p, 0, 100)}%;background:${meterColor(p)}"></div></div>${compactBtn}`, '', `hero ${levelClass(p)}`)
+    tile('Context window', counter(`ctx:${S.view}`, p, 'pct'), `${human(u.tokens ?? 0)} of ${human(u.window ?? 0)} tokens`, `<div class="meter"><div style="width:${clamp(p, 0, 100)}%;background:${meterColor(p)}"></div></div>${compactBtn}`, '', `hero ${levelClass(p)}${compacting ? ' compacting' : ''}`)
     for (const l of u.limits ?? []) {
       const safe = limitSafety(l)
       const eta = !safe.isSafe

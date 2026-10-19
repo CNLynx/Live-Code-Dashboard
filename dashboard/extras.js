@@ -1059,11 +1059,44 @@ if (!TILE_MODE) {
   const asked = new Map() // sid -> when "Compact now" was clicked
   const ring = p => { const r = 14, c = 2 * Math.PI * r; return `<svg width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="${r}" fill="none" stroke="color-mix(in srgb, var(--cb) 22%, transparent)" stroke-width="4"/><circle cx="17" cy="17" r="${r}" fill="none" stroke="var(--cb)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(c * Math.min(100, p)) / 100} ${c}"/></svg>` }
   let shape = ''
+  // while the chat compacts (any way: /compact, Claude's own, this button):
+  // lines of the chat squeezed together, a sheen across the bar, the time it takes;
+  // then, for a few seconds, how far the context came down
+  const squeeze = '<span class="cb-squeeze" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>'
+  const mmss = ms => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
+  const drawCompacting = (box, sess) => {
+    const since = sess?.compactingSince || 0
+    const last = sess?.compactedLast
+    const win = S.snap?.usage?.window || 0
+    const done = !since && last?.at && Date.now() - last.at < 9000 && !last.skip && last.before && win
+    if (!since && !done) return false
+    const next = since ? `run|${Math.floor((Date.now() - since) / 1000)}` : `done|${last.at}`
+    if (next === shape) return true
+    const fresh = !shape.startsWith(since ? 'run' : 'done')
+    shape = next
+    if (since) {
+      box.className = 'compact-bar compacting'
+      box.innerHTML = `${squeeze}<span class="cb-text"><b>Compacting…</b> · Claude sums up the chat so far</span><span class="cb-time">${mmss(Date.now() - since)}</span>`
+    } else {
+      const from = Math.round((last.before / win) * 100), to = Math.round(((last.after ?? 0) / win) * 100)
+      box.className = 'compact-bar compacted'
+      box.innerHTML = `<span class="cb-gauge">${ring(from)}<b>${to}%</b></span><span class="cb-text"><b>Compacted</b> · ${from}% → ${to}% of the context, ${human(last.before - (last.after ?? 0))} tokens freed</span>`
+      if (fresh && !reduceMotion) {
+        const arc = box.querySelector('.cb-gauge circle:last-child'), c = 2 * Math.PI * 14
+        arc?.animate([{ strokeDasharray: `${(c * from) / 100} ${c}` }, { strokeDasharray: `${(c * to) / 100} ${c}` }], { duration: 1100, easing: GLIDE, fill: 'forwards' })
+      }
+    }
+    box.hidden = false
+    if (fresh && !reduceMotion) box.animate([{ opacity: 0, transform: 'scaleY(.6)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: GLIDE })
+    return true
+  }
   const draw = () => {
     const box = $('#compact-bar')
     if (!box) return
     const sid = S.view
     const p = S.snap?.usage?.percent
+    if (!TILE_MODE && drawCompacting(box, S.snap?.session)) { if (S.snap?.session?.compactingSince) asked.delete(sid); return }
+    if (shape.startsWith('run') || shape.startsWith('done')) shape = ''
     const at = asked.get(sid)
     // asked: until the context has come down (or a minute and a half without it)
     if (at && (p == null || p < AT - 15 || Date.now() - at > 90_000)) asked.delete(sid)
@@ -1097,7 +1130,7 @@ if (!TILE_MODE) {
     const r = await post('/send', { sid, kind: 'compact' }).catch(() => null)
     if (!r?.ok) { asked.delete(sid); shape = ''; draw(); drawTiles(); smallToast('Could not ask the chat to compact', 'bad') }
   }
-  setInterval(draw, 1000)
+  setInterval(draw, 500)
   window.drawCompact = draw
   window.askCompact = askCompact
   // for the context tile: 'asked' once "Compact now" was clicked for this chat
@@ -1168,4 +1201,30 @@ if (!TILE_MODE) {
   }
   setInterval(draw, 1000)
   window.drawDeploys = draw
+}
+
+// ── no half-empty rows ──
+// The tiles spread evenly over as few rows as fit (10 tiles: 5 + 5, not 7 + 3);
+// a chart left alone in its last row takes the whole row.
+{
+  const TILE_MIN = 150, TILE_GAP = 12
+  const balance = () => {
+    const tiles = $('.tiles')
+    if (tiles && !TILE_MODE) {
+      const n = [...tiles.children].filter(t => t.offsetParent !== null).length
+      const fit = Math.max(1, Math.floor((tiles.clientWidth + TILE_GAP) / (TILE_MIN + TILE_GAP)))
+      const cols = n ? Math.ceil(n / Math.ceil(n / fit)) : fit
+      if (tiles.style.getPropertyValue('--cols') !== String(cols)) tiles.style.setProperty('--cols', String(cols))
+    }
+    for (const grid of document.querySelectorAll('.grid2, .grid3')) {
+      const cards = [...grid.children].filter(c => c.classList.contains('card'))
+      cards.forEach(c => c.classList.remove('lone'))
+      const shown = cards.filter(c => getComputedStyle(c).display !== 'none')
+      const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(v => v && v !== '0px').length
+      if (cols > 1 && shown.length % cols === 1) shown.at(-1).classList.add('lone')
+    }
+  }
+  addEventListener('resize', balance)
+  setInterval(balance, 800)
+  balance()
 }
