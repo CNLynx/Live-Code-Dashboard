@@ -12,9 +12,13 @@ const PROVIDERS = [
   { test: /vercel/i, name: 'Vercel' },
   { test: /netlify/i, name: 'Netlify' },
 ]
-const ACTIVE_MS = 30 * 60_000 // a chat quiet for longer is not followed
-const FAST_MS = 20_000 // while a build runs, or just after one
-const SLOW_MS = 90_000
+// a chat quiet for longer is not followed (a pull request is often merged on
+// GitHub a while after the chat's work, with nothing here to tell of it)
+const ACTIVE_MS = 2 * 3600e3
+const FAST_MS = 10_000 // while a build runs, or just after one
+// otherwise: a build of a minute or so must not slip by between two looks (the
+// host says nothing until it is done: the bar runs from the merge in between)
+const SLOW_MS = 20_000
 const RECENT_MS = 10 * 60_000
 
 // gh: on the PATH, or where its installer puts it on Windows

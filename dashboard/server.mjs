@@ -669,7 +669,7 @@ const initPayload = () => {
 // The folders each chat worked in lately: a chat started in a parent folder
 // (D:\Projects) works in a repository below it, whose site builds are its own.
 // From the files it read, edited and searched, and the folders its commands
-// changed to; the newest few of the last half hour, with where it started.
+// changed to; the newest few of the last two hours, with where it started.
 const workDirs = new Map() // sid -> Map(dir -> when)
 const CD = /(?:\bcd|Set-Location|\bgit(?:\.exe)?\s+-C|--cwd)\s+["']?([A-Za-z]:[\\/][^"'\n;|&<>]+?|\/[^"'\s;|&<>]+)["']?(?=[\s;|&]|$)/g
 const noteDirs = a => {
@@ -685,7 +685,7 @@ const noteDirs = a => {
   workDirs.set(a.sid, m)
 }
 const dirsOf = (sid, cwd) => {
-  const recent = [...(workDirs.get(sid) ?? [])].filter(([, at]) => Date.now() - at < 30 * 60_000).sort((x, y) => y[1] - x[1]).slice(0, 6).map(([d]) => d)
+  const recent = [...(workDirs.get(sid) ?? [])].filter(([, at]) => Date.now() - at < 2 * 3600e3).sort((x, y) => y[1] - x[1]).slice(0, 6).map(([d]) => d)
   return [cwd, ...recent].filter(Boolean)
 }
 for (const a of actions.values()) noteDirs(a)

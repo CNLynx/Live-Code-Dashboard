@@ -157,7 +157,7 @@ Everything Live Code does outside of Claude Code itself, in full:
 | Sends light commands to **your own Philips Hue Bridge** (local network, HTTPS) | only after you pair it, on done / question / stuck / a site build | your bridge |
 | Looks up the latest version number: `api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json` | every 10 minutes while the dashboard runs | GitHub |
 | Live users: a random id of this install (made on your PC, `~/.claude/live-code-install.json`), nothing else; the answer is how many dashboards are open worldwide, shown as "● N online" | every 5 minutes while a dashboard page is open; switch it off in Settings → Display | Live Code's counter (a Cloudflare Worker, `live-users/worker.js`; ids kept in memory for 6 minutes only) |
-| Reads the build checks of the repository a chat works in, through your signed-in GitHub CLI (`gh api …/check-runs`) | while that chat was active in the last 30 minutes | GitHub |
+| Reads the build checks of the repository a chat works in, through your signed-in GitHub CLI (`gh api …/check-runs`) | every 20 seconds while that chat was active in the last 2 hours | GitHub |
 | Runs `claude plugin marketplace update cnlynx` and `claude plugin update live-code@cnlynx` | only when you click the **Update available** tile | GitHub, through Claude Code |
 | Downloads Microsoft's WebView2 SDK (`Microsoft.Web.WebView2` 1.0.2365.46 from nuget.org) for the frameless tile windows | once, at setup or the first tile window | nuget.org |
 | Setup: Start menu / desktop shortcut, launcher in `%LOCALAPPDATA%\live-code-dashboard`, Stream Deck plugin package opened in the Stream Deck app (you confirm there) | `/live-code-setup`, `install.ps1`, once per version | your PC only |
