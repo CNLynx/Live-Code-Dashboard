@@ -207,6 +207,31 @@ main { padding: 16px 18px 40px; display: grid; gap: 14px; }
 .wave.on .w1 { animation: drift 2.2s linear infinite; } .wave.on .w2 { animation: drift 3.4s linear infinite; } .wave.on .w3 { animation: drift 1.6s linear infinite; }
 @keyframes drift { from { transform: translateX(0); } to { transform: translateX(-80px); } }
 .now-prompt { color: var(--ink-2); font-style: italic; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* ── a steady layout: nothing in the live view or beside it grows and shrinks
+   with what it says. Each line keeps its room; the side column is exactly as
+   tall as the live view, the feed fills what the cards above it leave and
+   scrolls in itself ── */
+.live-head { height: 44px; min-height: 0; flex-wrap: nowrap; overflow: hidden; }
+.live-head > * { min-width: 0; }
+.live-head .where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.why { height: calc(2 * 1.4em); box-sizing: content-box; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.why.gone { opacity: 0; }
+.now-title { line-height: 1.35; height: calc(3 * 1.35em); }
+.now-info, .now-why { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 1.45em; line-height: 1.45; }
+.now-prompt { line-height: 1.45; height: calc(3 * 1.45em); }
+@media (min-width: 1101px) {
+  .mainrow { align-items: stretch; }
+  /* (its own height counts for nothing: the row is the live view's) */
+  .side { contain: size; display: flex; flex-direction: column; min-height: 0; }
+  .side > .card { flex: none; }
+  .side > .card.feed-card { flex: 1 1 0; min-height: 120px; display: flex; flex-direction: column; overflow: hidden; }
+  .feed-card .feed { flex: 1 1 0; min-height: 0; max-height: none; }
+  /* the current turn takes the room, the feed what is left (a few lines) */
+  .side > .card.turn-card { flex: 1.6 1 0; min-height: 0; overflow: hidden; }
+  .side > .card.feed-card { flex: 1 1 0; }
+}
+/* its legend keeps two lines of room, as kinds come and go */
+.tl-legend { min-height: 44px; align-content: flex-start; }
 
 /* ── feed ── */
 .feed { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow: auto; }
@@ -1299,11 +1324,11 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
         </svg>
         <div class="now-prompt" id="now-prompt"></div>
       </div>
-      <div class="card">
+      <div class="card turn-card">
         <div class="card-title">Current turn <span class="sub num" id="turn-sub"></span></div>
         <div class="chart" id="timeline"></div>
       </div>
-      <div class="card">
+      <div class="card feed-card">
         <div class="card-title">Live feed <span class="sub">every action as it lands</span></div>
         <ul class="feed" id="feed"></ul>
       </div>
@@ -2953,7 +2978,13 @@ let whyShown = ''
 const drawWhy = () => {
   const why = whyOf(R.item, S.snap)
   const el = $('#live-why')
-  if (why !== whyShown) { whyShown = why; reveal(el, !!why); if (why) el.innerHTML = `<b>for</b>${esc(why)}` }
+  // (its room stays: the line fades in and out, the code below does not move)
+  if (why !== whyShown) {
+    whyShown = why
+    if (el.hidden) el.hidden = false
+    el.classList.toggle('gone', !why)
+    if (why) el.innerHTML = `<b>for</b>${esc(why)}`
+  }
   const cur = S.snap?.current
   setText($('#now-why'), cur && !cur.isDone ? (whyOf(cur, S.snap) ? `→ ${whyOf(cur, S.snap)}` : '') : '')
 }
@@ -3058,7 +3089,7 @@ const drawTimeline = () => {
   const t0 = th.turnStartedAt, t1 = Math.max(t0 + 1000, live ? now() : th.turnEndedAt)
   const steps = snap.steps ?? []
   const lanes = [{ id: null, name: 'Claude' }, ...(snap.agents ?? []).map(a => ({ id: a.id, name: a.name, status: a.status }))]
-  const W = el.clientWidth || 340, labelW = 70, laneH = 26, top = 4
+  const W = el.clientWidth || 340, labelW = 70, laneH = 38, top = 6
   const H = top + lanes.length * laneH + 24
   const x = t => Math.round((labelW + ((clamp(t, t0, t1) - t0) / (t1 - t0)) * (W - labelW - 6)) * 10) / 10
   let s = '<g class="ax">'
@@ -3067,21 +3098,21 @@ const drawTimeline = () => {
   s += '</g>'
   lanes.forEach((lane, i) => {
     const y = top + i * laneH
-    s += `<text class="lbl" x="0" y="${y + 17}"><title>${esc(lane.name)}</title>${esc(lane.name.length > 10 ? lane.name.slice(0, 9) + '…' : lane.name)}</text>`
+    s += `<text class="lbl" x="0" y="${y + 23}"><title>${esc(lane.name)}</title>${esc(lane.name.length > 10 ? lane.name.slice(0, 9) + '…' : lane.name)}</text>`
     const own = steps.filter(st => (st.agentId ?? null) === lane.id).sort((a, b) => a.startedAt - b.startedAt)
     if (lane.id === null) {
       // thinking: the main lane's time with no tool running
       let cursor = t0
       const busy = own.map(st => [st.startedAt, st.doneAt ?? t1])
       for (const [a, b] of [...busy, [t1, t1]]) {
-        if (a - cursor > 250) s += `<rect x="${x(cursor)}" y="${y + 9}" width="${Math.max(1, x(a) - x(cursor))}" height="8" rx="4" style="fill:var(--s7);opacity:.22" data-tip="Thinking ${dur(a - cursor)}"/>`
+        if (a - cursor > 250) s += `<rect x="${x(cursor)}" y="${y + 14}" width="${Math.max(1, x(a) - x(cursor))}" height="10" rx="5" style="fill:var(--s7);opacity:.22" data-tip="Thinking ${dur(a - cursor)}"/>`
         cursor = Math.max(cursor, b)
       }
     }
     for (const st of own) {
       const a = x(st.startedAt), b = x(st.doneAt ?? t1)
       const k = st.kind in KIND ? st.kind : 'other'
-      s += `<rect x="${a}" y="${y + 4}" width="${Math.max(3, b - a)}" height="18" rx="4" style="fill:${st.status === 'error' ? 'var(--crit)' : kindVar(k)}${st.status === 'running' ? ';opacity:.75' : ''}" data-tip="${esc(`${KIND[k].label}: ${st.label}\n${st.doneAt ? dur(st.doneAt - st.startedAt) : 'running ' + dur(now() - st.startedAt)}${st.status === 'error' ? '\nfailed' : ''}`)}"/>`
+      s += `<rect x="${a}" y="${y + 5}" width="${Math.max(3, b - a)}" height="28" rx="5" style="fill:${st.status === 'error' ? 'var(--crit)' : kindVar(k)}${st.status === 'running' ? ';opacity:.75' : ''}" data-tip="${esc(`${KIND[k].label}: ${st.label}\n${st.doneAt ? dur(st.doneAt - st.startedAt) : 'running ' + dur(now() - st.startedAt)}${st.status === 'error' ? '\nfailed' : ''}`)}"/>`
     }
   })
   const kindsHere = [...new Set(steps.map(st => (st.kind in KIND ? st.kind : 'other')))]
