@@ -62,19 +62,36 @@ const isDev = () => {
 const releaseState = () => {
   try {
     const s = JSON.parse(fs.readFileSync(RELEASE_STATE, 'utf8'))
-    // a run that never reported back (the PC slept, it was ended)
-    if (s.state === 'running' && Date.now() - s.at > 15 * 60_000) return { ...s, state: 'failed', out: ['The release did not report back; see .\\release.ps1 -List'] }
+    // a run that never reported back (it ended early, the PC slept)
+    if (s.state === 'running') {
+      let alive = !!s.pid
+      try { if (s.pid) process.kill(s.pid, 0) } catch { alive = false }
+      if (!alive && Date.now() - s.at > 5000) return { ...s, state: 'failed', out: [s.error || 'The release stopped without a word; nothing was published unless GitHub shows a new version. See .\\release.ps1 -List'] }
+      if (Date.now() - s.at > 15 * 60_000) return { ...s, state: 'failed', out: ['The release did not report back; see .\\release.ps1 -List'] }
+    }
     return s
   } catch { return { state: 'idle' } }
 }
-const startRelease = (picks, message, minor) => {
+const startRelease = (picks, message, minor, dryRun) => {
   if (releaseState().state === 'running') return 'A release is already running'
+  unpublished.at = 0
   countUnpublished()
   const known = new Set(unpublished.list.map(c => c.sha))
   if (picks.length === 0 || !picks.every(p => known.has(p))) return 'Pick changes that are still unpublished'
-  try { fs.writeFileSync(RELEASE_STATE, JSON.stringify({ state: 'running', at: Date.now(), picks, message, minor })) } catch { return 'Could not write the release state' }
+  // (release.ps1 would refuse: say so here, at once)
+  try {
+    if (execFileSync('git', ['-C', REPO, 'status', '--porcelain'], { encoding: 'utf8', windowsHide: true, timeout: 5000 }).trim()) return 'There are unsaved changes in the mod: keep them first (change.ps1)'
+  } catch {}
+  const state = { state: 'running', at: Date.now(), picks, message, minor, dryRun }
+  const write = s => { try { fs.writeFileSync(RELEASE_STATE, JSON.stringify(s)); return true } catch { return false } }
+  if (!write(state)) return 'Could not write the release state'
+  // (started by Windows itself, apart from this server: it may be swapped for a
+  // fresh one while the release runs, which lays new files into this folder)
   const ps = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-  spawn(ps, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(REPO, 'bin', 'dev-release.ps1'), '-StateFile', RELEASE_STATE], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true }).unref()
+  const child = spawn(ps, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(REPO, 'bin', 'dev-release.ps1'), '-StateFile', RELEASE_STATE], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true })
+  child.on('error', e => write({ ...state, state: 'failed', at: Date.now(), out: [`Could not start PowerShell: ${e.message}`] }))
+  if (child.pid) write({ ...state, pid: child.pid })
+  child.unref()
   return ''
 }
 // the newest published version (GitHub), looked up every ten minutes, for the
@@ -598,7 +615,7 @@ const titled = (sid, snapshot) => {
   const said = prompts.get(sid)
   const told = notes.get(sid)
   const gone = hidden.get(sid)
-  const builds = snapshot?.session?.cwd ? deploysFor(snapshot.session.cwd) : []
+  const builds = deploysFor(dirsOf(sid, snapshot?.session?.cwd))
   if (!snapshot || (!title && !said && !told && !gone && builds.length === 0)) return snapshot
   return { ...snapshot, session: { ...(snapshot.session ?? {}), ...(title ? { title } : {}), ...(said ? { prompts: said } : {}), ...(told ? { notes: told } : {}), ...(gone ? { hidden: gone } : {}), ...(builds.length ? { deploys: builds } : {}) } }
 }
@@ -639,6 +656,30 @@ const initPayload = () => {
   }
 }
 
+// The folders each chat worked in lately: a chat started in a parent folder
+// (D:\Projects) works in a repository below it, whose site builds are its own.
+// From the files it read, edited and searched, and the folders its commands
+// changed to; the newest few of the last half hour, with where it started.
+const workDirs = new Map() // sid -> Map(dir -> when)
+const CD = /(?:\bcd|Set-Location|\bgit(?:\.exe)?\s+-C|--cwd)\s+["']?([A-Za-z]:[\\/][^"'\n;|&<>]+?|\/[^"'\s;|&<>]+)["']?(?=[\s;|&]|$)/g
+const noteDirs = a => {
+  if (!a?.sid) return
+  const found = []
+  if (typeof a.file === 'string' && /^(?:[A-Za-z]:[\\/]|\/)/.test(a.file)) found.push(a.action === 'searching' ? a.file : path.dirname(a.file))
+  if (a.action === 'running') for (const m of `${a.detail ?? ''}\n${(a.rows ?? []).map(r => r.text).join('\n')}`.matchAll(CD)) found.push(m[1].trim())
+  if (found.length === 0) return
+  const m = workDirs.get(a.sid) ?? new Map()
+  for (const d of found) m.set(d, Math.max(m.get(d) ?? 0, a.startedAt || 0))
+  // (kept small: the newest 20)
+  if (m.size > 20) for (const [d] of [...m].sort((x, y) => x[1] - y[1]).slice(0, m.size - 20)) m.delete(d)
+  workDirs.set(a.sid, m)
+}
+const dirsOf = (sid, cwd) => {
+  const recent = [...(workDirs.get(sid) ?? [])].filter(([, at]) => Date.now() - at < 30 * 60_000).sort((x, y) => y[1] - x[1]).slice(0, 6).map(([d]) => d)
+  return [cwd, ...recent].filter(Boolean)
+}
+for (const a of actions.values()) noteDirs(a)
+
 // One new state of one session's feed: new or completed actions, maybe a usage sample.
 const ingest = (sid, feed) => {
   const fresh = []
@@ -654,8 +695,9 @@ const ingest = (sid, feed) => {
     actions.set(a.id, a)
     fresh.push(a)
     append({ k: 'a', d: a })
+    noteDirs(a)
     // a push or a merge: the site's host builds now, so its state is looked at again soon
-    if (was === undefined && a.action === 'running' && PUSHED.test(JSON.stringify(a.detail ?? a.rows ?? ''))) pokeDeploys(feed.session?.cwd)
+    if (was === undefined && a.action === 'running' && PUSHED.test(JSON.stringify(a.detail ?? a.rows ?? ''))) pokeDeploys(dirsOf(sid, feed.session?.cwd))
   }
 
   const fresher = []
@@ -1369,7 +1411,7 @@ const server = http.createServer((req, res) => {
       try { m = JSON.parse(body) } catch {}
       const picks = Array.isArray(m.picks) ? m.picks.filter(p => typeof p === 'string' && /^[0-9a-f]{7,40}$/.test(p)) : []
       const message = String(m.message ?? '').replace(/[\r\n"`$]/g, ' ').trim().slice(0, 160)
-      const error = message ? startRelease(picks, message, m.minor === true) : 'Say in a few words what changed'
+      const error = message ? startRelease(picks, message, m.minor === true, m.dryRun === true) : 'Say in a few words what changed'
       res.writeHead(error ? 400 : 200, { 'Content-Type': 'application/json' }).end(JSON.stringify(error ? { error } : { ok: true }))
     })
   } else if (url.pathname === '/about') {
@@ -1444,7 +1486,7 @@ setInterval(scan, SCAN_MS)
 setInterval(refreshTitles, TITLE_EVERY_MS)
 // the builds of each active chat's site (deploys.mjs): a change goes to the pages at once
 followDeploys(
-  () => [...sessions.values()].filter(s => s.id !== 'legacy' && hidden.get(s.id) === undefined).map(s => ({ sid: s.id, cwd: s.snapshot?.session?.cwd, at: s.mtime })),
+  () => [...sessions.values()].filter(s => s.id !== 'legacy' && hidden.get(s.id) === undefined).map(s => ({ sid: s.id, dirs: dirsOf(s.id, s.snapshot?.session?.cwd), at: s.mtime })),
   sid => { const s = sessions.get(sid); if (s) broadcast({ type: 'feed', now: Date.now(), sid, snapshot: titled(sid, s.snapshot), actions: [], samples: [] }) },
 )
 // the Hue lights show the newest build running, as the dashboard's bar does, and how it ended
@@ -1452,9 +1494,8 @@ let hueBuildOf = null // "repo|ref" of the build the lights show
 setInterval(() => {
   const seen = new Map()
   for (const s of sessions.values()) {
-    const cwd = s.snapshot?.session?.cwd
-    if (!cwd || hidden.get(s.id) !== undefined) continue
-    for (const d of deploysFor(cwd)) seen.set(`${d.repo}|${d.ref}|${d.sha}|${d.name}`, d)
+    if (hidden.get(s.id) !== undefined) continue
+    for (const d of deploysFor(dirsOf(s.id, s.snapshot?.session?.cwd))) seen.set(`${d.repo}|${d.ref}|${d.sha}|${d.name}`, d)
   }
   const all = [...seen.values()]
   const now = Date.now()

@@ -159,27 +159,38 @@ const refresh = async (slug, branch) => {
   }
 }
 
-// What a chat's site is doing: its repository's builds (none: an empty list).
-export const deploysFor = cwd => {
-  const repo = cwd ? repoOf(cwd) : null
-  const st = repo ? repos.get(repo.slug) : null
-  return st ? st.runs.filter(r => !r.preview || r.ref === repo.branch).map(r => ({ ...r, repo: repo.slug })) : []
+// The repositories of a chat: where it was started and the folders it works in
+// (a chat started in a parent folder works in a repository below it). One or
+// a list of folders; each repository once.
+const reposOf = dirs => {
+  const seen = new Map()
+  for (const d of [].concat(dirs ?? [])) {
+    const repo = d ? repoOf(d) : null
+    if (repo && !seen.has(repo.slug)) seen.set(repo.slug, repo)
+  }
+  return [...seen.values()]
 }
 
+// What a chat's sites are doing: its repositories' builds (none: an empty list).
+export const deploysFor = dirs => reposOf(dirs).flatMap(repo => {
+  const st = repos.get(repo.slug)
+  return st ? st.runs.filter(r => !r.preview || r.ref === repo.branch).map(r => ({ ...r, repo: repo.slug })) : []
+})
+
 // Follows the repositories of the chats that were active lately; calls
-// changed(sid) for each chat whose builds changed. `busyAt(sid)`: when it last worked.
+// changed(sid) for each chat whose builds changed. list(): { sid, dirs, at }.
 export const followDeploys = (list, changed) => {
   const tick = async () => {
     const now = Date.now()
     const bySlug = new Map()
-    for (const { sid, cwd, at } of list()) {
-      if (!cwd || now - at > ACTIVE_MS) continue
-      const repo = repoOf(cwd)
-      if (!repo) continue
-      const e = bySlug.get(repo.slug) ?? { branches: new Set(), sids: [] }
-      if (repo.branch) e.branches.add(repo.branch)
-      e.sids.push(sid)
-      bySlug.set(repo.slug, e)
+    for (const { sid, dirs, at } of list()) {
+      if (now - at > ACTIVE_MS) continue
+      for (const repo of reposOf(dirs)) {
+        const e = bySlug.get(repo.slug) ?? { branches: new Set(), sids: [] }
+        if (repo.branch) e.branches.add(repo.branch)
+        e.sids.push(sid)
+        bySlug.set(repo.slug, e)
+      }
     }
     for (const [slug, e] of bySlug) {
       const st = repos.get(slug)
@@ -192,8 +203,9 @@ export const followDeploys = (list, changed) => {
   void tick()
 }
 // A chat just pushed or merged: look again soon.
-export const pokeDeploys = cwd => {
-  const repo = cwd ? repoOf(cwd) : null
-  const st = repo ? repos.get(repo.slug) : null
-  if (st) { st.nextAt = Math.min(st.nextAt, Date.now() + 4000); st.changedAt = Date.now() }
+export const pokeDeploys = dirs => {
+  for (const repo of reposOf(dirs)) {
+    const st = repos.get(repo.slug)
+    if (st) { st.nextAt = Math.min(st.nextAt, Date.now() + 4000); st.changedAt = Date.now() }
+  }
 }
