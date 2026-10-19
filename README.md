@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # Live Code Dashboard
 
@@ -10,7 +10,7 @@
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-mod-d97757)
 ![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
 
-[English](#english) · [Deutsch](#deutsch)
+[English](#english) Â· [Deutsch](#deutsch)
 
 ![The dashboard while Claude edits a file](docs/dashboard.png)
 
@@ -61,12 +61,12 @@ The plugin turns a 15-key Stream Deck into a Claude console:
 
 | Row | Keys |
 |---|---|
-| top | your chats (switch with a press), ⌂ back |
+| top | your chats (switch with a press), âŒ‚ back |
 | middle | what Claude does now, turn time, context, 5-hour limit, cost |
-| bottom | 🎤 **Talk** (hold and speak), your first prompt key, **Prompts** (a page of up to 14 prompt keys), ■ stop, more |
+| bottom | ðŸŽ¤ **Talk** (hold and speak), your first prompt key, **Prompts** (a page of up to 14 prompt keys), â–  stop, more |
 
-- **Talk:** hold the key and speak; the deck shows what it hears, live. Let go and it is sent to the chat the deck follows. The dashboard window does the listening (Edge's speech recognition, in your language), so it has to be open; the first time, allow the microphone there. The 🎤 next to **Send** in the dashboard dictates into the box instead, to look over before sending.
-- **Prompt keys:** set them up in the dashboard: ⚙ Settings → 🎛 Deck (icon, label, the text it sends, order).
+- **Talk:** hold the key and speak; the deck shows what it hears, live. Let go and it is sent to the chat the deck follows. The dashboard window does the listening (Edge's speech recognition, in your language), so it has to be open; the first time, allow the microphone there. The ðŸŽ¤ next to **Send** in the dashboard dictates into the box instead, to look over before sending.
+- **Prompt keys:** set them up in the dashboard: âš™ Settings â†’ ðŸŽ› Deck (icon, label, the text it sends, order).
 - When Claude asks something, the keys turn into the question and its answers: answer with one press. When a task is done, the deck glows.
 
 The setup installs the plugin automatically when the Stream Deck app is on your PC (confirm once in the Stream Deck app).
@@ -80,13 +80,13 @@ Your lights answer what the dashboard shows:
 - **Stuck:** a red flare.
 - **The site builds:** a progress bar in orange. A lightstrip with color points fills from one end to the other, single lights one after the other; at the end a short green (or red if the build failed).
 
-Each light keeps its own brightness, lights that are off stay off, and everything goes back to its previous state. **Setup:** dashboard → ⚙ Settings → 💡 Lights → **Pair bridge**, then press the round button on your Hue Bridge. Pick the lights and colors there.
+Each light keeps its own brightness, lights that are off stay off, and everything goes back to its previous state. **Setup:** dashboard â†’ âš™ Settings â†’ ðŸ’¡ Lights â†’ **Pair bridge**, then press the round button on your Hue Bridge. Pick the lights and colors there.
 
 ![Pairing a Hue Bridge](docs/settings-lights.png)
 
 ### Site builds (Cloudflare, Vercel, Netlify)
 
-When a chat works in a GitHub repository whose site is built by Cloudflare (Workers or Pages), Vercel or Netlify, the live view shows the build: the host's mark, *builds … · live* or *preview of a branch*, the time, and a progress bar; then **✓ deployed** or **✗ build failed** with a link to the log. It needs the [GitHub CLI](https://cli.github.com) signed in (`gh auth login`), no key of the host: the host reports each build to GitHub, and the dashboard reads it there. The host reports a build only once it is done, so the bar in between follows how long its builds usually take.
+When a chat works in a GitHub repository whose site is built by Cloudflare (Workers or Pages), Vercel or Netlify, the live view shows the build: the host's mark, *builds â€¦ Â· live* or *preview of a branch*, the time, and a progress bar; then **âœ“ deployed** or **âœ— build failed** with a link to the log. It needs the [GitHub CLI](https://cli.github.com) signed in (`gh auth login`), no key of the host: the host reports each build to GitHub, and the dashboard reads it there. The host reports a build only once it is done, so the bar in between follows how long its builds usually take.
 
 ### Install (one click)
 
@@ -120,14 +120,14 @@ Then, in Claude Code, type `/live-code-setup` for the shortcuts and the Stream D
 
 The dashboard shows the installed version and the newest one on GitHub at the top left. When a newer one is out, an **Update available** tile appears next to the others: one click installs it and restarts the dashboard (the part inside Claude Code takes it with Claude's next start).
 
-In Claude Code: `/plugin` → *Marketplaces* → **cnlynx** → enable **auto-update**, and new versions arrive by themselves. Or update by hand:
+In Claude Code: `/plugin` â†’ *Marketplaces* â†’ **cnlynx** â†’ enable **auto-update**, and new versions arrive by themselves. Or update by hand:
 
 ```bash
 claude plugin marketplace update cnlynx
 claude plugin update live-code@cnlynx
 ```
 
-The dashboard shows **"→ vX.Y.Z available"** next to its version when there is a newer one. After an update the dashboard server and the Stream Deck plugin are swapped for the new version on the next start of Claude.
+The dashboard shows **"â†’ vX.Y.Z available"** next to its version when there is a newer one. After an update the dashboard server and the Stream Deck plugin are swapped for the new version on the next start of Claude.
 
 ### Make it yours, live, by prompting
 
@@ -155,21 +155,22 @@ Everything Live Code does outside of Claude Code itself, in full:
 | Opens the dashboard in Microsoft Edge (app window), tile windows through PowerShell + WebView2 | when you open them | your PC only |
 | Reads your chats' transcripts in `~/.claude/projects` to count today's prompts and words | while the dashboard is open | your PC only |
 | Sends light commands to **your own Philips Hue Bridge** (local network, HTTPS) | only after you pair it, on done / question / stuck / a site build | your bridge |
-| Looks up the latest version number: `api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json` | at most hourly (every 5 minutes right after a release) | GitHub |
-| Reads the build checks of the repository a chat works in, through your signed-in GitHub CLI (`gh api …/check-runs`) | while that chat was active in the last 30 minutes | GitHub |
+| Looks up the latest version number: `api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json` | every 10 minutes while the dashboard runs | GitHub |
+| Live users: a random id of this install (made on your PC, `~/.claude/live-code-install.json`), nothing else; the answer is how many dashboards are open worldwide, shown as "â— N live" | every 5 minutes while a dashboard page is open; switch it off in Settings â†’ Display | Live Code's counter (a Cloudflare Worker, `live-users/worker.js`; ids kept in memory for 6 minutes only) |
+| Reads the build checks of the repository a chat works in, through your signed-in GitHub CLI (`gh api â€¦/check-runs`) | while that chat was active in the last 30 minutes | GitHub |
 | Runs `claude plugin marketplace update cnlynx` and `claude plugin update live-code@cnlynx` | only when you click the **Update available** tile | GitHub, through Claude Code |
 | Downloads Microsoft's WebView2 SDK (`Microsoft.Web.WebView2` 1.0.2365.46 from nuget.org) for the frameless tile windows | once, at setup or the first tile window | nuget.org |
 | Setup: Start menu / desktop shortcut, launcher in `%LOCALAPPDATA%\live-code-dashboard`, Stream Deck plugin package opened in the Stream Deck app (you confirm there) | `/live-code-setup`, `install.ps1`, once per version | your PC only |
 | Optional: ElevenLabs voices, only if you put your own key in `~/.claude/live-code-voice.json` | when a summary is read aloud | ElevenLabs |
 
-No analytics, no tracking, no accounts.
+No analytics, no tracking, no accounts: the live-users count is the one thing sent about you, an anonymous id, and it can be switched off.
 
 ### What the mod does inside Claude Code
 
 The mod (`hooks/register.tsx`) only watches and reports, with three exceptions that you trigger yourself:
 
 - **Hooks it uses:** `session.start` / `session.end` (start the server, register the commands), `prompt.submit`, `classic.UserPromptSubmit`, `turn.start`, `turn.complete` (count turns, time and cost), `tool.call` for every tool (show what runs; the call itself goes through unchanged), `agent.spawn` (a lane per subagent; the event goes through unchanged), `ui.render` for its pane and a band above the prompt. It never changes a tool's input, a prompt or a setting.
-- **Prompts it submits:** only a message **you** type in the dashboard (or a Stream Deck prompt key you press) is sent to that chat, word for word, as if typed in Claude Code. The dashboard's ■ Stop stops the running turn.
+- **Prompts it submits:** only a message **you** type in the dashboard (or a Stream Deck prompt key you press) is sent to that chat, word for word, as if typed in Claude Code. The dashboard's â–  Stop stops the running turn.
 - **Questions answered from outside:** while a dashboard or Stream Deck that can answer is open, Claude's `AskUserQuestion` is shown there too, and the answer **you** pick there is given to Claude in place of the usual dialog. With nothing open, or with "Show the usual dialog", the normal dialog asks as always. It never answers by itself and never decides tool permissions.
 - **Files it writes:** `~/.claude/live-code-session-<id>.json` (the live feed the dashboard reads), and `~/.claude/live-code-answer-<id>.json` (your answer from the dashboard, read back by `bin/wait-answer.mjs`).
 - **Programs it starts:** `node bin/ensure-server.mjs` (starts the dashboard server, and once per version `bin/setup.mjs --auto`), `node bin/wait-answer.mjs` (waits up to 20 s for an answer you give in the dashboard), `node bin/setup.mjs` (only on `/live-code-setup`).
@@ -201,24 +202,24 @@ If Live Code saves you time, you can support its development. Thank you!
 
 ### Was es kann
 
-- **Live-Code-Ansicht:** Die Änderung, die Claude gerade macht, Zeile für Zeile getippt und farbig hervorgehoben. Darunter steht kurz, *wofür* sie ist.
+- **Live-Code-Ansicht:** Die Ã„nderung, die Claude gerade macht, Zeile fÃ¼r Zeile getippt und farbig hervorgehoben. Darunter steht kurz, *wofÃ¼r* sie ist.
 - **Limits und Kosten auf einen Blick:**
   - Kontextfenster;
   - 5-Stunden- und 7-Tage-Limit mit Reset-Countdown und Prognose;
   - Session-Kosten als Kurve wie ein Aktienkurs;
-  - Tokens, geänderte Zeilen, Dateien, Tool-Aufrufe und Fehler.
+  - Tokens, geÃ¤nderte Zeilen, Dateien, Tool-Aufrufe und Fehler.
 
-  Die Kacheln färben sich bei einstellbaren Schwellen gelb und rot. Ein Chime spielt, wenn ein Limit zurückgesetzt wird.
-- **Jede Kachel lässt sich öffnen:** Ein Klick zeigt exakte Zahlen und Diagramme mit Hover-Details. Du kannst jede Kachel auch als eigenes, rahmenloses Fenster ausklinken (minimal oder detailliert). Position und Bildschirm werden gespeichert.
-- **Zurückschreiben:** Du kannst Claude Nachrichten senden, es stoppen oder seine Fragen direkt im Dashboard beantworten.
+  Die Kacheln fÃ¤rben sich bei einstellbaren Schwellen gelb und rot. Ein Chime spielt, wenn ein Limit zurÃ¼ckgesetzt wird.
+- **Jede Kachel lÃ¤sst sich Ã¶ffnen:** Ein Klick zeigt exakte Zahlen und Diagramme mit Hover-Details. Du kannst jede Kachel auch als eigenes, rahmenloses Fenster ausklinken (minimal oder detailliert). Position und Bildschirm werden gespeichert.
+- **ZurÃ¼ckschreiben:** Du kannst Claude Nachrichten senden, es stoppen oder seine Fragen direkt im Dashboard beantworten.
 - **Mehrere Chats:**
   - *Wall*: alle Chats nebeneinander;
   - *Report*: Tag und Woche pro Projekt.
-- **Ton und Stimme:** Ein Chime, wenn eine Aufgabe fertig ist. Auf Wunsch liest eine natürliche Edge-Stimme die Zusammenfassung vor (gratis, auf Wunsch pro Chat eine eigene).
+- **Ton und Stimme:** Ein Chime, wenn eine Aufgabe fertig ist. Auf Wunsch liest eine natÃ¼rliche Edge-Stimme die Zusammenfassung vor (gratis, auf Wunsch pro Chat eine eigene).
 - **Animationen:**
-  - eine eigene Ansicht, wenn Claude länger nachdenkt;
+  - eine eigene Ansicht, wenn Claude lÃ¤nger nachdenkt;
   - eine Terminal-Animation bei laufenden Befehlen;
-  - ein Alarm, wenn Claude festzuhängen scheint.
+  - ein Alarm, wenn Claude festzuhÃ¤ngen scheint.
 
 ### Stream Deck
 
@@ -226,32 +227,32 @@ Das Plugin macht aus einem Stream Deck mit 15 Tasten eine Claude-Konsole:
 - **Oben:** deine Chats.
 - **Mitte:** was Claude gerade tut, Zeit, Kontext, 5h-Limit und Kosten.
 - **Unten:**
-  - 🎤 **Sprechen:** gedrückt halten und reden, das Deck zeigt live, was es hört; loslassen schickt es an den Chat. Das Zuhören macht das Dashboard-Fenster (Spracherkennung von Edge), es muss also offen sein; beim ersten Mal das Mikrofon erlauben;
+  - ðŸŽ¤ **Sprechen:** gedrÃ¼ckt halten und reden, das Deck zeigt live, was es hÃ¶rt; loslassen schickt es an den Chat. Das ZuhÃ¶ren macht das Dashboard-Fenster (Spracherkennung von Edge), es muss also offen sein; beim ersten Mal das Mikrofon erlauben;
   - deine erste Prompt-Taste;
-  - **Prompts:** eine Seite mit bis zu 14 Prompt-Tasten, einzurichten im Dashboard unter ⚙ Einstellungen → 🎛 Deck;
+  - **Prompts:** eine Seite mit bis zu 14 Prompt-Tasten, einzurichten im Dashboard unter âš™ Einstellungen â†’ ðŸŽ› Deck;
   - Stopp;
   - Mehr.
 
-Im Dashboard selbst diktiert das 🎤 neben **Send** in das Textfeld, zum Nachlesen vor dem Senden.
+Im Dashboard selbst diktiert das ðŸŽ¤ neben **Send** in das Textfeld, zum Nachlesen vor dem Senden.
 
-Fragt Claude etwas, werden die Tasten zur Frage mit den Antworten, und du antwortest mit einem Tastendruck. Ist eine Aufgabe fertig, leuchtet das Deck. Das Setup installiert das Plugin automatisch, wenn die Stream-Deck-App da ist; du bestätigst einmal in der App.
+Fragt Claude etwas, werden die Tasten zur Frage mit den Antworten, und du antwortest mit einem Tastendruck. Ist eine Aufgabe fertig, leuchtet das Deck. Das Setup installiert das Plugin automatisch, wenn die Stream-Deck-App da ist; du bestÃ¤tigst einmal in der App.
 
 ### Philips Hue
 
-- **Fertig:** ein kurzes, mintgrünes Aufleuchten.
+- **Fertig:** ein kurzes, mintgrÃ¼nes Aufleuchten.
 - **Frage:** Die Lampen atmen violett, bis du antwortest.
-- **Hängt fest:** rotes Aufblitzen.
-- **Die Seite wird gebaut:** ein Fortschrittsbalken in Orange. Ein Lichtstreifen mit Farbpunkten füllt sich von einem Ende zum anderen, einzelne Lampen eine nach der anderen; am Ende kurz grün (rot, wenn der Build fehlschlug).
+- **HÃ¤ngt fest:** rotes Aufblitzen.
+- **Die Seite wird gebaut:** ein Fortschrittsbalken in Orange. Ein Lichtstreifen mit Farbpunkten fÃ¼llt sich von einem Ende zum anderen, einzelne Lampen eine nach der anderen; am Ende kurz grÃ¼n (rot, wenn der Build fehlschlug).
 
-Jede Lampe behält ihre Helligkeit, ausgeschaltete bleiben aus, und danach ist alles wie vorher. **Einrichten:** Dashboard → ⚙ Einstellungen → 💡 Lights → **Pair bridge**. Dann den runden Knopf auf der Hue Bridge drücken und dort Lampen und Farben wählen.
+Jede Lampe behÃ¤lt ihre Helligkeit, ausgeschaltete bleiben aus, und danach ist alles wie vorher. **Einrichten:** Dashboard â†’ âš™ Einstellungen â†’ ðŸ’¡ Lights â†’ **Pair bridge**. Dann den runden Knopf auf der Hue Bridge drÃ¼cken und dort Lampen und Farben wÃ¤hlen.
 
 ### Builds der Seite (Cloudflare, Vercel, Netlify)
 
-Arbeitet ein Chat in einem GitHub-Repo, dessen Seite Cloudflare (Workers oder Pages), Vercel oder Netlify baut, zeigt der Live-Bereich den Build: das Zeichen des Anbieters, *builds … · live* oder *preview* eines Branches, die Zeit und einen Fortschrittsbalken; danach **✓ deployed** oder **✗ build failed** mit Link zum Log. Nötig ist nur die angemeldete [GitHub CLI](https://cli.github.com) (`gh auth login`), kein Schlüssel des Anbieters: Der Anbieter meldet jeden Build an GitHub, das Dashboard liest ihn dort. Er meldet ihn erst, wenn er fertig ist; der Balken dazwischen folgt der üblichen Dauer seiner Builds.
+Arbeitet ein Chat in einem GitHub-Repo, dessen Seite Cloudflare (Workers oder Pages), Vercel oder Netlify baut, zeigt der Live-Bereich den Build: das Zeichen des Anbieters, *builds â€¦ Â· live* oder *preview* eines Branches, die Zeit und einen Fortschrittsbalken; danach **âœ“ deployed** oder **âœ— build failed** mit Link zum Log. NÃ¶tig ist nur die angemeldete [GitHub CLI](https://cli.github.com) (`gh auth login`), kein SchlÃ¼ssel des Anbieters: Der Anbieter meldet jeden Build an GitHub, das Dashboard liest ihn dort. Er meldet ihn erst, wenn er fertig ist; der Balken dazwischen folgt der Ã¼blichen Dauer seiner Builds.
 
 ### Installation (ein Klick)
 
-Du brauchst **Windows 10/11**, **[Claude Code](https://claude.com/claude-code)** und **[Node.js](https://nodejs.org)**. Öffne PowerShell und führe aus:
+Du brauchst **Windows 10/11**, **[Claude Code](https://claude.com/claude-code)** und **[Node.js](https://nodejs.org)**. Ã–ffne PowerShell und fÃ¼hre aus:
 
 ```powershell
 irm https://raw.githubusercontent.com/CNLynx/Live-Code-Dashboard/main/install.ps1 | iex
@@ -259,46 +260,47 @@ irm https://raw.githubusercontent.com/CNLynx/Live-Code-Dashboard/main/install.ps
 
 Das Script:
 1. installiert den Mod;
-2. legt die Verknüpfung „Live Code Dashboard“ im Startmenü und auf dem Desktop an;
+2. legt die VerknÃ¼pfung â€žLive Code Dashboardâ€œ im StartmenÃ¼ und auf dem Desktop an;
 3. richtet das Stream-Deck-Plugin ein;
-4. öffnet das Dashboard.
+4. Ã¶ffnet das Dashboard.
 
 Starte Claude Code danach einmal neu. Ab dann startet das Dashboard zusammen mit Claude. Von Hand geht es so: in Claude Code `/plugin install live-code --marketplace CNLynx/Live-Code-Dashboard`, danach `/live-code-setup`.
 
 ### Updates
 
-In Claude Code: `/plugin` → *Marketplaces* → **cnlynx** → **Auto-Update** einschalten. Von Hand geht es mit `claude plugin marketplace update cnlynx` und danach `claude plugin update live-code@cnlynx`. Oben links zeigt das Dashboard die installierte Version und darunter die neuste auf GitHub. Gibt es eine neuere, erscheint neben den anderen Kacheln **„Update available“**: ein Klick installiert sie und startet das Dashboard neu (der Teil in Claude Code übernimmt sie beim nächsten Start von Claude).
+In Claude Code: `/plugin` â†’ *Marketplaces* â†’ **cnlynx** â†’ **Auto-Update** einschalten. Von Hand geht es mit `claude plugin marketplace update cnlynx` und danach `claude plugin update live-code@cnlynx`. Oben links zeigt das Dashboard die installierte Version und darunter die neuste auf GitHub. Gibt es eine neuere, erscheint neben den anderen Kacheln **â€žUpdate availableâ€œ**: ein Klick installiert sie und startet das Dashboard neu (der Teil in Claude Code Ã¼bernimmt sie beim nÃ¤chsten Start von Claude).
 
 ### Live anpassen, per Prompt
 
-Das Dashboard ist reines HTML, CSS und JavaScript. Es **lädt sich selbst neu, sobald sich eine Datei ändert**, ohne Neustart und ohne schwarzes Aufblitzen. Du kannst Claude in Claude Code also einfach sagen:
+Das Dashboard ist reines HTML, CSS und JavaScript. Es **lÃ¤dt sich selbst neu, sobald sich eine Datei Ã¤ndert**, ohne Neustart und ohne schwarzes Aufblitzen. Du kannst Claude in Claude Code also einfach sagen:
 
-> *„Mach im Live-Code-Dashboard die Kosten-Kachel blau und füge eine Kachel für die durchschnittliche Turn-Zeit hinzu.“*
+> *â€žMach im Live-Code-Dashboard die Kosten-Kachel blau und fÃ¼ge eine Kachel fÃ¼r die durchschnittliche Turn-Zeit hinzu.â€œ*
 
-Die Änderung erscheint, während Claude noch tippt. Das geht in Claude Code (Terminal, Desktop-App, IDE), nicht im normalen claude.ai-Chat, weil Claude dafür Dateien auf deinem PC bearbeiten muss.
+Die Ã„nderung erscheint, wÃ¤hrend Claude noch tippt. Das geht in Claude Code (Terminal, Desktop-App, IDE), nicht im normalen claude.ai-Chat, weil Claude dafÃ¼r Dateien auf deinem PC bearbeiten muss.
 
-**Änderungen, die Updates überleben:** Ein Update ersetzt die Dateien des Mods. Eigene Anpassungen gehören deshalb nach `~/.claude/live-code-custom/`: `custom.css` wird nach den Stilen des Dashboards geladen (gewinnt also), `custom.js` nach seinen Skripten. Ein Update fasst diesen Ordner nie an, und das Dashboard lädt neu, sobald du sie änderst. Sag Claude einfach: *„Leg es in live-code-custom, damit es nach Updates bleibt.“* Für größere Umbauten: Repository forken und vom Fork installieren.
+**Ã„nderungen, die Updates Ã¼berleben:** Ein Update ersetzt die Dateien des Mods. Eigene Anpassungen gehÃ¶ren deshalb nach `~/.claude/live-code-custom/`: `custom.css` wird nach den Stilen des Dashboards geladen (gewinnt also), `custom.js` nach seinen Skripten. Ein Update fasst diesen Ordner nie an, und das Dashboard lÃ¤dt neu, sobald du sie Ã¤nderst. Sag Claude einfach: *â€žLeg es in live-code-custom, damit es nach Updates bleibt.â€œ* FÃ¼r grÃ¶ÃŸere Umbauten: Repository forken und vom Fork installieren.
 
 ### Gut zu wissen
 
 - **Datenschutz:** Alles bleibt auf deinem PC (`127.0.0.1:4477`). Nach aussen gehen nur:
   - die Hue-Befehle an deine eigene Bridge;
-  - alle 6 Stunden ein Blick auf die Versionsnummer dieses Repos.
-- **Tokens:** Die kurzen „Wofür“-Erklärungen schreibt Claude Haiku. Das kostet etwa 1 % dessen, was die Chats selbst kosten.
-- **Deinstallieren:** `claude plugin uninstall live-code@cnlynx`, danach die Verknüpfungen löschen.
+  - alle 10 Minuten ein Blick auf die Versionsnummer dieses Repos;
+  - fÃ¼r â€žâ— N liveâ€œ, solange ein Dashboard offen ist, alle 5 Minuten eine zufÃ¤llige, anonyme ID dieser Installation an den ZÃ¤hler von Live Code (Cloudflare Worker, `live-users/worker.js`, merkt sich IDs nur 6 Minuten im Speicher). Abschaltbar unter Einstellungen â†’ Display.
+- **Tokens:** Die kurzen â€žWofÃ¼râ€œ-ErklÃ¤rungen schreibt Claude Haiku. Das kostet etwa 1 % dessen, was die Chats selbst kosten.
+- **Deinstallieren:** `claude plugin uninstall live-code@cnlynx`, danach die VerknÃ¼pfungen lÃ¶schen.
 
-### Unterstützen
+### UnterstÃ¼tzen
 
-Wenn dir Live Code Zeit spart, kannst du die Weiterentwicklung unterstützen. Danke!
+Wenn dir Live Code Zeit spart, kannst du die Weiterentwicklung unterstÃ¼tzen. Danke!
 
 <a href="https://github.com/sponsors/CNLynx"><img src="https://img.shields.io/badge/%E2%99%A5%20Auf%20GitHub%20sponsern-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white" height="46" alt="Auf GitHub sponsern"></a>
 
 ### Lizenz
 
-[PolyForm Noncommercial 1.0.0](LICENSE): kostenlos nutzen, anpassen und teilen für jeden **nicht-kommerziellen** Zweck (privat, Hobby, Lernen, Forschung, gemeinnützige Organisationen). **Verkaufen oder kommerziell nutzen ist nicht erlaubt**, ausser mit Erlaubnis des Autors. Anfragen über [GitHub](https://github.com/CNLynx).
+[PolyForm Noncommercial 1.0.0](LICENSE): kostenlos nutzen, anpassen und teilen fÃ¼r jeden **nicht-kommerziellen** Zweck (privat, Hobby, Lernen, Forschung, gemeinnÃ¼tzige Organisationen). **Verkaufen oder kommerziell nutzen ist nicht erlaubt**, ausser mit Erlaubnis des Autors. Anfragen Ã¼ber [GitHub](https://github.com/CNLynx).
 
 ---
 
 <div align="center">
-Made by <a href="https://github.com/CNLynx">Lynx</a> · <a href="LICENSE">PolyForm Noncommercial 1.0.0</a>
+Made by <a href="https://github.com/CNLynx">Lynx</a> Â· <a href="LICENSE">PolyForm Noncommercial 1.0.0</a>
 </div>

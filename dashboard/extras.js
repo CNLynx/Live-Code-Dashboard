@@ -12,6 +12,16 @@ const post = (url, body) =>
 const newer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false }
 let versions = { version: '', latest: '' }
 let updateState = { state: 'idle' }
+// how many Live Code dashboards are open worldwide (null: switched off, or not known)
+const showLive = n => {
+  const el = $('#live-users')
+  if (!el) return
+  const on = typeof n === 'number' && n > 0 && store.get('lc.liveCount') !== 'off'
+  if (on) el.innerHTML = `<b>${n.toLocaleString()}</b> online`
+  if (el.hidden === !on) return
+  if (typeof reveal === 'function') reveal(el, on, 'pop'); else el.hidden = !on
+}
+window.showLive = showLive
 const showVersion = () => fetch('/about').then(r => r.json()).then(a => {
   if (!a.version) return
   versions = a
@@ -29,6 +39,7 @@ const showVersion = () => fetch('/about').then(r => r.json()).then(a => {
   el.className = `v-latest${up ? ' update' : ahead ? ' ahead' : !a.latest ? ' unknown' : ''}`
   el.title = `Newest on GitHub: ${a.latest ? `v${a.latest}` : 'not known yet'}${checked ? ` (checked ${checked})` : ''}${up ? '\nClick to install it' : ''}`
   el.onclick = up ? () => startUpdate() : null
+  showLive(a.live)
   drawTiles()
 }).catch(() => {})
 showVersion()
@@ -706,6 +717,7 @@ const bindNumber = (id, key, def, unit, after) => {
 }
 bindNumber('#set-voice-rate', 'lc.voiceRate', 100, '%')
 bindCheck('#set-open-with-claude', 'lc.openWithClaude', 'on')
+bindCheck('#set-live-count', 'lc.liveCount', 'on', () => { sendPrefs(); if (store.get('lc.liveCount') === 'off') showLive(null) })
 // animations: like Windows, always, never (index.html's applyMotion); the tile windows follow
 $('#set-motion').value = store.get('lc.motion') || 'system'
 $('#set-motion').onchange = e => { store.set('lc.motion', e.target.value); applyMotion(); sendPrefs() }

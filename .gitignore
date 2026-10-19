@@ -8,3 +8,4 @@ dashboard/tilewin/*.dll
 node_modules/
 dashboard/icons/*.ico
 streamdeck/*.sdPlugin/*.streamDeckProfile
+live-users/.wrangler/

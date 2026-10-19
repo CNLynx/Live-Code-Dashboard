@@ -887,6 +887,13 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 .versions { display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--grid); font-size: 11.5px; line-height: 1.15; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .versions:empty, .versions:not(:has(span:not(:empty))) { display: none; }
 .versions .v-installed { color: var(--muted); }
+/* how many dashboards are open worldwide: a calm dot that breathes */
+.live-users { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); white-space: nowrap; flex-shrink: 0; }
+.live-users[hidden] { display: none; }
+.live-users::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--good); animation: lu-breathe 2.8s ease-in-out infinite; }
+.live-users b { color: var(--ink); font-weight: 650; }
+@keyframes lu-breathe { 50% { opacity: .35; } }
+:root.calm .live-users::before { animation: none; }
 .versions .v-installed.ahead { color: color-mix(in srgb, var(--warn, #f59e0b) 70%, var(--ink)); }
 /* the model and effort of the chat shown, to pick as in Claude */
 .pc-model { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; max-width: 100%; }
@@ -1076,6 +1083,8 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
       <section class="set-pane" data-pane="display">
         <label class="big"><input type="checkbox" id="set-open-with-claude"> Open the dashboard when Claude starts</label>
         <div class="hint">With the first chat, if no dashboard window is open yet; an open one is left where it is.</div>
+        <label class="big"><input type="checkbox" id="set-live-count"> Show how many use Live Code right now</label>
+        <div class="hint">Counted anonymously: while a dashboard is open, a random id of this install (nothing else) goes to Live Code's counter every five minutes. Off: nothing is sent and no number shows.</div>
         <label class="big">Animations <select id="set-motion" style="margin-left:8px"><option value="system">like Windows</option><option value="on">always on</option><option value="off">off</option></select></label>
         <div class="hint">Windows' "animation effects" switched off makes the browser ask pages to keep still; "always on" lets the dashboard move anyway.</div>
         <label class="big"><input type="checkbox" id="set-think"> Thinking animation in the live view</label>
@@ -1086,6 +1095,7 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
     </div>
   </div>
   <button id="theme" class="btn" title="Light / dark / system">◐ Theme</button>
+  <span id="live-users" class="live-users num" title="Live Code dashboards open right now, worldwide (counted anonymously; Settings → Display)" hidden></span>
   <div id="conn" class="conn off"><span class="dot"></span><span class="label">offline</span></div>
 </header>
 
@@ -1272,7 +1282,7 @@ const store = { get: k => { try { return localStorage.getItem(k) } catch { retur
 // The look and the steps where tiles color up are the main window's: a tile
 // window keeps a storage of its own (WebView2), so the main window tells the
 // server, and the server tells the tile windows (on connecting, and on change).
-const SHARED = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme', 'lc.openWithClaude', 'lc.motion']
+const SHARED = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme', 'lc.openWithClaude', 'lc.motion', 'lc.liveCount']
 const sharedPrefs = {}
 const sendPrefs = () => {
   const secret = document.querySelector('meta[name="lc-secret"]')?.content ?? ''
@@ -3349,6 +3359,8 @@ const connect = () => {
       reloadWhenSafe()
     } else if (msg.type === 'versions') {
       window.showVersion?.()
+    } else if (msg.type === 'live') {
+      window.showLive?.(msg.n)
     } else if (msg.type === 'update') {
       window.onUpdateState?.(msg.update)
     } else if (msg.type === 'dictate' || msg.type === 'dictation') {

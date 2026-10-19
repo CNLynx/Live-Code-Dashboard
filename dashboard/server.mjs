@@ -1065,9 +1065,36 @@ const sendFile = (res, file, type) =>
 // this server's hidden child: Windows PowerShell quits at once when started
 // apart from any console.
 // the look and the coloring steps the tile windows share with the main window
-const SHARED_PREFS = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme', 'lc.openWithClaude', 'lc.motion']
+const SHARED_PREFS = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme', 'lc.openWithClaude', 'lc.motion', 'lc.liveCount']
 const PREFS_FILE = path.join(HOME, 'live-code-prefs.json')
 const prefs = (() => { try { return JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8')) } catch { return {} } })()
+// ── live users: how many dashboards are open right now, worldwide ──
+// While a page of this dashboard is open (and the person has not switched it
+// off in the settings), a random id of this install, made here once, is sent to
+// the counter (live-users/worker.js) every five minutes; it answers how many
+// were seen in the last six. Nothing else is sent.
+const LIVE_URL = process.env.LIVE_CODE_LIVE_URL ?? ''
+const live = { n: 0, at: 0 }
+const installId = (() => {
+  const file = path.join(HOME, 'live-code-install.json')
+  try { const id = JSON.parse(fs.readFileSync(file, 'utf8')).id; if (/^[a-f0-9]{32}$/.test(id)) return id } catch {}
+  const id = crypto.randomBytes(16).toString('hex')
+  try { writeAtomic(file, `${JSON.stringify({ id })}\n`) } catch {}
+  return id
+})()
+const pingLive = async () => {
+  if (!LIVE_URL || prefs['lc.liveCount'] === 'off' || clients.size === 0) return
+  try {
+    const r = await fetch(`${LIVE_URL}/ping?id=${installId}`, { signal: AbortSignal.timeout(5000) })
+    if (!r.ok) return
+    const n = Number((await r.json()).live)
+    if (!Number.isFinite(n)) return
+    live.at = Date.now()
+    if (n !== live.n) { live.n = n; broadcast({ type: 'live', n }) }
+  } catch {}
+}
+setInterval(pingLive, 5 * 60_000)
+setTimeout(pingLive, 3000)
 const tileWindows = new Map() // "tile" or "tile@detail" -> its process
 let lastHueAlarm = 0
 const openTileWindow = (key, b) => {
@@ -1245,11 +1272,14 @@ const server = http.createServer((req, res) => {
       let m = {}
       try { m = JSON.parse(body) } catch {}
       let changed = false
+      const wasLive = prefs['lc.liveCount']
       for (const k of SHARED_PREFS) {
         const v = m[k]
         if ((typeof v === 'string' && v.length <= 24) || v === null) { if (prefs[k] !== v) { prefs[k] = v; changed = true } }
       }
       if (changed) { writeAtomic(PREFS_FILE, `${JSON.stringify(prefs)}\n`); broadcast({ type: 'prefs', prefs }) }
+      // counted again (or no longer): the pages show it, or stop showing it
+      if (prefs['lc.liveCount'] !== wasLive) { live.at = 0; void pingLive().then(() => broadcast({ type: 'versions' })) }
       res.writeHead(200, { 'Content-Type': 'application/json' }).end('{}')
     })
   } else if (url.pathname === '/tiles-restore' && req.method === 'POST') {
@@ -1296,12 +1326,14 @@ const server = http.createServer((req, res) => {
   } else if (url.pathname === '/about') {
     // which copy runs: the mod starts its own one in its place after an update
     void checkLatest()
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: installed() || VERSION, running: VERSION, startedAt: STARTED_AT, unpublished: countUnpublished(), latest: latest.version, latestCheckedAt: latest.checkedAt }))
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: installed() || VERSION, running: VERSION, startedAt: STARTED_AT, unpublished: countUnpublished(), live: LIVE_URL && prefs['lc.liveCount'] !== 'off' && Date.now() - live.at < 11 * 60_000 ? live.n : null, latest: latest.version, latestCheckedAt: latest.checkedAt }))
   } else if (url.pathname === '/events') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
     res.write('retry: 2000\n\n')
     send(res, initPayload())
     clients.add(res)
+    // the first page open after a while: counted (and told the count) at once
+    if (Date.now() - live.at > 5 * 60_000) void pingLive()
     // a window that answers questions (the dashboard unless switched off, the Stream Deck)
     const answers = url.searchParams.get('answers') === '1'
     if (answers) { answerers.add(res); markRemote() }
