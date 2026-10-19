@@ -347,9 +347,20 @@ let effortUsed = ''
 // end with its token counts: the dashboard animates the one, shows the other
 let compactingSince = 0
 let compactedLast: { at: number; before?: number; after?: number; skip?: string } | undefined
+// one at a time: the inbox looks again each second, while a compaction can take
+// a minute (asked again then, the chat compacted twice)
+let compactRunning = false
 const compactWhenFree = async ($: Engine) => {
-  if (compactTries === 0 || inTurn) return
+  if (compactTries === 0 || inTurn || compactRunning || compactingSince !== 0) return
   compactTries--
+  compactRunning = true
+  try {
+    await compactOnce($)
+  } finally {
+    compactRunning = false
+  }
+}
+const compactOnce = async ($: Engine) => {
   const at = await clockNow($)
   // /compact as if typed (the Claude app's sessions compact only that way);
   // where that is refused, the engine's own call
