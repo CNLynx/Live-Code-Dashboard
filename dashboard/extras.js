@@ -1030,10 +1030,14 @@ if (!TILE_MODE) {
     const busy = isBusy(S.snap)
     const waiting = asked.has(sid)
     const crit = p >= CRIT
-    const text = waiting
+    // asked a while ago, the chat idle, and still as full: its mod did not take it
+    const silent = waiting && !busy && Date.now() - asked.get(sid) > 45_000
+    const text = silent
+      ? '<b>The chat did not compact</b> · its Live Code may be older: restart Claude, or type /compact in the chat'
+      : waiting
       ? (busy ? '<b>Compacting once this turn ends</b> · Claude finishes its step first' : '<b>Compacting…</b> · the chat is being summed up')
       : `<b>Context ${pct(p)} full</b> · ${crit ? 'Claude will soon have to summarize on its own, maybe mid-task' : 'compact now, while it suits, so it does not happen mid-task'}`
-    const next = `${crit}|${waiting}|${busy}|${Math.round(p)}`
+    const next = `${crit}|${waiting}|${busy}|${silent}|${Math.round(p)}`
     if (next === shape) return
     const fresh = shape === ''
     shape = next

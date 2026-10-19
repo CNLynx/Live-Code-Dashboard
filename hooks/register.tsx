@@ -339,8 +339,11 @@ let compactTries = 0
 const compactWhenFree = async ($: Engine) => {
   if (compactTries === 0 || inTurn) return
   compactTries--
-  const done = await $.session.compact().then(() => true, () => false)
-  if (done) compactTries = 0
+  const at = await clockNow($)
+  const ran = await $.session.compact().then(r => ({ done: !r?.skip, skip: r?.skip ?? false }), (e: unknown) => ({ done: false, error: String(e).slice(0, 400) }))
+  if (ran.done) compactTries = 0
+  // how it went, for finding out why a chat did (not) compact
+  await $.fs.write(`${claudeHome($.plugin.root)}/live-code-compact.json`, JSON.stringify({ at, session: sessionId, triesLeft: compactTries, ...ran }, null, 1)).catch(() => undefined)
 }
 
 const checkInbox = async ($: Engine) => {
