@@ -75,7 +75,7 @@ const repoOf = cwd => {
   return repo
 }
 
-const repos = new Map() // slug -> { defaultBranch, runs, nextAt, changedAt, busy, typicalMs, heads }
+const repos = new Map() // slug -> { defaultBranch, runs, nextAt, changedAt, busy, typicalMs, built (the branches seen built) }
 
 // How long the host usually takes: from a commit to its check, over the
 // newest commits of the default branch (the host reports a build only once it
@@ -114,7 +114,7 @@ const runsOf = async (slug, ref) => {
 }
 
 const refresh = async (slug, branch) => {
-  const st = repos.get(slug) ?? { defaultBranch: null, runs: [], nextAt: 0, changedAt: 0, busy: false, typicalMs: 0, heads: new Map() }
+  const st = repos.get(slug) ?? { defaultBranch: null, runs: [], nextAt: 0, changedAt: 0, busy: false, typicalMs: 0, built: new Set() }
   repos.set(slug, st)
   if (st.busy) return false
   st.busy = true
@@ -131,14 +131,15 @@ const refresh = async (slug, branch) => {
       if (!sha) continue
       const said = await runsOf(slug, sha)
       for (const r of said) runs.push({ ...r, ref })
-      // nothing said yet about a commit of a repository the host builds: it builds now
-      const builds = st.runs.length > 0 || st.typicalMs > 0
-      if (said.length === 0 && builds) {
-        const seen = st.heads.get(ref)
-        if (seen?.sha !== sha) st.heads.set(ref, { sha, at: Date.now() })
-        const committed = Date.parse(head.commit?.commit?.committer?.date) || 0
-        // (from the commit, when it is fresh; else from when it was first seen here)
-        const from = Date.now() - committed < 15 * 60_000 ? committed : st.heads.get(ref).at
+      if (said.length > 0) st.built.add(ref)
+      // Nothing said yet about a fresh commit of a branch the host builds: it
+      // builds now. Only a branch it was seen building (the default one: its
+      // builds learned above), and only from the commit itself: an older commit
+      // with no build is one the host does not build (a branch without previews).
+      const builds = ref === st.defaultBranch ? st.typicalMs > 0 || st.built.has(ref) : st.built.has(ref)
+      const committed = Date.parse(head.commit?.commit?.committer?.date) || 0
+      if (said.length === 0 && builds && committed) {
+        const from = committed
         // (a host that never says anything about it: given up after a while)
         if (Date.now() - from < Math.max(5 * 60_000, (st.typicalMs || 60_000) * 5)) {
           const provider = st.runs[0]?.provider ?? 'Cloudflare'
