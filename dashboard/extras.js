@@ -1041,16 +1041,22 @@ if (!TILE_MODE) {
     box.innerHTML = `<span class="cb-gauge">${ring(p)}<b>${Math.round(p)}%</b></span><span class="cb-text">${text}</span><button type="button"${waiting ? ' disabled' : ''} title="As /compact does: Claude sums up the chat so far and goes on from that summary">${waiting ? '⏳ Asked' : '🗜 Compact now'}</button>`
     box.hidden = false
     if (fresh && !reduceMotion) box.animate([{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: GLIDE })
-    box.querySelector('button').onclick = async () => {
-      asked.set(sid, Date.now())
-      shape = ''
-      draw()
-      const r = await post('/send', { sid, kind: 'compact' }).catch(() => null)
-      if (!r?.ok) { asked.delete(sid); shape = ''; draw(); smallToast('Could not ask the chat to compact', 'bad') }
-    }
+    box.querySelector('button').onclick = () => askCompact(sid)
+  }
+  // asked from the bar or from the context tile's own button
+  const askCompact = async sid => {
+    if (asked.has(sid)) return
+    asked.set(sid, Date.now())
+    shape = ''
+    draw(); drawTiles()
+    const r = await post('/send', { sid, kind: 'compact' }).catch(() => null)
+    if (!r?.ok) { asked.delete(sid); shape = ''; draw(); drawTiles(); smallToast('Could not ask the chat to compact', 'bad') }
   }
   setInterval(draw, 1000)
   window.drawCompact = draw
+  window.askCompact = askCompact
+  // for the context tile: 'asked' once "Compact now" was clicked for this chat
+  window.compactAsked = sid => asked.has(sid)
 }
 
 // ── the site's host building it ──

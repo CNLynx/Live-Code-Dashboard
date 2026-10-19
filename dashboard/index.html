@@ -838,6 +838,10 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 .compact-bar button:disabled { opacity: .6; cursor: default; }
 @keyframes cb-pulse { 50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--cb) 40%, transparent), 0 0 18px color-mix(in srgb, var(--cb) 25%, transparent); } }
 :root.calm .compact-bar.crit { animation: none; }
+.tiles .tile .tile-compact { display: block; width: 100%; margin-top: 8px; font: inherit; font-size: 12px; font-weight: 650; padding: 5px 8px; border-radius: 7px; cursor: pointer; color: var(--ink); border: 1px solid color-mix(in srgb, var(--serious) 55%, transparent); background: color-mix(in srgb, var(--serious) 18%, transparent); }
+.tiles .tile.lvl-crit .tile-compact { border-color: color-mix(in srgb, var(--crit) 60%, transparent); background: color-mix(in srgb, var(--crit) 20%, transparent); }
+.tiles .tile .tile-compact:hover:not(:disabled) { filter: brightness(1.2); }
+.tiles .tile .tile-compact:disabled { opacity: .6; cursor: default; }
 /* the site's host building it (deploys.mjs): the host's mark, what it does, a bar */
 .deploy-bar { display: grid; gap: 6px; margin: 0 0 10px; }
 .deploy-bar[hidden] { display: none; }
@@ -2020,7 +2024,11 @@ const drawTiles = () => {
     `<div class="label">${label}</div><div class="value">${value}</div>${extra}<div class="foot">${foot}</div></div>`)
   if (u) {
     const p = u.percent ?? 0
-    tile('Context window', counter(`ctx:${S.view}`, p, 'pct'), `${human(u.tokens ?? 0)} of ${human(u.window ?? 0)} tokens`, `<div class="meter"><div style="width:${clamp(p, 0, 100)}%;background:${meterColor(p)}"></div></div>`, '', `hero ${levelClass(p)}`)
+    // from 70 %: a button to compact the chat now, in the tile itself (as the bar over the live view)
+    const compactBtn = p >= 70 && !TILE_MODE
+      ? (window.compactAsked?.(S.view) ? '<button class="tile-compact" disabled>⏳ Compacting soon</button>' : '<button class="tile-compact" title="As /compact does: Claude sums up the chat so far and goes on from that summary">🗜 Compact now</button>')
+      : ''
+    tile('Context window', counter(`ctx:${S.view}`, p, 'pct'), `${human(u.tokens ?? 0)} of ${human(u.window ?? 0)} tokens`, `<div class="meter"><div style="width:${clamp(p, 0, 100)}%;background:${meterColor(p)}"></div></div>${compactBtn}`, '', `hero ${levelClass(p)}`)
     for (const l of u.limits ?? []) {
       const safe = limitSafety(l)
       const eta = !safe.isSafe
@@ -2154,6 +2162,7 @@ const popTile = async (key, el, view = 'mini') => {
 $('#tiles').addEventListener('click', e => {
   if (TILE_MODE) return
   if (e.target.closest('.update-tile')) { window.startUpdate?.(); return }
+  if (e.target.closest('.tile-compact')) { if (!e.target.closest('.tile-compact').disabled) window.askCompact?.(S.view); return }
   const el = e.target.closest('[data-tile]')
   if (el) openBig(el.dataset.tile)
 })
