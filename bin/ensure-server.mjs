@@ -31,6 +31,22 @@ const log = line => {
 }
 // PowerShell by its full path: a process started by Claude may not have it on its PATH
 const POWERSHELL = process.platform === 'win32' ? path.join(process.env.SystemRoot || process.env.windir || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : 'powershell'
+// Claude ends what a chat's helper started once the helper is done, detached or
+// not (on Windows its processes share a job): so the server and the window are
+// started by Windows itself (WMI), apart from Claude, hidden. true: started.
+const startApart = commandLine => {
+  try {
+    const out = execFileSync(POWERSHELL, ['-NoProfile', '-Command',
+      `$si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }; ` +
+      `(Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = '${commandLine.replace(/'/g, "''")}'; ProcessStartupInformation = $si }).ReturnValue`],
+    { encoding: 'utf8', windowsHide: true, timeout: 10_000 }).trim()
+    if (out !== '0') log(`not started apart (${out}): ${commandLine.slice(0, 120)}`)
+    return out === '0'
+  } catch (e) {
+    log(`not started apart: ${String(e?.message ?? e).split('\n')[0]}`)
+    return false
+  }
+}
 const deck = readJson(DECK_FILE) ?? {}
 const here = path.join(BIN, '..', 'dashboard', 'server.mjs')
 // a copy a session hot-reloads while the mod is worked on is not the one to keep
@@ -57,6 +73,8 @@ const get = p => new Promise(resolve => {
   req.on('timeout', () => { req.destroy(); resolve(undefined) })
 })
 const start = () => {
+  // (on Windows apart from Claude, see startApart; on the usual port, which needs no setting)
+  if (process.platform === 'win32' && port === 4477 && startApart(`"${process.execPath}" "${server}"`)) return
   // its own folder as the working one, so it holds no other folder open
   spawn(process.execPath, [server], { cwd: path.dirname(server), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, LIVE_CODE_PORT: String(port) } }).unref()
 }
@@ -117,9 +135,13 @@ if (process.platform === 'win32' && server && prefs['lc.openWithClaude'] !== 'of
   log(`session ${sessionId.slice(0, 8) || '?'} | app run ${run || 'none'} | opened for ${opened ?? 'none'} | ${due ? 'opens' : 'stays'}`)
   if (due) {
     if (run) { try { fs.writeFileSync(OPENED_FILE, `${JSON.stringify({ appRun: run, at: Date.now() })}\n`) } catch {} }
-    const child = spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', path.join(path.dirname(server), 'start.ps1'), '-IfClosed'], { detached: true, stdio: 'ignore', windowsHide: true })
-    child.on('error', e => log(`start.ps1 not started: ${e.message}`))
-    child.unref()
+    const script = path.join(path.dirname(server), 'start.ps1')
+    if (startApart(`"${POWERSHELL}" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${script}" -IfClosed`)) log('window asked for, apart from Claude')
+    else {
+      const child = spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script, '-IfClosed'], { detached: true, stdio: 'ignore', windowsHide: true })
+      child.on('error', e => log(`start.ps1 not started: ${e.message}`))
+      child.unref()
+    }
   }
 } else log(`not opened: ${process.platform !== 'win32' ? 'not Windows' : !server ? 'no server' : prefs['lc.openWithClaude'] === 'off' ? 'switched off' : 'dev copy'}`)
 
