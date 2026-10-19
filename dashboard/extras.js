@@ -17,7 +17,11 @@ const showVersion = () => fetch('/about').then(r => r.json()).then(a => {
   versions = a
   const up = a.latest && newer(a.latest, a.version)
   const checked = a.latestCheckedAt ? new Date(a.latestCheckedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null
-  $('#ver-installed').textContent = `installed v${a.version}`
+  // (a working copy's changes not released yet: same number as GitHub, newer code)
+  const own = $('#ver-installed')
+  own.textContent = `installed v${a.version}${a.unpublished ? ` + ${a.unpublished} unpublished` : ''}`
+  own.className = `v-installed${a.unpublished ? ' ahead' : ''}`
+  own.title = a.unpublished ? `${a.unpublished} change${a.unpublished === 1 ? '' : 's'} kept locally, not on GitHub yet` : ''
   const el = $('#ver-latest')
   // (newer than GitHub: a version not released yet, or one GitHub does not show yet)
   const ahead = a.latest && newer(a.version, a.latest)

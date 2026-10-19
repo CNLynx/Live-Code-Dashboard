@@ -7,7 +7,7 @@
 // them to the dashboard page over server-sent events. No dependencies:
 // `node server.mjs`. Listens on 127.0.0.1 only, and exits once no window has
 // been open for a while.
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -31,6 +31,22 @@ const installed = () => { try { return JSON.parse(fs.readFileSync(path.join(HERE
 const VERSION = installed()
 const STARTED_AT = Date.now()
 const CUSTOM_DIR = path.join(HOME, 'live-code-custom')
+// A working copy of the mod (its author's): the changes kept locally but not yet
+// released (release.ps1 keeps them on the branch 'lokal', released ones on 'main').
+// The version number only rises with a release, so without this a copy full of
+// new changes would read the same as GitHub's.
+const unpublished = { n: 0, at: 0 }
+const countUnpublished = () => {
+  if (Date.now() - unpublished.at < 20_000) return unpublished.n
+  unpublished.at = Date.now()
+  try {
+    const root = path.join(HERE, '..')
+    if (!fs.existsSync(path.join(root, '.git'))) return (unpublished.n = 0)
+    const out = execFileSync('git', ['-C', root, 'log', '--format=%h', 'main..lokal'], { encoding: 'utf8', windowsHide: true, timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] })
+    unpublished.n = out.split('\n').filter(Boolean).length
+  } catch { unpublished.n = 0 }
+  return unpublished.n
+}
 // the newest published version (GitHub), looked up every ten minutes, for the
 // dashboard to show beside the installed one. Through GitHub's API, not its raw
 // file host, whose copies lag minutes behind a release; a failed look, or one
@@ -1254,7 +1270,7 @@ const server = http.createServer((req, res) => {
   } else if (url.pathname === '/about') {
     // which copy runs: the mod starts its own one in its place after an update
     void checkLatest()
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: installed() || VERSION, running: VERSION, startedAt: STARTED_AT, latest: latest.version, latestCheckedAt: latest.checkedAt }))
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: installed() || VERSION, running: VERSION, startedAt: STARTED_AT, unpublished: countUnpublished(), latest: latest.version, latestCheckedAt: latest.checkedAt }))
   } else if (url.pathname === '/events') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
     res.write('retry: 2000\n\n')
