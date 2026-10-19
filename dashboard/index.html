@@ -123,6 +123,11 @@ main { padding: 16px 18px 40px; display: grid; gap: 14px; }
 /* ── tiles ── */
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .tile { padding: 12px 14px; }
+/* a tile whose number changed: a soft ring and glow that fades in and out
+   (its own layer, only its opacity moves: no repaint of the tile) */
+.tiles .tile { position: relative; }
+.tiles .tile::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; opacity: 0;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--s1) 50%, transparent), 0 0 26px color-mix(in srgb, var(--s1) 30%, transparent), inset 0 0 18px color-mix(in srgb, var(--s1) 10%, transparent); }
 .tile .label { color: var(--ink-2); font-size: 12px; display: flex; align-items: center; gap: 6px; }
 .tile .value { font-size: 24px; font-weight: 650; margin-top: 2px; letter-spacing: -.3px; white-space: nowrap; }
 .tile .value small { font-size: 13px; font-weight: 500; color: var(--ink-2); margin-left: 4px; }
@@ -130,7 +135,7 @@ main { padding: 16px 18px 40px; display: grid; gap: 14px; }
 .tile .foot { color: var(--muted); font-size: 12px; margin-top: 4px; line-height: 1.4; overflow-wrap: anywhere; }
 .tile .foot b { white-space: nowrap; }
 .meter { height: 6px; border-radius: 3px; background: var(--surface-3); margin-top: 8px; overflow: hidden; }
-.meter > div { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.meter > div { height: 100%; border-radius: 3px; transition: width .9s cubic-bezier(.2,.8,.2,1), background-color .9s ease; }
 .lines3 { display: flex; height: 6px; gap: 2px; margin-top: 8px; border-radius: 3px; overflow: hidden; }
 .lines3 > div { height: 100%; }
 .spark { display: block; margin-top: 6px; }
@@ -2254,11 +2259,17 @@ const counted = new Map() // key -> the value shown
 const COUNT_FMT = { money: v => '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), human: v => human(v), pct: v => pct(v), int: v => Math.round(v).toLocaleString() }
 // a number that changed: its tile glows up for a moment (not at the first sight of it)
 const countTargets = new Map() // key -> the target last seen
-const BUMP = [
-  { boxShadow: '0 0 0 0 transparent' },
-  { boxShadow: '0 0 0 1px color-mix(in srgb, var(--s1) 45%, transparent), 0 0 24px color-mix(in srgb, var(--s1) 26%, transparent)', offset: 0.3 },
-  { boxShadow: '0 0 0 0 transparent' },
-]
+// (the tile's glow layer, ::after: up softly, a moment held, out slowly)
+const BUMP = [{ opacity: 0 }, { opacity: 1, offset: 0.28 }, { opacity: 0.85, offset: 0.45 }, { opacity: 0 }]
+const bumping = new WeakMap() // tile -> its glow running
+const bump = tile => {
+  if (!tile || reduceMotion) return
+  const run = bumping.get(tile)
+  // a change while it glows: held a little longer from where it is, never restarted from dark
+  if (run && run.playState === 'running') { if (run.currentTime > 700) run.currentTime = 500; return }
+  const a = tile.animate(BUMP, { duration: 1800, easing: 'cubic-bezier(.4,0,.2,1)', pseudoElement: '::after' })
+  bumping.set(tile, a)
+}
 const counter = (key, value, fmt) => `<span class="num" data-count="${value}" data-key="${esc(key)}" data-fmt="${fmt}">${COUNT_FMT[fmt](counted.get(key) ?? value)}</span>`
 let countAt = 0
 const drawCounters = t => {
@@ -2271,7 +2282,7 @@ const drawCounters = t => {
     const before = countTargets.get(key)
     if (before !== label) {
       countTargets.set(key, label)
-      if (before !== undefined && !reduceMotion) el.closest('.tile')?.animate(BUMP, { duration: 1100, easing: 'ease-out' })
+      if (before !== undefined) bump(el.closest('.tile'))
     }
     let shown = counted.get(key) ?? target
     shown = Math.abs(target - shown) < Math.abs(target) * 1e-4 + 1e-6 ? target : shown + (target - shown) * k
@@ -2371,7 +2382,7 @@ const drawTiles = () => {
     const old = box.children[i]
     if (old.className !== n.className) old.className = n.className
     if (old.getAttribute('data-tip') !== n.getAttribute('data-tip')) n.hasAttribute('data-tip') ? old.setAttribute('data-tip', n.getAttribute('data-tip')) : old.removeAttribute('data-tip')
-    if (old.innerHTML !== n.innerHTML) old.innerHTML = n.innerHTML
+    if (old.innerHTML !== n.innerHTML) morph(old, n)
   })
   drawBigTile()
   // a window of its own showing the tile in detail
@@ -2379,6 +2390,24 @@ const drawTiles = () => {
   if (TILE_MODE) window.tileFit?.()
 }
 let tilesHtml = ''
+// A tile's insides brought to the new state where they differ, the rest left as
+// it is: a meter keeps its element and glides to its new width, a sparkline
+// its path; only what changed its shape is put in anew.
+const morph = (old, n) => {
+  const a = old.childNodes, b = n.childNodes
+  const same = a.length === b.length && [...a].every((x, i) => x.nodeType === b[i].nodeType && x.nodeName === b[i].nodeName)
+  if (!same) { old.innerHTML = n.innerHTML; return }
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i]
+    if (x.nodeType === 3) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; continue }
+    if (x.nodeType !== 1) continue
+    // (a counter's text is the counting's, drawn each frame: left to it)
+    for (const { name, value } of y.attributes) if (x.getAttribute(name) !== value) x.setAttribute(name, value)
+    for (const { name } of [...x.attributes]) if (!y.hasAttribute(name)) x.removeAttribute(name)
+    if (x.hasAttribute('data-count')) continue
+    if (x.innerHTML !== y.innerHTML) morph(x, y)
+  }
+}
 
 // ── a tile large, or in its own window ──
 // Each tile has a name that holds across redraws (its label, the one turn
