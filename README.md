@@ -139,7 +139,9 @@ and watch the change appear while Claude is still typing:
 
 ![The dashboard restyling itself the moment its file changes](docs/live-reload.gif)
 
-This works in Claude Code (terminal, desktop app, IDE), not in the claude.ai chat, since Claude needs to edit the files on your PC. Tip: fork this repository first and install from your fork, so an update does not overwrite your changes.
+This works in Claude Code (terminal, desktop app, IDE), not in the claude.ai chat, since Claude needs to edit the files on your PC.
+
+**Changes that survive updates:** an update replaces the mod's files. Put your own touches in `~/.claude/live-code-custom/` instead: `custom.css` is loaded after the dashboard's own styles (so it wins), `custom.js` after its scripts. An update never touches that folder, and the dashboard reloads when you change them. Ask Claude: *"Put it in live-code-custom, so it stays after updates."* For bigger changes, fork this repository and install from your fork.
 
 ### What it runs, sends and fetches
 
@@ -273,7 +275,9 @@ Das Dashboard ist reines HTML, CSS und JavaScript. Es **lädt sich selbst neu, s
 
 > *„Mach im Live-Code-Dashboard die Kosten-Kachel blau und füge eine Kachel für die durchschnittliche Turn-Zeit hinzu.“*
 
-Die Änderung erscheint, während Claude noch tippt. Das geht in Claude Code (Terminal, Desktop-App, IDE), nicht im normalen claude.ai-Chat, weil Claude dafür Dateien auf deinem PC bearbeiten muss. Tipp: Forke das Repository und installiere von deinem Fork, dann überschreibt ein Update deine Änderungen nicht.
+Die Änderung erscheint, während Claude noch tippt. Das geht in Claude Code (Terminal, Desktop-App, IDE), nicht im normalen claude.ai-Chat, weil Claude dafür Dateien auf deinem PC bearbeiten muss.
+
+**Änderungen, die Updates überleben:** Ein Update ersetzt die Dateien des Mods. Eigene Anpassungen gehören deshalb nach `~/.claude/live-code-custom/`: `custom.css` wird nach den Stilen des Dashboards geladen (gewinnt also), `custom.js` nach seinen Skripten. Ein Update fasst diesen Ordner nie an, und das Dashboard lädt neu, sobald du sie änderst. Sag Claude einfach: *„Leg es in live-code-custom, damit es nach Updates bleibt.“* Für größere Umbauten: Repository forken und vom Fork installieren.
 
 ### Gut zu wissen
 

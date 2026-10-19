@@ -30,6 +30,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const installed = () => { try { return JSON.parse(fs.readFileSync(path.join(HERE, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version } catch { return '' } }
 const VERSION = installed()
 const STARTED_AT = Date.now()
+const CUSTOM_DIR = path.join(HOME, 'live-code-custom')
 // the newest published version (GitHub), looked up every ten minutes, for the
 // dashboard to show beside the installed one. Through GitHub's API, not its raw
 // file host, whose copies lag minutes behind a release; a failed look, or one
@@ -118,6 +119,15 @@ try {
 } catch {
   // no watching: the pages reload by hand
 }
+// the person's own custom.css / custom.js reload the pages as well
+try {
+  fs.mkdirSync(CUSTOM_DIR, { recursive: true })
+  fs.watch(CUSTOM_DIR, (_, name) => {
+    if (!name || !PAGE_FILE.test(name)) return
+    clearTimeout(pageChangeDue)
+    pageChangeDue = setTimeout(() => broadcast({ type: 'reload', file: name }), 400)
+  })
+} catch {}
 
 // ── chat titles ──
 // Claude Code keeps each chat as ~/.claude/projects/<folder>/<session id>.jsonl,
@@ -1134,6 +1144,12 @@ const server = http.createServer((req, res) => {
     handleVoice(req, res, url).catch(e => res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: e.message })))
   } else if (url.pathname === '/extras.js' || url.pathname === '/shared.js' || url.pathname === '/details.js') {
     sendFile(res, path.join(HERE, url.pathname.slice(1)), 'text/javascript; charset=utf-8')
+  } else if (url.pathname === '/custom.css' || url.pathname === '/custom.js') {
+    // the person's own touches, kept outside the mod (~/.claude/live-code-custom):
+    // an update never overwrites them; none there, an empty file
+    const file = path.join(CUSTOM_DIR, url.pathname.slice(1))
+    const type = url.pathname.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8'
+    fs.readFile(file, 'utf8', (error, text) => res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' }).end(error ? '' : text))
   } else if (url.pathname === '/hue') {
     // the settings: whether the lights join in, and a try of each effect
     if (!isTrusted(req)) { res.writeHead(403).end('{}'); return }
