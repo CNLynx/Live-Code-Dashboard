@@ -1297,14 +1297,15 @@ export const register: Register = on => {
     })
     // (the pane opens on /live-code: the dashboard shows it all, outside Claude)
     void refreshUsage($)
-    // the dashboard server starts with Claude: unless it runs, it is started, hidden
-    void $.process.run(['node', `${$.plugin.root}/bin/ensure-server.mjs`], { timeoutMs: 10_000 }).catch(() => undefined)
     // a reload fires session.start again: the session's first start stays
     const t = await clockNow($)
     await update($, sessionStart, was => (was > 0 ? was : t)).catch(() => undefined)
     sessionCwd = e.cwd
     isEnded = false
     sessionId = await $.session.id().then(id => (typeof id === 'string' ? id : ''), () => '')
+    // the dashboard server starts with Claude: unless it runs, it is started, hidden
+    // (told this chat, so its own feed, written now, is not taken for another chat at work)
+    void $.process.run(['node', `${$.plugin.root}/bin/ensure-server.mjs`, `--session=${sessionId}`], { timeoutMs: 15_000 }).catch(() => undefined)
     void publish($)
     inboxTimer?.cancel()
     try {
