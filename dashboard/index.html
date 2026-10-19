@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="256x256" href="/icon.png">
 <meta name="lc-secret" content="__LIVE_CODE_SECRET__">
 <meta name="lc-run" content="__LIVE_CODE_RUN__">
-<script>try { document.documentElement.setAttribute('data-style', localStorage.getItem('lc.style') || 'aurora') } catch { document.documentElement.setAttribute('data-style', 'aurora') }</script>
+<script>document.documentElement.setAttribute('data-style', 'aurora'); try { if (localStorage.getItem('lc.style') === 'aurora-light') document.documentElement.setAttribute('data-tone', 'light') } catch {}</script>
 <style>
 :root {
   color-scheme: light;
@@ -810,6 +810,46 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 :root[data-style="aurora"] .tip { background: rgba(18,19,28,.96); backdrop-filter: blur(12px); }
 :root[data-style="aurora"] #theme { display: none; }
 
+/* ── Aurora Light: the same glass and aurora, on a bright page ── */
+:root[data-style="aurora"][data-tone="light"] {
+  color-scheme: light;
+  --page: #f4f5fb; --surface: rgba(255,255,255,.72); --surface-2: rgba(255,255,255,.9); --surface-3: rgba(232,235,248,.9);
+  --ink: #181a2a; --ink-2: #4a4f68; --muted: #7c8199; --grid: rgba(24,28,70,.07); --axis: rgba(24,28,70,.18); --ring: rgba(24,28,70,.09);
+  --s1: #5b6cf0; --s2: #e07b45; --s3: #1fa58e; --s4: #c9971c; --s5: #d9649a; --s6: #4fa857; --s7: #8a6cf0; --s8: #e0617a;
+  --good: #1f9e6e; --warn: #c99317; --serious: #e07b45; --crit: #dc4a5e; --good-ink: #137a52;
+  --add: #1f9e6e; --del: #dc4a5e; --mod: #e07b45;
+  --add-ink: #137a52; --del-ink: #c23a52; --mod-ink: #b5602a;
+  --add-bg: rgba(31,165,142,.09); --add-hi: rgba(31,165,142,.26); --del-bg: rgba(220,74,94,.08); --del-hi: rgba(220,74,94,.24);
+  --mod-bg: rgba(224,123,69,.09); --mod-hi: rgba(224,123,69,.28); --scan: rgba(91,108,240,.14);
+  --k-kw: #7c4ddb; --k-str: #1f7a4f; --k-num: #b5602a; --k-com: #9a9eb3; --k-fn: #3b54d6; --k-type: #0e7490; --k-var: #c23a7c;
+  --q0: #e3e7ff; --q1: #c3ccff; --q2: #93a3ff; --q3: #6a7ee6; --q4: #4c5dc4; --q5: #36449a; --q6: #262f73;
+  --shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 1px 2px rgba(30,35,90,.06), 0 10px 28px rgba(30,35,90,.07);
+  --menu-bg: rgba(255,255,255,.97); --toast-bg: rgba(255,255,255,.98);
+}
+:root[data-style="aurora"][data-tone="light"] body {
+  background:
+    radial-gradient(900px 520px at 8% -6%, rgba(130,110,255,.16), transparent 70%),
+    radial-gradient(900px 560px at 96% 4%, rgba(40,190,180,.12), transparent 70%),
+    radial-gradient(1000px 600px at 60% 110%, rgba(240,110,170,.10), transparent 70%),
+    var(--page);
+  background-attachment: fixed;
+}
+:root[data-style="aurora"][data-tone="light"] .top { background: rgba(244,245,251,.94); }
+:root[data-style="aurora"][data-tone="light"] .tile.hero .value { background-image: linear-gradient(90deg, #4c5dc4, #8a6cf0); }
+:root[data-style="aurora"][data-tone="light"] .live {
+  background: linear-gradient(rgba(255,255,255,.94), rgba(255,255,255,.94)) padding-box,
+              linear-gradient(135deg, color-mix(in srgb, var(--action) 70%, transparent), rgba(31,165,142,.22) 45%, rgba(217,100,154,.30)) border-box;
+}
+:root[data-style="aurora"][data-tone="light"] .prompt-card { background: linear-gradient(135deg, rgba(91,108,240,.08), rgba(255,255,255,.75) 45%, rgba(217,100,154,.05)); }
+:root[data-style="aurora"][data-tone="light"] .code { background: rgba(238,240,250,.8); }
+:root[data-style="aurora"][data-tone="light"] .picker { background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(244,245,251,.9)); }
+:root[data-style="aurora"][data-tone="light"] .seg { background: rgba(24,28,70,.05); }
+:root[data-style="aurora"][data-tone="light"] .seg button.on { background: #fff; box-shadow: 0 1px 2px rgba(30,35,90,.12); }
+:root[data-style="aurora"][data-tone="light"] th { background: rgba(248,249,253,.97); }
+:root[data-style="aurora"][data-tone="light"] .tip { background: rgba(255,255,255,.97); }
+/* switching between the two: the page glides from one to the other */
+:root.restyle, :root.restyle * { transition: background-color .45s ease, color .45s ease, border-color .45s ease, fill .45s ease, stroke .45s ease !important; }
+
 @media (max-width: 1100px) { .mainrow, .grid2, .grid3 { grid-template-columns: 1fr; } }
 
 /* a tile that fills up takes on its level's color: from 70% amber, from 85% red */
@@ -947,7 +987,7 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
   <div class="seg" id="range" title="What the statistics cover">
     <button data-range="session" class="on">Session</button><button data-range="today">Today</button><button data-range="all">All time</button>
   </div>
-  <div class="seg" id="style" title="Look"><button data-style="aurora">Aurora Pro</button><button data-style="classic">Classic</button></div>
+  <div class="seg" id="style" title="Look"><button data-style="aurora">Aurora Pro</button><button data-style="aurora-light">Aurora Light</button></div>
   <a class="btn" href="/wall" target="_top" title="Every chat at once, side by side">▦ Wall</a>
   <a class="btn" href="/report" target="_top" title="Day and week: costs per project, files, hours">📊 Report</a>
   <a class="btn sponsor" href="https://github.com/sponsors/CNLynx" target="_blank" rel="noopener" title="Like Live Code? Support it on GitHub Sponsors">♥<span class="sp-text"> Sponsor</span></a>
@@ -3391,14 +3431,20 @@ $('#sess-btn').onclick = e => {
 }
 document.addEventListener('click', e => { if (!sessMenu.hidden && !e.target.closest('.picker-wrap')) reveal(sessMenu, false, 'pop') })
 
-// ── style: Aurora Pro (default) or the original Classic ──
-const applyStyle = st => {
-  document.documentElement.setAttribute('data-style', st)
+// ── style: Aurora Pro (dark, the default) or Aurora Light ──
+// (the old Classic is gone: who had it picked gets Aurora Pro)
+const lookOf = () => { const st = store.get('lc.style'); return st === 'aurora-light' ? st : 'aurora' }
+const applyStyle = (st, glide = false) => {
+  const root = document.documentElement
+  if (glide && !reduceMotion) { root.classList.add('restyle'); clearTimeout(applyStyle.t); applyStyle.t = setTimeout(() => root.classList.remove('restyle'), 500) }
+  root.setAttribute('data-style', 'aurora')
+  if (st === 'aurora-light') root.setAttribute('data-tone', 'light'); else root.removeAttribute('data-tone')
   for (const b of $('#style').children) b.classList.toggle('on', b.dataset.style === st)
+  window.drawAll?.()
 }
-let look = store.get('lc.style') || 'aurora'
+let look = lookOf()
 applyStyle(look)
-$('#style').onclick = e => { const b = e.target.closest('button'); if (!b) return; look = b.dataset.style; store.set('lc.style', look); applyStyle(look) }
+$('#style').onclick = e => { const b = e.target.closest('button'); if (!b || b.dataset.style === look) return; look = b.dataset.style; store.set('lc.style', look); applyStyle(look, true) }
 
 // range & theme
 const setRange = r => { S.range = r; store.set('lc.range', r); for (const b of $('#range').children) b.classList.toggle('on', b.dataset.range === r); drawAll() }
@@ -3410,7 +3456,7 @@ const applyTheme = t => { if (t === 'system') document.documentElement.removeAtt
 const applyShared = prefs => {
   if (!TILE_MODE || !prefs) return
   Object.assign(sharedPrefs, prefs)
-  look = store.get('lc.style') || 'aurora'; applyStyle(look)
+  look = lookOf(); applyStyle(look)
   theme = store.get('lc.theme') || 'system'; applyTheme(theme)
   applyMotion()
   tilesHtml = ''

@@ -1244,13 +1244,18 @@ if (!TILE_MODE) {
     }
     for (const grid of document.querySelectorAll('.grid2, .grid3')) {
       const cards = [...grid.children].filter(c => c.classList.contains('card'))
-      cards.forEach(c => c.classList.remove('lone'))
       const shown = cards.filter(c => getComputedStyle(c).display !== 'none')
       const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(v => v && v !== '0px').length
-      if (cols > 1 && shown.length % cols === 1) shown.at(-1).classList.add('lone')
+      const lone = cols > 1 && shown.length % cols === 1 ? shown.at(-1) : null
+      // touched only where it changes: no class flicking off and on again
+      for (const c of cards) if (c.classList.contains('lone') !== (c === lone)) c.classList.toggle('lone', c === lone)
     }
   }
   addEventListener('resize', balance)
   setInterval(balance, 800)
+  // tiles added or taken away: balanced before the page is painted, never a frame in the old rows
+  const tilesBox = $('.tiles')
+  if (tilesBox) new MutationObserver(balance).observe(tilesBox, { childList: true })
+  for (const grid of document.querySelectorAll('.grid2, .grid3')) new MutationObserver(balance).observe(grid, { childList: true })
   balance()
 }
