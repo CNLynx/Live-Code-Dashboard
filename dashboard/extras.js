@@ -21,7 +21,7 @@ const showVersion = () => fetch('/about').then(r => r.json()).then(a => {
   const el = $('#ver-latest')
   // (newer than GitHub: a version not released yet, or one GitHub does not show yet)
   const ahead = a.latest && newer(a.version, a.latest)
-  el.textContent = !a.latest ? 'latest: checking…' : up ? `v${a.latest} available ↑` : ahead ? `GitHub v${a.latest} · yours is newer` : `latest v${a.latest} ✓`
+  el.textContent = !a.latest ? 'GitHub: checking…' : up ? `GitHub v${a.latest} available ↑` : ahead ? `GitHub v${a.latest} · yours is newer` : `GitHub v${a.latest} ✓`
   el.className = `v-latest${up ? ' update' : ahead ? ' ahead' : !a.latest ? ' unknown' : ''}`
   el.title = `Newest on GitHub: ${a.latest ? `v${a.latest}` : 'not known yet'}${checked ? ` (checked ${checked})` : ''}${up ? '\nClick to install it' : ''}`
   el.onclick = up ? () => startUpdate() : null
