@@ -1009,6 +1009,47 @@ if (!TILE_MODE) {
   void loadDeckPrompts()
 }
 
+// ── the chat's model and effort ──
+// Picked here, the chat's next requests go with them (the mod's turn.step);
+// "Claude's choice" gives it back to the chat's own setting. Shown: what the
+// last request went with.
+{
+  const MODELS = [['claude-fable-5-1', 'Fable 5.1'], ['claude-opus-5-5', 'Opus 5.5'], ['claude-sonnet-5-5', 'Sonnet 5.5'], ['claude-haiku-5-5', 'Haiku 5.5']]
+  const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
+  const niceModel = id => MODELS.find(([m]) => m === id)?.[1] ?? (id || '').replace(/^claude-/, '').replace(/-(\d+)-(\d+)$/, ' $1.$2').replace(/^\w/, c => c.toUpperCase())
+  const pending = new Map() // sid -> { model, effort, at }: picked, not yet seen in the chat's feed
+  let key = ''
+  const draw = () => {
+    const box = $('#pc-model')
+    if (!box) return
+    const s = S.snap?.session
+    if (!s?.canPickModel || TILE_MODE) { if (!box.hidden) box.hidden = true; key = ''; return }
+    const sid = S.view
+    let p = pending.get(sid)
+    if (p && ((p.model === s.modelPick && p.effort === s.effortPick) || Date.now() - p.at > 20_000)) { pending.delete(sid); p = undefined }
+    const model = p?.model ?? s.modelPick ?? ''
+    const effort = p?.effort ?? s.effortPick ?? ''
+    const next = `${sid}|${model}|${effort}|${s.model}|${s.effort}`
+    if (next === key) return
+    key = next
+    const opt = (v, label, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(label)}</option>`
+    box.innerHTML =
+      `<select data-k="model" class="${model ? 'picked' : ''}" title="The model this chat's next requests go with${s.model ? `\nNow: ${niceModel(s.model)}` : ''}">${opt('', `Model: Claude's choice${s.model && !model ? ` · ${niceModel(s.model)}` : ''}`, model)}${MODELS.map(([v, l]) => opt(v, l, model)).join('')}</select>` +
+      `<select data-k="effort" class="${effort ? 'picked' : ''}" title="How hard it thinks${s.effort ? `\nNow: ${s.effort}` : ''}">${opt('', `Effort: Claude's choice${s.effort && !effort ? ` · ${s.effort}` : ''}`, effort)}${EFFORTS.map(v => opt(v, `Effort: ${v}`, effort)).join('')}</select>`
+    box.hidden = false
+    for (const sel of box.querySelectorAll('select')) sel.onchange = async () => {
+      const pick = { model: box.querySelector('[data-k="model"]').value, effort: box.querySelector('[data-k="effort"]').value }
+      pending.set(sid, { ...pick, at: Date.now() })
+      key = ''
+      draw()
+      const r = await post('/send', { sid, kind: 'model', ...pick }).catch(() => null)
+      if (!r?.ok) { pending.delete(sid); key = ''; draw(); smallToast('Could not tell the chat', 'bad') }
+      else smallToast(`Next requests: ${pick.model ? niceModel(pick.model) : "Claude's model"} · ${pick.effort || "Claude's effort"}`)
+    }
+  }
+  setInterval(draw, 500)
+}
+
 // ── compact before it is too late ──
 // At 70 % of the context window and more, a bar over the live view offers to
 // compact the chat now (as /compact does), when it suits, instead of Claude

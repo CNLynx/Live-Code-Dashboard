@@ -33,3 +33,5 @@ if ($version -and (Test-Path $cache)) {
   if ($LASTEXITCODE -lt 8) { Write-Host "Claude's copy ($version) brought up to date: restart Claude to run it" -ForegroundColor Cyan }
   else { Write-Host "Claude's copy could not be brought up to date (robocopy $LASTEXITCODE)" -ForegroundColor Yellow }
 }
+# (robocopy's 1 means "files copied", not a failure)
+exit 0

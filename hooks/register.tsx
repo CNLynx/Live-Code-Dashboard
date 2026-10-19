@@ -336,11 +336,26 @@ let inboxSince = 0
 // Claude works, once the turn has ended (the inbox's next look, each second).
 // A few tries at most, should the engine refuse it.
 let compactTries = 0
+// The model and effort picked in the dashboard for this chat, '' for Claude's
+// own; each request of the main loop goes with them (turn.step). And what the
+// last request went with, for the dashboard to show.
+let modelPick = ''
+let effortPick = ''
+let modelUsed = ''
+let effortUsed = ''
 const compactWhenFree = async ($: Engine) => {
   if (compactTries === 0 || inTurn) return
   compactTries--
   const at = await clockNow($)
-  const ran = await $.session.compact().then(r => ({ done: !r?.skip, skip: r?.skip ?? false }), (e: unknown) => ({ done: false, error: String(e).slice(0, 400) }))
+  let ran: { done: boolean; skip?: boolean; error?: string; via?: string } = await $.session.compact().then(
+    r => ({ done: !r?.skip, skip: r?.skip ?? false, via: 'session.compact' }),
+    (e: unknown) => ({ done: false, error: String(e).slice(0, 400) }),
+  )
+  // a session of the Claude app (an SDK session) compacts only inside a turn:
+  // the /compact prompt, as if typed
+  if (!ran.done && !ran.skip) {
+    ran = await $.prompt.submit({ text: '/compact', asUser: true }).then(() => ({ done: true, via: '/compact prompt', error: ran.error }), (e: unknown) => ({ done: false, error: `${ran.error ?? ''} | /compact: ${String(e).slice(0, 300)}` }))
+  }
   if (ran.done) compactTries = 0
   // how it went, for finding out why a chat did (not) compact
   await $.fs.write(`${claudeHome($.plugin.root)}/live-code-compact.json`, JSON.stringify({ at, session: sessionId, triesLeft: compactTries, ...ran }, null, 1)).catch(() => undefined)
@@ -375,6 +390,15 @@ const checkInbox = async ($: Engine) => {
     if (message.kind === 'compact') {
       await update($, inboxHandled, was => [...was, id].slice(-300))
       compactTries = 5
+      continue
+    }
+    // the model and effort picked in the dashboard ('' again: Claude's own)
+    if (message.kind === 'model') {
+      await update($, inboxHandled, was => [...was, id].slice(-300))
+      const m = message as { model?: unknown; effort?: unknown }
+      if (typeof m.model === 'string') modelPick = m.model
+      if (typeof m.effort === 'string') effortPick = m.effort
+      void publish($)
       continue
     }
     if (typeof message.text !== 'string' || message.text.trim() === '') continue
@@ -555,7 +579,7 @@ const publish = ($: Engine) => {
         turnStats: turns,
         asks: waiting,
         plan: planned,
-        session: { id: sessionId, cwd: sessionCwd, title: sessionTitle, startedAt: started, updatedAt: await clockNow($), isEnded, canReceive: true, canStop: true, canAnswer: true },
+        session: { id: sessionId, cwd: sessionCwd, title: sessionTitle, startedAt: started, updatedAt: await clockNow($), isEnded, canReceive: true, canStop: true, canAnswer: true, canPickModel: true, model: modelUsed, effort: effortUsed, modelPick, effortPick },
       }
       const home = claudeHome($.plugin.root)
       const text = JSON.stringify(feed)
@@ -1419,6 +1443,21 @@ export const register: Register = on => {
     if (e.agentId === undefined) mainTurnId = e.turnId
 
     return next(e)
+  })
+
+  // The dashboard's model and effort: each request of the main loop goes with
+  // them (a subagent keeps its own); what it went with is shown there.
+  on('turn.step', async function* ($, e, next) {
+    if (e.agentId !== undefined) return yield* next(e)
+    const model = modelPick !== '' ? modelPick : e.model
+    const effort = effortPick !== '' ? (effortPick as typeof e.effort) : e.effort
+    const isNew = model !== modelUsed || String(effort ?? '') !== effortUsed
+    modelUsed = model
+    effortUsed = String(effort ?? '')
+    if (isNew) void publish($)
+    if (modelPick === '' && effortPick === '') return yield* next(e)
+
+    return yield* next({ ...e, model, ...(effort !== undefined ? { effort } : {}) })
   })
 
   // Claude's questions: with a dashboard open, answerable there too.
