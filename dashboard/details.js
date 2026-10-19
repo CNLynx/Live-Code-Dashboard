@@ -145,9 +145,16 @@ const limitDetail = kind => snap => {
   return stats([
     stat('Used', `${Math.round(l.percent)}%`, `${100 - Math.round(l.percent)}% left`),
     stat('Resets', resetAt ? whenHm(resetAt) : '—', resetAt ? `${at(resetAt)} · in ${dur(safe.resetIn)}` : ''),
-    stat('Pace now', l.ratePerHour != null ? `+${l.ratePerHour.toFixed(1)}%/h` : '—', 'over the last half hour'),
-    stat('Safe pace', safe.safeRate != null ? `≤ ${safe.safeRate.toFixed(1)}%/h` : '—', 'lasts until the reset'),
-    stat(safe.isSafe ? 'Status' : 'Full at', safe.isSafe ? '✓ safe' : whenHm(Date.now() + safe.etaMs), safe.isSafe ? 'at this pace it lasts' : `pause ~${dur(safe.pauseMs)} to stay under 100%`),
+    ...(safe.week ? [
+      // a weekly limit in days, as the person works (weekPace in index.html)
+      stat('Your usual day', `~${safe.week.daily.toFixed(1)}%`, safe.week.learned ? 'last two weeks, nights included' : 'this week so far, nights included'),
+      stat('Per day to last', `≤ ${safe.week.budget.toFixed(1)}%`, 'each day until the reset'),
+      stat(safe.isSafe ? 'At the reset' : 'Full at', safe.isSafe ? `~${Math.round(safe.week.atReset)}%` : whenHm(Date.now() + safe.etaMs), safe.isSafe ? '✓ lasts, as you usually work' : `as you usually work, ${dur(safe.pauseMs)} before the reset`),
+    ] : [
+      stat('Pace now', l.ratePerHour != null ? `+${l.ratePerHour.toFixed(1)}%/h` : '—', 'over the last half hour'),
+      stat('Safe pace', safe.safeRate != null ? `≤ ${safe.safeRate.toFixed(1)}%/h` : '—', 'lasts until the reset'),
+      stat(safe.isSafe ? 'Status' : 'Full at', safe.isSafe ? '✓ safe' : whenHm(Date.now() + safe.etaMs), safe.isSafe ? 'at this pace it lasts' : `pause ~${dur(safe.pauseMs)} to stay under 100%`),
+    ]),
   ]) + section(`${limitName(kind)} limit over time`, chart({
     points, yFmt: v => `${Math.round(v)}%`, yMax: 100, xLabels: xTimes(keep, 't'), color: 'var(--s2)',
     guides: [{ v: warnAt(), label: `${warnAt()}%`, color: 'var(--warn)' }, { v: critAt(), label: `${critAt()}%`, color: 'var(--crit)' }],

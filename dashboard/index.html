@@ -2168,15 +2168,24 @@ const drawTiles = () => {
     tile('Context window', counter(`ctx:${S.view}`, p, 'pct'), `${human(u.tokens ?? 0)} of ${human(u.window ?? 0)} tokens`, `<div class="meter"><div style="width:${clamp(p, 0, 100)}%;background:${meterColor(p)}"></div></div>${compactBtn}`, '', `hero ${levelClass(p)}${compacting ? ' compacting' : ''}`)
     for (const l of u.limits ?? []) {
       const safe = limitSafety(l)
-      const eta = !safe.isSafe
+      const wk = safe.week
+      // a weekly limit in days: what a usual day takes, what each day until the reset may take
+      const eta = wk && safe.resetIn != null ? (!safe.isSafe
+        ? `<span class="status-icon" style="color:${safe.etaMs < 86400e3 ? 'var(--crit)' : 'var(--serious)'}">▲</span> full ~<b>${whenHm(now() + safe.etaMs)}</b> as you work<br>~${Math.round(wk.daily)}%/day · ≤ ${Math.round(wk.budget)}%/day to last · reset <b>${whenHm(now() + safe.resetIn)}</b>`
+        : `<span class="status-icon" style="color:var(--good)">✓</span> lasts · ~${Math.round(wk.atReset)}% at reset <b>${whenHm(now() + safe.resetIn)}</b><br>~${Math.round(wk.daily)}%/day · ${Math.round(wk.budget)}%/day possible`)
+        : !safe.isSafe
         ? `<span class="status-icon" style="color:${safe.etaMs < 3600e3 ? 'var(--crit)' : 'var(--serious)'}">▲</span> full ~<b>${whenHm(now() + safe.etaMs)}</b> · pause ~${dur(safe.pauseMs)}<br>reset <b>${whenHm(now() + safe.resetIn)}</b> · in ${dur(safe.resetIn)}`
         : safe.resetIn != null ? `<span class="status-icon" style="color:var(--good)">✓</span> safe · reset <b>${whenHm(now() + safe.resetIn)}</b> · in ${dur(safe.resetIn)}`
         : l.percent === 0 ? `<span class="status-icon" style="color:var(--good)">✓</span> just reset · a new window opens with the next request` : 'pace: measuring'
       const more = [
         safe.resetIn != null ? `Resets ${whenFull(now() + safe.resetIn)} (in ${dur(safe.resetIn)})` : '',
+        wk ? `${wk.learned ? 'Your usual day (from the last two weeks, nights and breaks included)' : 'This week so far, nights included'}: ~${wk.daily.toFixed(1)}%/day` : '',
+        wk ? `Until the reset each day may take ${wk.budget.toFixed(1)}% and it still lasts` : '',
+        wk && !safe.isSafe ? `As you usually work, full ${whenFull(now() + safe.etaMs)}, ${dur(safe.pauseMs)} before the reset` : '',
+        wk && safe.isSafe ? `As you usually work, about ${Math.round(wk.atReset)}% is used when it resets` : '',
         l.ratePerHour != null ? `Pace of the last half hour: +${l.ratePerHour.toFixed(1)}%/h` : '',
-        safe.safeRate != null ? `Safe pace until the reset: at most ${safe.safeRate.toFixed(1)}%/h` : '',
-        !safe.isSafe ? `At this pace full ${whenFull(now() + safe.etaMs)}, ${dur(safe.pauseMs)} before the reset: pause that long (or go slower) to stay under 100%` : '',
+        !wk && safe.safeRate != null ? `Safe pace until the reset: at most ${safe.safeRate.toFixed(1)}%/h` : '',
+        !wk && !safe.isSafe ? `At this pace full ${whenFull(now() + safe.etaMs)}, ${dur(safe.pauseMs)} before the reset: pause that long (or go slower) to stay under 100%` : '',
       ].filter(Boolean).join('\n')
       tile(`${limitName(l.kind)} limit`, counter(`lim:${l.kind}`, l.percent, 'pct'), eta, `<div class="meter"><div style="width:${clamp(l.percent, 0, 100)}%;background:${meterColor(l.percent)}"></div></div>`, more,
         (window.limitFlash?.[l.kind] ?? 0) > now() ? 'lvl-reset' : levelClass(l.percent))
@@ -2406,10 +2415,58 @@ const promptsOf = snap => {
 const limitSafety = l => {
   const resetIn = l.resetsAt ? Math.max(0, Date.parse(l.resetsAt) - now()) : null
   const safeRate = resetIn ? (100 - l.percent) / (resetIn / 3600e3) : null
-  // the projection counts down from when it arrived, not from each redraw
-  const etaMs = l.fullAt != null ? Math.max(0, l.fullAt - now()) : l.etaMs
+  // a weekly limit: how the person really works (weekPace); else the projection
+  // counts down from when it arrived, not from each redraw
+  const week = weekPace(l)
+  const etaMs = week ? week.etaMs : l.fullAt != null ? Math.max(0, l.fullAt - now()) : l.etaMs
   const isSafe = etaMs == null || resetIn == null || etaMs >= resetIn
-  return { resetIn, safeRate, isSafe, etaMs, pauseMs: isSafe ? 0 : resetIn - etaMs }
+  return { resetIn, safeRate, isSafe, etaMs, pauseMs: isSafe ? 0 : resetIn - etaMs, week }
+}
+// A weekly limit projected as the person works, not as the last half hour run on
+// around the clock: what it rose by in each hour of the day over the last two
+// weeks (nights and breaks count as the little they add), played forward hour by
+// hour until it is full or resets. Fewer than 18 hours seen: this window's
+// average pace so far, nights included. Cached for a minute.
+const WEEK_MS = 7 * 86400e3
+const weekPaces = new Map()
+const weekPace = l => {
+  if (!String(l.kind).startsWith('seven_day') || !l.resetsAt) return null
+  const resetAt = Date.parse(l.resetsAt), t0 = now()
+  const key = `${l.kind}|${l.percent}|${resetAt}`
+  const hit = weekPaces.get(l.kind)
+  if (hit && hit.key === key && t0 - hit.at < 60e3) return { ...hit.v, etaMs: hit.v.fullAt == null ? null : Math.max(0, hit.v.fullAt - t0) }
+  const pts = (S.samples ?? []).filter(s => s.limits?.[l.kind] != null && s.t >= t0 - 2 * WEEK_MS).sort((a, b) => a.t - b.t)
+  // each window's highest value so far: a chat left idle keeps reporting an
+  // older, lower one; a rise is put on the hour it showed up in
+  const rose = new Array(24).fill(0)
+  let win = null, top = 0
+  for (const s of pts) {
+    const v = s.limits[l.kind], w = Math.floor((resetAt - s.t) / WEEK_MS)
+    if (w !== win) { win = w; top = v; continue }
+    if (v > top) { rose[new Date(s.t).getHours()] += v - top; top = v }
+  }
+  const seenMs = pts.length ? t0 - pts[0].t : 0
+  const windowMs = Math.max(0, t0 - (resetAt - WEEK_MS))
+  let perHour, learned = false
+  if (seenMs >= 18 * 3600e3 && rose.some(x => x > 0)) {
+    const days = Math.max(1, seenMs / 86400e3)
+    perHour = rose.map(x => x / days)
+    learned = true
+  } else if (windowMs >= 12 * 3600e3) {
+    perHour = new Array(24).fill(l.percent / (windowMs / 3600e3))
+  } else return null
+  const daily = perHour.reduce((a, b) => a + b, 0)
+  let p = l.percent, t = t0, fullAt = null
+  while (t < resetAt && fullAt == null) {
+    const next = Math.min(resetAt, new Date(t).setMinutes(60, 0, 0))
+    const rate = perHour[new Date(t).getHours()]
+    const add = rate * ((next - t) / 3600e3)
+    if (rate > 0 && p + add >= 100) fullAt = t + ((100 - p) / rate) * 3600e3
+    else { p += add; t = next }
+  }
+  const v = { daily, budget: (100 - l.percent) / Math.max(1 / 24, (resetAt - t0) / 86400e3), atReset: Math.min(100, p), fullAt, learned }
+  weekPaces.set(l.kind, { key, at: t0, v })
+  return { ...v, etaMs: fullAt == null ? null : fullAt - t0 }
 }
 // The prompt that started the newest turn: messages typed while Claude worked
 // (`midTurn`) belong to the turn they were typed into.
@@ -2957,13 +3014,15 @@ const drawCharts = () => {
     kinds.forEach((k, i) => series.push({ name: `${limitName(k)} limit`, color: `var(--s${i + 2})`, points: pts.filter(s => s.limits?.[k] != null).map(s => [s.t, s.limits[k]]) }))
     let t1 = tNow
     for (const l of snap.usage?.limits ?? []) {
-      if (l.etaMs == null) continue
+      // (a weekly limit: as the person works, weekPace)
+      const etaMs = limitSafety(l).etaMs
+      if (etaMs == null) continue
       const i = kinds.indexOf(l.kind)
       const span = Math.max(30 * 60e3, tNow - (pts[0]?.t ?? tNow))
-      const end = Math.min(tNow + l.etaMs, tNow + span * 0.6)
-      const vEnd = l.percent + ((100 - l.percent) * (end - tNow)) / l.etaMs
+      const end = Math.min(tNow + etaMs, tNow + span * 0.6)
+      const vEnd = l.percent + ((100 - l.percent) * (end - tNow)) / etaMs
       t1 = Math.max(t1, end)
-      series.push({ name: `${limitName(l.kind)} projection`, color: `var(--s${(i < 0 ? 0 : i) + 2})`, dashed: true, noLegend: true, points: [[tNow, l.percent], [end, vEnd]], endLabel: end >= tNow + l.etaMs - 1000 ? `full ${whenHm(tNow + l.etaMs)}` : `→ ${Math.round(vEnd)}%` })
+      series.push({ name: `${limitName(l.kind)} projection`, color: `var(--s${(i < 0 ? 0 : i) + 2})`, dashed: true, noLegend: true, points: [[tNow, l.percent], [end, vEnd]], endLabel: end >= tNow + etaMs - 1000 ? `full ${whenHm(tNow + etaMs)}` : `→ ${Math.round(vEnd)}%` })
     }
     for (const ser of series) if (!ser.dashed && ser.points.length) ser.endLabel = `${ser.name.replace(' limit', '')} ${pct(ser.points[ser.points.length - 1][1])}`
     lines($('#c-usage'), series, { t0: pts[0]?.t, t1, max: 100, fmt: pct, nowAt: t1 > tNow ? tNow : null, empty: 'Usage samples appear as Claude works' })
