@@ -2073,10 +2073,10 @@ const drawTiles = () => {
     `<div class="label">${label}</div><div class="value">${value}</div>${extra}<div class="foot">${foot}</div></div>`)
   if (u) {
     const p = u.percent ?? 0
-    // from 70 %: a button to compact the chat now, in the tile itself (as the bar over the live view)
+    // from 50 %: a button to compact the chat now, in the tile itself (as the bar over the live view)
     const compacting = !!snap.session?.compactingSince
     const compactBtn = compacting ? '<button class="tile-compact" disabled>🗜 Compacting…</button>'
-      : p >= 70 && !TILE_MODE
+      : p >= 50 && !TILE_MODE
       ? (window.compactAsked?.(S.view) ? '<button class="tile-compact" disabled>⏳ Compacting soon</button>' : '<button class="tile-compact" title="As /compact does: Claude sums up the chat so far and goes on from that summary">🗜 Compact now</button>')
       : ''
     tile('Context window', counter(`ctx:${S.view}`, p, 'pct'), `${human(u.tokens ?? 0)} of ${human(u.window ?? 0)} tokens`, `<div class="meter"><div style="width:${clamp(p, 0, 100)}%;background:${meterColor(p)}"></div></div>${compactBtn}`, '', `hero ${levelClass(p)}${compacting ? ' compacting' : ''}`)

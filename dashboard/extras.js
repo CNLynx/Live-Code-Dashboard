@@ -1051,11 +1051,11 @@ if (!TILE_MODE) {
 }
 
 // ── compact before it is too late ──
-// At 70 % of the context window and more, a bar over the live view offers to
+// At 50 % of the context window and more, a bar over the live view offers to
 // compact the chat now (as /compact does), when it suits, instead of Claude
 // doing it on its own mid-task. Asked while Claude works, it waits for the turn's end.
 {
-  const AT = 70, CRIT = 85
+  const AT = 50, CRIT = 85
   const asked = new Map() // sid -> when "Compact now" was clicked
   const ring = p => { const r = 14, c = 2 * Math.PI * r; return `<svg width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="${r}" fill="none" stroke="color-mix(in srgb, var(--cb) 22%, transparent)" stroke-width="4"/><circle cx="17" cy="17" r="${r}" fill="none" stroke="var(--cb)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(c * Math.min(100, p)) / 100} ${c}"/></svg>` }
   let shape = ''
