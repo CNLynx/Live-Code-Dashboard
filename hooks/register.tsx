@@ -347,14 +347,18 @@ const compactWhenFree = async ($: Engine) => {
   if (compactTries === 0 || inTurn) return
   compactTries--
   const at = await clockNow($)
-  let ran: { done: boolean; skip?: boolean; error?: string; via?: string } = await $.session.compact().then(
-    r => ({ done: !r?.skip, skip: r?.skip ?? false, via: 'session.compact' }),
-    (e: unknown) => ({ done: false, error: String(e).slice(0, 400) }),
+  // /compact as if typed (the Claude app's sessions compact only that way);
+  // where that is refused, the engine's own call
+  let ran: { done: boolean; skip?: boolean; error?: string; via?: string } = await $.command.run({ command: 'compact' }).then(
+    () => ({ done: true, via: '/compact' }),
+    (e: unknown) => ({ done: false, error: `/compact: ${String(e).slice(0, 400)}` }),
   )
-  // a session of the Claude app (an SDK session) compacts only inside a turn:
-  // the /compact prompt, as if typed
-  if (!ran.done && !ran.skip) {
-    ran = await $.prompt.submit({ text: '/compact', asUser: true }).then(() => ({ done: true, via: '/compact prompt', error: ran.error }), (e: unknown) => ({ done: false, error: `${ran.error ?? ''} | /compact: ${String(e).slice(0, 300)}` }))
+  if (!ran.done) {
+    const first = ran.error
+    ran = await $.session.compact().then(
+      r => ({ done: !r?.skip, skip: r?.skip ?? false, via: 'session.compact', error: first }),
+      (e: unknown) => ({ done: false, error: `${first} | session.compact: ${String(e).slice(0, 300)}` }),
+    )
   }
   if (ran.done) compactTries = 0
   // how it went, for finding out why a chat did (not) compact

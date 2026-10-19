@@ -263,8 +263,20 @@ tbody tr.err td { color: var(--del-ink); }
 .pc-fold:hover { color: var(--ink); background: var(--surface-3); border-color: color-mix(in srgb, var(--s1) 50%, var(--ring)); }
 .prompt-card.folded .pc-list, .prompt-card.folded .pc-added, .prompt-card.folded .pc-said, .prompt-card.folded #pc-turn,
 .prompt-card.folded .composer, .prompt-card.folded .pc-hint, .prompt-card.folded .pc-plan { display: none !important; }
-.prompt-card.folded .pc-text { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }
 .prompt-card.folded .pc-fold svg { transform: rotate(180deg); }
+/* folded, the card is one line over its whole width: the label, the prompt
+   (as much of it as fits), when, how it stands, Stop; no second column, no
+   model and effort (those are for writing, with the card open) */
+.prompt-card.folded { grid-template-columns: minmax(0, 1fr); padding-top: 10px; padding-bottom: 10px; }
+.prompt-card.folded .pc-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.prompt-card.folded .pc-head { display: contents; }
+.prompt-card.folded .pc-label { order: 1; flex: none; }
+.prompt-card.folded .pc-text { order: 2; flex: 1 1 auto; min-width: 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15.5px; }
+.prompt-card.folded #pc-meta { order: 3; flex: none; }
+.prompt-card.folded .pc-state { order: 4; flex: none; }
+.prompt-card.folded .pc-stop { order: 5; flex: none; }
+.prompt-card.folded .pc-model { display: none !important; }
+.prompt-card.folded .pc-fold { top: 6px; bottom: 6px; }
 /* a tile opens large on a click anywhere on it */
 #tiles .tile { cursor: zoom-in; transition: transform .2s cubic-bezier(.2,.8,.2,1), border-color .2s; }
 #tiles .tile:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--s1) 45%, var(--ring)); }
