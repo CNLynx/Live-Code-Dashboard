@@ -21,6 +21,16 @@ const BIN = path.dirname(fileURLToPath(import.meta.url))
 const DECK_FILE = path.join(HOME, 'live-code-deck.json')
 
 const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return undefined } }
+// what each start decided, the newest 60 lines, for finding out why the dashboard did (not) open
+const LOG = path.join(HOME, 'live-code-ensure.log')
+const log = line => {
+  try {
+    const old = fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).slice(-59) : []
+    fs.writeFileSync(LOG, [...old, `${new Date().toISOString()} ${line}`].join('\n') + '\n')
+  } catch {}
+}
+// PowerShell by its full path: a process started by Claude may not have it on its PATH
+const POWERSHELL = process.platform === 'win32' ? path.join(process.env.SystemRoot || process.env.windir || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : 'powershell'
 const deck = readJson(DECK_FILE) ?? {}
 const here = path.join(BIN, '..', 'dashboard', 'server.mjs')
 // a copy a session hot-reloads while the mod is worked on is not the one to keep
@@ -45,6 +55,7 @@ const start = () => {
   spawn(process.execPath, [server], { cwd: path.dirname(server), detached: true, stdio: 'ignore', windowsHide: true, env: { ...process.env, LIVE_CODE_PORT: String(port) } }).unref()
 }
 
+log(`ran | session ${sessionId.slice(0, 8) || '?'}`)
 if (server && !isDevCopy(server) && !same(deck.server, server)) {
   try { fs.writeFileSync(DECK_FILE, `${JSON.stringify({ ...deck, server, dashboard: usable(deck.dashboard) ? deck.dashboard : '' }, null, 2)}\n`) } catch {}
 }
@@ -77,11 +88,11 @@ const OPENED_FILE = path.join(HOME, 'live-code-opened.json')
 // when the Claude app (not a Claude Code process) started, as a number; 0: not running
 const appStartedAt = () => {
   try {
-    const out = execFileSync('powershell.exe', ['-NoProfile', '-Command',
+    const out = execFileSync(POWERSHELL, ['-NoProfile', '-Command',
       "$p = Get-Process -Name Claude -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -notmatch 'claude-code' } | Sort-Object StartTime | Select-Object -First 1; if ($p) { $p.StartTime.ToUniversalTime().ToString('o') }"],
     { encoding: 'utf8', windowsHide: true, timeout: 6000 }).trim()
     return Date.parse(out) || 0
-  } catch { return 0 }
+  } catch (e) { log(`app start not read: ${String(e?.message ?? e).split('\n')[0]}`); return 0 }
 }
 const othersBusy = () => {
   try {
@@ -93,14 +104,18 @@ const othersBusy = () => {
 }
 if (process.platform === 'win32' && server && prefs['lc.openWithClaude'] !== 'off' && !isDevCopy(BIN)) {
   const app = appStartedAt()
-  // (to the second: the start time Windows reports can differ by a few ms between reads)
-  const run = app ? Math.round(app / 1000) : 0
-  const due = run ? readJson(OPENED_FILE)?.appRun !== run : !othersBusy()
+  // (in seconds, give or take two: the start time Windows reports can differ a little between reads)
+  const run = app ? Math.floor(app / 1000) : 0
+  const opened = readJson(OPENED_FILE)?.appRun
+  const due = run ? !(typeof opened === 'number' && Math.abs(opened - run) <= 2) : !othersBusy()
+  log(`session ${sessionId.slice(0, 8) || '?'} | app run ${run || 'none'} | opened for ${opened ?? 'none'} | ${due ? 'opens' : 'stays'}`)
   if (due) {
     if (run) { try { fs.writeFileSync(OPENED_FILE, `${JSON.stringify({ appRun: run, at: Date.now() })}\n`) } catch {} }
-    spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', path.join(path.dirname(server), 'start.ps1'), '-IfClosed'], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+    const child = spawn(POWERSHELL, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', path.join(path.dirname(server), 'start.ps1'), '-IfClosed'], { detached: true, stdio: 'ignore', windowsHide: true })
+    child.on('error', e => log(`start.ps1 not started: ${e.message}`))
+    child.unref()
   }
-}
+} else log(`not opened: ${process.platform !== 'win32' ? 'not Windows' : !server ? 'no server' : prefs['lc.openWithClaude'] === 'off' ? 'switched off' : 'dev copy'}`)
 
 // once per version: shortcuts, WebView2, the Stream Deck plugin brought up to date
 const version = readJson(path.join(BIN, '..', '.claude-plugin', 'plugin.json'))?.version

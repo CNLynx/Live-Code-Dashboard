@@ -328,6 +328,10 @@ let sessionTitle = ''
 // runs once Claude is free. Only the server writes the file, so nothing races.
 const inboxHandled = atom({ plugin: 'live-code', key: 'inboxHandled' } as const, [] as string[])
 let inboxTimer: Timer | undefined
+// What was handled is kept with the session, which Claude starting again does
+// not bring back: a message older than this session's start (a minute's grace)
+// was sent long ago, and is only marked, never sent again.
+let inboxSince = 0
 const checkInbox = async ($: Engine) => {
   if (sessionId === '' || isEnded) return
   const text = await readText($, `${claudeHome($.plugin.root)}/live-code-inbox-${sessionId.replace(/[^A-Za-z0-9_-]/g, '')}.json`)
@@ -340,9 +344,13 @@ const checkInbox = async ($: Engine) => {
   }
   if (!Array.isArray(list)) return
   const done = await read($, inboxHandled)
-  for (const message of list as { id?: unknown; kind?: unknown; text?: unknown }[]) {
+  for (const message of list as { id?: unknown; kind?: unknown; text?: unknown; at?: unknown }[]) {
     if (typeof message?.id !== 'string' || done.includes(message.id)) continue
     const id = message.id
+    if (typeof message.at !== 'number' || message.at < inboxSince) {
+      await update($, inboxHandled, was => [...was, id].slice(-300))
+      continue
+    }
     // stop: ends the running turn, as Esc does
     if (message.kind === 'stop') {
       await update($, inboxHandled, was => [...was, id].slice(-300))
@@ -1300,6 +1308,7 @@ export const register: Register = on => {
     // a reload fires session.start again: the session's first start stays
     const t = await clockNow($)
     await update($, sessionStart, was => (was > 0 ? was : t)).catch(() => undefined)
+    if (inboxSince === 0) inboxSince = t - 60_000
     sessionCwd = e.cwd
     isEnded = false
     sessionId = await $.session.id().then(id => (typeof id === 'string' ? id : ''), () => '')
