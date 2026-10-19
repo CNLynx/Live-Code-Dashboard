@@ -1073,7 +1073,7 @@ const prefs = (() => { try { return JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8
 // off in the settings), a random id of this install, made here once, is sent to
 // the counter (live-users/worker.js) every five minutes; it answers how many
 // were seen in the last six. Nothing else is sent.
-const LIVE_URL = process.env.LIVE_CODE_LIVE_URL ?? ''
+const LIVE_URL = process.env.LIVE_CODE_LIVE_URL ?? 'https://live-code-live.cnlynx.workers.dev'
 const live = { n: 0, at: 0 }
 const installId = (() => {
   const file = path.join(HOME, 'live-code-install.json')
