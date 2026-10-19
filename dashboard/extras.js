@@ -30,7 +30,7 @@ const showVersion = () => fetch('/about').then(r => r.json()).then(a => {
 showVersion()
 // (the first answer may come before GitHub's), then now and then
 setTimeout(showVersion, 8000)
-setInterval(showVersion, 10 * 60_000)
+setInterval(showVersion, 2 * 60_000)
 
 // The update tile: there while a newer version is out, or while one installs.
 window.updateTile = () => {
