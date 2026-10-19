@@ -784,6 +784,7 @@ const bindNumber = (id, key, def, unit, after) => {
 }
 bindNumber('#set-voice-rate', 'lc.voiceRate', 100, '%')
 bindCheck('#set-open-with-claude', 'lc.openWithClaude', 'on')
+bindCheck('#set-idle-anim', 'lc.idleAnim', 'on')
 bindCheck('#set-live-count', 'lc.liveCount', 'on', () => { sendPrefs(); if (store.get('lc.liveCount') === 'off') showLive(null) })
 // animations: like Windows, always, never (index.html's applyMotion); the tile windows follow
 $('#set-motion').value = store.get('lc.motion') || 'system'

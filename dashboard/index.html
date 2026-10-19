@@ -447,7 +447,71 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .think-said { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; max-height: 4.5em; overflow: hidden; font-style: italic; }
 .think-said:empty { display: none; }
 :root.calm .live.thinking .think-owl, :root.calm .live.thinking .think-ring, :root.calm .live.thinking .think-bubble, :root.calm .live.thinking .think-dots i { animation: none; }
-:root.calm .think-ring { display: none; }.pc-label { font-size: 11px; letter-spacing: .8px; text-transform: uppercase; font-weight: 650; color: var(--ink-2); }
+:root.calm .think-ring { display: none; }
+/* ── idle: the code fades out, the owl's own little night fades in ──
+   it sits on its branch, flies down, strolls, circles the moon, flies back and
+   dozes off; one 30 s loop, transform and opacity only */
+.live.idle .code { filter: blur(6px); opacity: 0; }
+.live.idle .live-head, .live.idle .path, .live.idle .why { opacity: .35; }
+.idle-view { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; justify-items: center; gap: 6px; pointer-events: none; padding: 8px 16px;
+  opacity: 0; transition: opacity .8s cubic-bezier(.2,.8,.2,1); }
+.live.idle .idle-view { opacity: 1; }
+.idle-scene { width: min(640px, 92%); height: auto; max-height: calc(100% - 64px); overflow: visible; transform: translateY(8px); transition: transform .9s cubic-bezier(.2,.8,.2,1); }
+.live.idle .idle-scene { transform: none; }
+.idle-title { font-size: 15px; font-weight: 650; color: var(--ink-2); }
+.idle-info { font-size: 12px; color: var(--muted); }
+.idle-info:empty { display: none; }
+.idle-stars circle { fill: var(--ink); opacity: .5; }
+.live.idle .idle-stars circle { animation: idle-twinkle 3.4s ease-in-out infinite; }
+.idle-stars circle:nth-child(2n) { animation-delay: 1.1s !important; } .idle-stars circle:nth-child(3n) { animation-delay: 2.2s !important; }
+@keyframes idle-twinkle { 50% { opacity: .12; } }
+.idle-moon .moon { fill: #f6e7a6; } .idle-moon .moon-glow { fill: #f6e7a6; opacity: .14; }
+.idle-moon .moon-cut { fill: var(--surface, var(--page)); }
+.idle-ground { fill: color-mix(in srgb, var(--ink) 7%, transparent); }
+.idle-tree .trunk { fill: color-mix(in srgb, #8a5a3b 78%, var(--page)); }
+.idle-tree .crown { fill: color-mix(in srgb, var(--good) 46%, var(--page)); }
+.idle-tree .c2, .idle-tree .c3 { fill: color-mix(in srgb, var(--good) 36%, var(--page)); }
+.idle-tree .c4 { fill: color-mix(in srgb, var(--good) 56%, var(--page)); }
+.live.idle .idle-tree .crown { transform-box: fill-box; transform-origin: 50% 100%; animation: idle-sway 6s ease-in-out infinite; }
+@keyframes idle-sway { 50% { transform: rotate(1.6deg); } }
+/* the owl: where it is (its path), and how it moves there (flapping, a stroll's bob) */
+@property --flap { syntax: '<number>'; inherits: true; initial-value: 0; }
+@property --walk { syntax: '<number>'; inherits: true; initial-value: 0; }
+.idle-owl { transform: translate(372px, 117px); }
+.idle-owl text { filter: drop-shadow(0 3px 6px rgba(0,0,0,.35)); }
+.live.idle .idle-owl { animation: idle-path 30s cubic-bezier(.45,.05,.55,.95) infinite; }
+.live.idle .idle-owl-body { animation: idle-move .32s ease-in-out infinite alternate; }
+@keyframes idle-move { to { transform: translateY(calc(-3px * var(--walk) - 2px * var(--flap))) scale(calc(1 + .14 * var(--flap)), calc(1 - .12 * var(--flap))) rotate(calc(4deg * var(--walk))); } }
+@keyframes idle-path {
+  0%   { transform: translate(372px, 117px) rotate(0); --flap: 0; --walk: 0; }
+  7%   { transform: translate(372px, 117px) rotate(-8deg); }
+  11%  { transform: translate(372px, 117px) rotate(6deg); }
+  15%  { transform: translate(372px, 117px) rotate(0); --flap: 0; }
+  17%  { transform: translate(368px, 106px) rotate(-6deg); --flap: 1; }
+  21%  { transform: translate(300px, 64px) rotate(-10deg); --flap: 1; }
+  26%  { transform: translate(236px, 190px) rotate(4deg); --flap: 1; --walk: 0; }
+  28%  { transform: translate(236px, 190px) rotate(0); --flap: 0; --walk: 0; }
+  29%  { --walk: 1; }
+  41%  { transform: translate(140px, 190px) rotate(0); --walk: 1; }
+  42%  { --walk: 0; }
+  45%  { transform: translate(140px, 190px) rotate(-10deg); --flap: 0; }
+  49%  { transform: translate(140px, 190px) rotate(10deg); }
+  52%  { transform: translate(140px, 190px) rotate(0); --flap: 0; }
+  54%  { transform: translate(132px, 176px) rotate(-6deg); --flap: 1; }
+  60%  { transform: translate(150px, 70px) rotate(-8deg); --flap: 1; }
+  64%  { transform: translate(80px, 28px) rotate(-14deg); }
+  68%  { transform: translate(28px, 70px) rotate(8deg); }
+  72%  { transform: translate(150px, 96px) rotate(6deg); }
+  78%  { transform: translate(372px, 108px) rotate(4deg); --flap: 1; }
+  80%  { transform: translate(372px, 117px) rotate(0); --flap: 0; }
+  100% { transform: translate(372px, 117px) rotate(0); --flap: 0; --walk: 0; }
+}
+/* dozing on its branch at the end of each round */
+.idle-zzz text { fill: var(--ink-2); font-size: 13px; font-weight: 700; opacity: 0; }
+.live.idle .idle-zzz text { animation: idle-zzz 30s linear infinite; }
+.idle-zzz text:nth-child(2) { animation-delay: .7s !important; font-size: 15px; } .idle-zzz text:nth-child(3) { animation-delay: 1.4s !important; font-size: 18px; }
+@keyframes idle-zzz { 0%, 82% { opacity: 0; transform: translate(0, 6px); } 86% { opacity: .8; } 92% { opacity: .6; transform: translate(6px, -8px); } 96%, 100% { opacity: 0; transform: translate(10px, -16px); } }
+:root.calm .live.idle .idle-owl, :root.calm .live.idle .idle-owl-body, :root.calm .live.idle .idle-zzz text, :root.calm .live.idle .idle-tree .crown, :root.calm .live.idle .idle-stars circle { animation: none; }.pc-label { font-size: 11px; letter-spacing: .8px; text-transform: uppercase; font-weight: 650; color: var(--ink-2); }
 .pc-state { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-2); white-space: nowrap; }
 .pc-text { font-size: 17px; line-height: 1.5; font-weight: 500; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -1112,6 +1176,8 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
         <div class="hint">Windows' "animation effects" switched off makes the browser ask pages to keep still; "always on" lets the dashboard move anyway.</div>
         <label class="big"><input type="checkbox" id="set-think"> Thinking animation in the live view</label>
         <div class="hint">While Claude thinks longer, the code blurs back and an owl ponders over it.</div>
+        <label class="big"><input type="checkbox" id="set-idle-anim"> Idle animation in the live view</label>
+        <div class="hint">When nothing happens for a few seconds, the code fades and the owl flies about its tree until Claude works again.</div>
         <label class="vol">Only after <input type="range" id="set-think-after" min="1" max="10" step="0.5"><span class="num" id="set-think-after-n"></span></label>
         <div class="hint">How long a thought lasts before it shows; shorter ones stay out of the way.</div>
       </section>
@@ -1175,6 +1241,23 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
             <div class="think-info num" id="think-info"></div>
             <div class="think-said" id="think-said"></div>
           </div>
+        </div>
+        <!-- nothing to do (idle): the code goes, the owl lives its own little night -->
+        <div class="idle-view" id="idle" aria-hidden="true">
+          <svg class="idle-scene" viewBox="0 0 520 220" preserveAspectRatio="xMidYMid meet">
+            <g class="idle-stars"><circle cx="150" cy="30" r="1.6"/><circle cx="250" cy="22" r="1.2"/><circle cx="318" cy="48" r="1.5"/><circle cx="470" cy="26" r="1.3"/><circle cx="210" cy="60" r="1"/><circle cx="40" cy="96" r="1.2"/><circle cx="292" cy="96" r="1"/></g>
+            <g class="idle-moon"><circle cx="80" cy="48" r="22" class="moon-glow"/><circle cx="80" cy="48" r="17" class="moon"/><circle cx="88" cy="42" r="15" class="moon-cut"/></g>
+            <ellipse cx="260" cy="200" rx="250" ry="10" class="idle-ground"/>
+            <g class="idle-tree">
+              <path class="trunk" d="M404 196 C402 168 406 146 401 120 L413 120 C411 146 416 170 420 196 Z"/>
+              <path class="trunk" d="M404 128 C392 124 378 122 356 121 L356 116 C380 116 396 117 407 121 Z"/>
+              <circle class="crown c1" cx="410" cy="92" r="34"/><circle class="crown c2" cx="440" cy="104" r="26"/><circle class="crown c3" cx="384" cy="100" r="24"/><circle class="crown c4" cx="420" cy="66" r="24"/>
+            </g>
+            <g class="idle-owl"><g class="idle-owl-body"><text x="0" y="0" text-anchor="middle" font-size="40">🦉</text></g></g>
+            <g class="idle-zzz"><text x="378" y="78">z</text><text x="388" y="70">z</text><text x="400" y="60">Z</text></g>
+          </svg>
+          <div class="idle-title">Idle · waiting for your next prompt</div>
+          <div class="idle-info num" id="idle-info"></div>
         </div>
         <!-- while a command runs: a terminal slides up, its output still to come -->
         <div class="run-panel" id="run-panel" aria-hidden="true">
@@ -2889,6 +2972,23 @@ const drawRunning = () => {
   setText($('#run-time'), dur(now() - f.startedAt))
   setText($('#run-what'), f.detail || (f.rows?.[0]?.text ?? '').slice(0, 120))
 }
+// Nothing to do: once the turn has ended, the replay has played out and a few
+// seconds have passed calmly, the code fades and the owl's night fades in
+// (no question waiting, no film; switched off in the settings: Display).
+const IDLE_AFTER_MS = 6000
+let idleCalmSince = 0
+const drawIdle = st => {
+  const live = $('.live')
+  const replaying = R.item && Number.isFinite(R.elapsed) && R.elapsed < (R.plan?.ms ?? 0)
+  const calm = !!S.snap && st.cls === '' && !R.film && !replaying && R.queue.length === 0 && !(S.snap.asks?.length)
+  if (!calm) idleCalmSince = 0
+  else if (!idleCalmSince) idleCalmSince = now()
+  const on = calm && store.get('lc.idleAnim') !== 'off' && now() - idleCalmSince > IDLE_AFTER_MS
+  if (live.classList.contains('idle') !== on) live.classList.toggle('idle', on)
+  if (!on) return
+  const ended = S.snap.thinking?.turnEndedAt
+  setText($('#idle-info'), S.snap.session?.isEnded ? 'This chat has ended' : ended ? `Last turn ended ${dur(now() - ended)} ago${st.info ? ` · ${st.info}` : ''}` : st.info)
+}
 const THINK_AFTER_MS = 2500
 let thinkCalmSince = 0 // when the replay last had nothing more to show
 const drawThinking = st => {
@@ -2921,6 +3021,7 @@ const drawNow = () => {
   drawWhy()
   const st = statusOf()
   drawThinking(st)
+  drawIdle(st)
   drawRunning()
   const pill = $('#status')
   if (pill.className !== 'pill ' + st.cls) pill.className = 'pill ' + st.cls
