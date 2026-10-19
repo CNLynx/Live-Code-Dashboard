@@ -106,7 +106,7 @@ button { font: inherit; color: inherit; }
   0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--g) 18%, transparent), 0 0 6px color-mix(in srgb, var(--g) 55%, transparent); }
   50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--g) 26%, transparent), 0 0 14px color-mix(in srgb, var(--g) 90%, transparent); }
 }
-@media (prefers-reduced-motion: reduce) { .conn .dot { animation: none !important; box-shadow: 0 0 8px color-mix(in srgb, var(--g) 70%, transparent); } }
+:root.calm .conn .dot { animation: none !important; box-shadow: 0 0 8px color-mix(in srgb, var(--g) 70%, transparent); }
 
 main { padding: 16px 18px 40px; display: grid; gap: 14px; }
 .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; box-shadow: var(--shadow); padding: 14px 16px; min-width: 0; }
@@ -383,7 +383,7 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .live.running .progress > div { width: 32% !important; transition: none; }
 .live.running .progress > div { animation: run-streak 1.3s cubic-bezier(.45,0,.55,1) infinite; }
 @keyframes run-streak { from { transform: translateX(-100%); } to { transform: translateX(320%); } }
-@media (prefers-reduced-motion: reduce) { .live.running .run-spin, .live.running .run-line::after, .live.running .run-cursor, .live.running .progress > div { animation: none; } }
+:root.calm .live.running .run-spin, :root.calm .live.running .run-line::after, :root.calm .live.running .run-cursor, :root.calm .live.running .progress > div { animation: none; }
 /* the last action's head is no longer what happens: it steps back too */
 .live-head, .live .path, .live .why { transition: opacity .5s cubic-bezier(.2,.8,.2,1); }
 .live.thinking .live-head, .live.thinking .path, .live.thinking .why { opacity: .4; }
@@ -423,7 +423,8 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .think-info { font-size: 12.5px; color: var(--muted); }
 .think-said { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; max-height: 4.5em; overflow: hidden; font-style: italic; }
 .think-said:empty { display: none; }
-@media (prefers-reduced-motion: reduce) { .live.thinking .think-owl, .live.thinking .think-ring, .live.thinking .think-bubble, .live.thinking .think-dots i { animation: none; } .think-ring { display: none; } }.pc-label { font-size: 11px; letter-spacing: .8px; text-transform: uppercase; font-weight: 650; color: var(--ink-2); }
+:root.calm .live.thinking .think-owl, :root.calm .live.thinking .think-ring, :root.calm .live.thinking .think-bubble, :root.calm .live.thinking .think-dots i { animation: none; }
+:root.calm .think-ring { display: none; }.pc-label { font-size: 11px; letter-spacing: .8px; text-transform: uppercase; font-weight: 650; color: var(--ink-2); }
 .pc-state { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-2); white-space: nowrap; }
 .pc-text { font-size: 17px; line-height: 1.5; font-weight: 500; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -458,7 +459,7 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 @keyframes mic-dot { 50% { transform: scale(1.35); opacity: .6; } }
 .dictation .what { font-size: 11px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .dictation .heard { font-size: 15px; color: var(--ink); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
-@media (prefers-reduced-motion: reduce) { .composer .mic.on, .dictation .dot { animation: none; } }
+:root.calm .composer .mic.on, :root.calm .dictation .dot { animation: none; }
 .pc-hint { margin-top: 6px; color: var(--muted); font-size: 12px; min-height: 16px; }
 .pc-hint.ok { color: var(--good-ink); }
 .pc-hint.err { color: var(--del-ink); }
@@ -522,11 +523,9 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .pc-said .result .md.open { max-height: 50vh; overflow: auto; }
 .pc-said .result .md.short::after { display: none; }
 .pc-said code { font-family: var(--mono, ui-monospace, monospace); font-size: .92em; padding: 0 4px; border-radius: 4px; background: var(--surface-3); }
-@media (prefers-reduced-motion: reduce) {
-  .celebrate, .done-flash, .picker.glow, .done-toast, .done-toast.out, .pc-said .say.fresh .x, .pc-said .doing .run::before { animation: none; }
-  .picker.glow { box-shadow: 0 0 0 2px rgba(220,255,236,.9), 0 0 24px 4px rgba(140,240,190,.5); }
-  .celebrate { box-shadow: 0 0 0 2px rgba(220,255,236,.9), 0 0 32px 6px rgba(140,240,190,.5); }
-}
+:root.calm .celebrate, :root.calm .done-flash, :root.calm .picker.glow, :root.calm .done-toast, :root.calm .done-toast.out, :root.calm .pc-said .say.fresh .x, :root.calm .pc-said .doing .run::before { animation: none; }
+:root.calm .picker.glow { box-shadow: 0 0 0 2px rgba(220,255,236,.9), 0 0 24px 4px rgba(140,240,190,.5); }
+:root.calm .celebrate { box-shadow: 0 0 0 2px rgba(220,255,236,.9), 0 0 32px 6px rgba(140,240,190,.5); }
 
 /* ── a question waits: the popup ── */
 .ask-wrap { position: fixed; inset: 0; z-index: 60; display: grid; place-items: start center; padding: 12vh 16px 16px; background: rgba(4,6,12,.42); backdrop-filter: blur(3px); animation: fade-in .25s ease-out; }
@@ -573,7 +572,7 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .ask-pill { position: fixed; bottom: 18px; right: 18px; z-index: 55; padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(167,139,250,.7); cursor: pointer; font-weight: 650; color: var(--ink);
   background: var(--toast-bg, var(--surface)); box-shadow: 0 0 24px rgba(167,139,250,.55); animation: ask-breathe 2.6s ease-in-out infinite; --glow: 167,139,250; }
 .ask-pill[hidden] { display: none; }
-@media (prefers-reduced-motion: reduce) { .ask, .ask-pill, .ask-wrap { animation: none; } }
+:root.calm .ask, :root.calm .ask-pill, :root.calm .ask-wrap { animation: none; }
 
 /* stop the running turn */
 .pc-stop { border: 1px solid rgba(248,113,113,.5); background: rgba(248,113,113,.12); color: var(--del-ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 650; cursor: pointer; }
@@ -694,7 +693,7 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 .done-toast.bad .tick { background: #f87171; color: #2a0505; box-shadow: 0 0 18px rgba(248,113,113,.9); }
 .done-toast .acts { grid-column: 2; display: flex; gap: 6px; margin-top: 6px; }
 .done-toast .acts button { border: 1px solid var(--ring); background: var(--surface-3); color: var(--ink); border-radius: 7px; padding: 3px 10px; cursor: pointer; font: inherit; font-size: 12px; }
-@media (prefers-reduced-motion: reduce) { .alarm { animation: none; box-shadow: 0 0 0 2px rgba(255,140,140,.9), 0 0 32px rgba(248,113,113,.5); } }
+:root.calm .alarm { animation: none; box-shadow: 0 0 0 2px rgba(255,140,140,.9), 0 0 32px rgba(248,113,113,.5); }
 
 #now-prompt { display: none; }
 .prompt-card[hidden] { display: none; }
@@ -722,13 +721,46 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 .menu details.archive[open] summary::before { transform: rotate(90deg); }
 .menu details.archive .it { opacity: .75; }
 
+/* ── menus, popups and dialogs glide open and closed ──
+   (closing too: with display in the transition, a [hidden] one stays drawn
+   until it has faded; @starting-style is where an opening one comes from) */
+.menu, .pop, .tip { transition: opacity .18s ease, transform .24s cubic-bezier(.2,.8,.2,1), display .24s allow-discrete; transform-origin: top center; }
+.menu[hidden], .pop[hidden] { display: none; opacity: 0; transform: translateY(-8px) scale(.97); }
+.tip[hidden] { display: none; opacity: 0; transform: translateY(3px); }
+@starting-style {
+  .menu:not([hidden]), .pop:not([hidden]) { opacity: 0; transform: translateY(-8px) scale(.97); }
+  .tip:not([hidden]) { opacity: 0; transform: translateY(3px); }
+}
+.ask-wrap, .sheet-wrap { transition: opacity .22s ease, display .26s allow-discrete; }
+.ask-wrap[hidden], .sheet-wrap[hidden] { display: none; opacity: 0; }
+.ask-wrap > *, .sheet-wrap > * { transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .22s ease; }
+.ask-wrap[hidden] > *, .sheet-wrap[hidden] > * { transform: translateY(14px) scale(.97); opacity: 0; }
+@starting-style {
+  .ask-wrap:not([hidden]), .sheet-wrap:not([hidden]) { opacity: 0; }
+  .ask-wrap:not([hidden]) > *, .sheet-wrap:not([hidden]) > * { transform: translateY(14px) scale(.97); opacity: 0; }
+}
+/* the menu's rows come in one after the other, as it opens (it is drawn anew while open) */
+.menu.opening .it { animation: menu-row .32s cubic-bezier(.2,.8,.2,1) both; }
+.menu.opening .it:nth-child(2) { animation-delay: .02s; } .menu.opening .it:nth-child(3) { animation-delay: .04s; }
+.menu.opening .it:nth-child(n+4) { animation-delay: .06s; }
+@keyframes menu-row { from { opacity: 0; transform: translateY(-4px); } }
+/* a chat changed: the page crosses over (View Transitions) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .32s; animation-timing-function: cubic-bezier(.2,.8,.2,1); }
+/* a tile whose number changed glows up for a moment */
+@keyframes tile-bump { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--s1) 0%, transparent); } 30% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--s1) 45%, transparent), 0 0 22px color-mix(in srgb, var(--s1) 28%, transparent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+/* chart marks: they grow from their own base */
+.chart svg rect, .chart svg circle { transform-box: fill-box; }
+:root.calm .menu, :root.calm .pop, :root.calm .tip, :root.calm .ask-wrap, :root.calm .sheet-wrap, :root.calm .ask-wrap > *, :root.calm .sheet-wrap > * { transition: none; }
+:root.calm .menu.opening .it { animation: none; }
+:root.calm::view-transition-old(root), :root.calm::view-transition-new(root) { animation: none; }
+
 /* ── transitions between actions ── */
 .live { --action: var(--s1); transition: --action .7s ease; }
 .live-head { min-height: 44px; }
 .progress > div { background: var(--action); transition: background-color .6s ease; }
 .ln.typing { box-shadow: inset 3px 0 0 var(--action); }
 .cursor { background: var(--action); }
-@media (prefers-reduced-motion: reduce) { .live { transition: none; } }
+:root.calm .live { transition: none; }
 
 /* ── Aurora Pro decoration ── */
 :root[data-style="aurora"] body {
@@ -778,7 +810,7 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
   0% { background: color-mix(in srgb, var(--good) 34%, transparent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--good) 55%, transparent), 0 0 36px color-mix(in srgb, var(--good) 45%, transparent); }
   100% { background: color-mix(in srgb, var(--good) 6%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--good) 15%, transparent); } }
 @keyframes lvl-pulse { 50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--lvl) 45%, transparent), 0 6px 30px color-mix(in srgb, var(--lvl) 35%, transparent); } }
-@media (prefers-reduced-motion: reduce) { :root .tiles .tile.lvl-crit { animation: none; } }
+:root.calm .tiles .tile.lvl-crit { animation: none; }
 
 /* ── who made it, its version, and a way to support it ── */
 header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
@@ -812,7 +844,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 @keyframes dp-slide { to { background-position: 28px 0; } }
 @keyframes dp-flash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dp) 70%, transparent); } 100% { box-shadow: 0 0 0 14px transparent; } }
 @keyframes dp-bob { 50% { transform: translateY(-2px); } }
-@media (prefers-reduced-motion: reduce) { .dp .dp-track i, .dp.over .dp-track i, .dp.just, .dp .dp-logo svg { animation: none; transition: none; } }
+:root.calm .dp .dp-track i, :root.calm .dp.over .dp-track i, :root.calm .dp.just, :root.calm .dp .dp-logo svg { animation: none; transition: none; }
 /* the same version: plain; GitHub has a newer one: a light red; this one is newer than GitHub's: a light green */
 .versions .v-latest { color: var(--ink-2); }
 .versions .v-latest.update { color: color-mix(in srgb, var(--crit) 55%, var(--ink)); font-weight: 650; cursor: pointer; }
@@ -832,7 +864,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 @keyframes sp-glow {
   0%, 100% { box-shadow: 0 0 0 0 transparent, 0 0 6px color-mix(in srgb, var(--sp) 25%, transparent); }
   50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--sp) 45%, transparent), 0 0 18px color-mix(in srgb, var(--sp) 55%, transparent); } }
-@media (prefers-reduced-motion: reduce) { .btn.sponsor { animation: none; } }
+:root.calm .btn.sponsor { animation: none; }
 </style>
 </head>
 <body>
@@ -930,6 +962,8 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
       <section class="set-pane" data-pane="display">
         <label class="big"><input type="checkbox" id="set-open-with-claude"> Open the dashboard when Claude starts</label>
         <div class="hint">With the first chat, if no dashboard window is open yet; an open one is left where it is.</div>
+        <label class="big">Animations <select id="set-motion" style="margin-left:8px"><option value="system">like Windows</option><option value="on">always on</option><option value="off">off</option></select></label>
+        <div class="hint">Windows' "animation effects" switched off makes the browser ask pages to keep still; "always on" lets the dashboard move anyway.</div>
         <label class="big"><input type="checkbox" id="set-think"> Thinking animation in the live view</label>
         <div class="hint">While Claude thinks longer, the code blurs back and an owl ponders over it.</div>
         <label class="vol">Only after <input type="range" id="set-think-after" min="1" max="10" step="0.5"><span class="num" id="set-think-after-n"></span></label>
@@ -1123,7 +1157,7 @@ const store = { get: k => { try { return localStorage.getItem(k) } catch { retur
 // The look and the steps where tiles color up are the main window's: a tile
 // window keeps a storage of its own (WebView2), so the main window tells the
 // server, and the server tells the tile windows (on connecting, and on change).
-const SHARED = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme', 'lc.openWithClaude']
+const SHARED = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme', 'lc.openWithClaude', 'lc.motion']
 const sharedPrefs = {}
 const sendPrefs = () => {
   const secret = document.querySelector('meta[name="lc-secret"]')?.content ?? ''
@@ -1388,9 +1422,102 @@ const refresh = f => {
 
 // A new action takes the stage softly: the old code and header fade and lift
 // away, the new ones rise in, and the accent colour glides to the new action's.
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+// Movement as the dashboard's setting says: like Windows (its "animation
+// effects", which the browser passes on as reduced motion), always, or never.
+// Calm, the page draws no movement: the class "calm" on <html> for the CSS,
+// reduceMotion for the scripts.
+const calmNow = () => { const p = store.get('lc.motion') || 'system'; return p === 'off' || (p === 'system' && matchMedia('(prefers-reduced-motion: reduce)').matches) }
+let reduceMotion = calmNow()
+document.documentElement.classList.toggle('calm', reduceMotion)
+const applyMotion = () => { reduceMotion = calmNow(); document.documentElement.classList.toggle('calm', reduceMotion) }
 const OUT = [{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: 'translateY(-10px)', filter: 'blur(2px)' }]
 const IN = [{ opacity: 0, transform: 'translateY(12px)', filter: 'blur(2px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }]
+const GLIDE = 'cubic-bezier(.2,.8,.2,1)'
+
+// ── charts that glide ──
+// A chart drawn anew moves from its last picture to the new one: each mark
+// that was there before (the same kind, at the same place in the drawing)
+// glides and grows from where it was; a new one fades in. The first picture
+// grows from its base: bars rise, lines draw themselves.
+const MORPH = { rect: ['x', 'y', 'width', 'height'], circle: ['cx', 'cy', 'r'], line: ['x1', 'y1', 'x2', 'y2'], text: ['x', 'y'] }
+const markKind = el => `${el.tagName}.${el.getAttribute('class') ?? ''}`
+const marksOf = svg => {
+  const by = new Map()
+  for (const el of svg.querySelectorAll('rect, circle, line, text, path')) {
+    const k = markKind(el)
+    if (!by.has(k)) by.set(k, [])
+    by.get(k).push(el)
+  }
+  return by
+}
+const pathSteps = d => (d ?? '').match(/[A-Za-z]/g)?.join('') ?? ''
+const paintChart = (el, html) => {
+  if (el.__html === html) return
+  el.__html = html
+  const old = el.querySelector('svg')
+  const before = old ? marksOf(old) : null
+  el.innerHTML = html
+  const svg = el.querySelector('svg')
+  if (!svg || reduceMotion) return
+  if (!before) {
+    // the first picture: bars rise from their base, lines draw themselves
+    for (const r of svg.querySelectorAll('rect')) if (Number(r.getAttribute('height')) > 2) r.animate([{ transform: 'scaleY(0)', transformOrigin: 'bottom' }, { transform: 'none', transformOrigin: 'bottom' }], { duration: 700, easing: GLIDE })
+    for (const p of svg.querySelectorAll('path')) {
+      let len = 0
+      try { len = p.getTotalLength() } catch {}
+      if (len > 0 && p.getAttribute('fill') === 'none') p.animate([{ strokeDasharray: `${len}`, strokeDashoffset: `${len}` }, { strokeDasharray: `${len}`, strokeDashoffset: '0' }], { duration: 900, easing: GLIDE })
+      else p.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 700 })
+    }
+    return
+  }
+  for (const [kind, list] of marksOf(svg)) {
+    const was = before.get(kind) ?? []
+    list.forEach((m, i) => {
+      const o = was[i]
+      if (!o) { m.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 450, easing: 'ease-out' }); return }
+      if (m.tagName === 'path') {
+        const a = o.getAttribute('d'), b = m.getAttribute('d')
+        // (only a path of the same steps can glide; one with a point more is just there)
+        if (a && b && a !== b && pathSteps(a) === pathSteps(b)) m.animate([{ d: `path("${a}")` }, { d: `path("${b}")` }], { duration: 600, easing: GLIDE })
+        return
+      }
+      const from = {}, to = {}
+      for (const p of MORPH[m.tagName] ?? []) {
+        const a = o.getAttribute(p), b = m.getAttribute(p)
+        if (a !== null && b !== null && a !== b && !isNaN(a) && !isNaN(b)) { from[p] = `${a}px`; to[p] = `${b}px` }
+      }
+      if (Object.keys(to).length) m.animate([from, to], { duration: 600, easing: GLIDE })
+    })
+  }
+}
+
+// ── lists that glide ──
+// A list drawn anew: its rows that were there move from their old place to the
+// new one, the rest of the list slides along, and a new row comes in from
+// above. Only the first rows are measured (what is seen); the same list draws nothing.
+const glideList = (box, html, key = el => el.dataset.id ?? el.dataset.from) => {
+  if (box.__html === html) return false
+  const first = box.__keys === undefined
+  const was = new Map()
+  if (!first && !reduceMotion) for (const el of [...box.children].slice(0, 40)) { const k = key(el); if (k) was.set(k, el.getBoundingClientRect().top) }
+  const known = box.__keys ?? new Set()
+  box.__html = html
+  box.innerHTML = html
+  box.__keys = new Set([...box.children].map(key).filter(Boolean))
+  if (first || reduceMotion) return true
+  for (const el of [...box.children].slice(0, 40)) {
+    const k = key(el)
+    if (!k) continue
+    if (was.has(k)) {
+      const dy = was.get(k) - el.getBoundingClientRect().top
+      if (Math.abs(dy) > 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 420, easing: GLIDE })
+    } else if (!known.has(k)) {
+      el.animate([{ opacity: 0, transform: 'translateY(-10px)', filter: 'blur(2px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], { duration: 460, easing: GLIDE })
+    }
+  }
+  return true
+}
+
 const start = (f, settled = false) => {
   // a new action: the thought is over (and a lagging thinking flag waits it out)
   $('.live').classList.remove('thinking')
@@ -1642,7 +1769,7 @@ const legend = items => `<div class="legend">${items.map(i => `<span><i class="$
 // Columns of one or more stacked series; bars are [{ label, tip, parts: [{ value, color }] }].
 const columns = (el, bars, opts = {}) => {
   const W = el.clientWidth || 400, H = opts.height ?? 200, P = { l: 46, r: 8, t: 14, b: 26 }
-  if (bars.length === 0) { el.innerHTML = empty(opts.empty ?? 'No data yet'); return }
+  if (bars.length === 0) { paintChart(el, empty(opts.empty ?? 'No data yet')); return }
   const totals = bars.map(b => sum(b.parts, p => p.value))
   const ax = yAxis(P, W, H, Math.max(...totals), opts.fmt ?? human)
   const band = (W - P.l - P.r) / bars.length
@@ -1669,14 +1796,14 @@ const columns = (el, bars, opts = {}) => {
     if (i % every === 0) s += `<text class="lbl" x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" style="fill:var(--muted)">${esc(b.label)}</text>`
     if (opts.labelMax && i === maxI && totals[i] > 0) s += `<text class="lbl-strong" x="${x + bw / 2}" y="${ax.y(totals[i]) - 5}" text-anchor="middle">${esc((opts.fmt ?? human)(totals[i]))}</text>`
   })
-  el.innerHTML = (opts.legend ?? '') + `<svg width="${W}" height="${H}">${s}</svg>`
+  paintChart(el, (opts.legend ?? '') + `<svg width="${W}" height="${H}">${s}</svg>`)
 }
 
 // Lines over time with a crosshair; series are [{ name, color, points: [[t, v]], dashed, area }].
 const lines = (el, series, opts) => {
   const W = el.clientWidth || 500, H = opts.height ?? 230, P = { l: 42, r: 96, t: 12, b: 26 }
   const all = series.flatMap(s => s.points)
-  if (all.length < 2) { el.innerHTML = empty(opts.empty ?? 'Collecting data…'); return }
+  if (all.length < 2) { paintChart(el, empty(opts.empty ?? 'Collecting data…')); return }
   const t0 = opts.t0 ?? Math.min(...all.map(p => p[0]))
   const t1 = Math.max(opts.t1 ?? 0, ...all.map(p => p[0]), t0 + 1000)
   const max = opts.max ?? Math.max(1, ...all.map(p => p[1]))
@@ -1715,7 +1842,7 @@ const lines = (el, series, opts) => {
   }
   s += `<line class="xh-line" x1="0" x2="0" y1="${P.t}" y2="${H - P.b}" style="stroke:var(--axis)" visibility="hidden"/><g class="xh-dots"></g>`
   s += `<rect class="xhair" x="${P.l}" y="${P.t}" width="${W - P.l - P.r}" height="${H - P.t - P.b}" fill="transparent"/>`
-  el.innerHTML = legend(series.filter(s => !s.noLegend).map(s => ({ label: s.name, color: s.color, line: true, dashed: s.dashed }))) + `<svg width="${W}" height="${H}">${s}</svg>`
+  paintChart(el, legend(series.filter(s => !s.noLegend).map(s => ({ label: s.name, color: s.color, line: true, dashed: s.dashed }))) + `<svg width="${W}" height="${H}">${s}</svg>`)
   const svg = el.querySelector('svg'), hair = svg.querySelector('.xhair'), line = svg.querySelector('.xh-line'), dots = svg.querySelector('.xh-dots')
   const solid = series.filter(s => !s.dashed && s.points.length > 0)
   hair.addEventListener('mousemove', e => {
@@ -1738,7 +1865,7 @@ const lines = (el, series, opts) => {
 
 // Horizontal bars: [{ label, value, color, text, tip }].
 const hbars = (el, items, opts = {}) => {
-  if (items.length === 0) { el.innerHTML = empty(opts.empty ?? 'No data yet'); return }
+  if (items.length === 0) { paintChart(el, empty(opts.empty ?? 'No data yet')); return }
   const W = el.clientWidth || 300, rowH = 30, labelW = 74, valueW = 120
   const H = items.length * rowH
   const max = Math.max(...items.map(i => i.value), 1)
@@ -1752,12 +1879,12 @@ const hbars = (el, items, opts = {}) => {
     s += `<text class="lbl" x="${W - valueW + 8}" y="${y + 19}">${esc(it.text)}</text>`
     s += `<rect x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent" data-tip="${esc(it.tip ?? it.text)}"/>`
   })
-  el.innerHTML = `<svg width="${W}" height="${H}">${s}</svg>`
+  paintChart(el, `<svg width="${W}" height="${H}">${s}</svg>`)
 }
 
 // A grid of cells shaded on the sequential ramp; rows [{ label, title, cells: [{ v, tip }] }].
 const heat = (el, rows, cols, opts = {}) => {
-  if (rows.length === 0) { el.innerHTML = empty(opts.empty ?? 'No data yet'); return }
+  if (rows.length === 0) { paintChart(el, empty(opts.empty ?? 'No data yet')); return }
   const W = el.clientWidth || 500, labelW = opts.labelW ?? 130, rightW = opts.rightW ?? 0, cellH = opts.cellH ?? 20, top = 4
   const n = rows[0].cells.length
   const cw = (W - labelW - rightW) / n
@@ -1776,7 +1903,7 @@ const heat = (el, rows, cols, opts = {}) => {
   })
   const every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor((W - labelW - rightW) / 56))))
   cols.forEach((c, j) => { if (j % every === 0) s += `<text class="lbl" x="${labelW + j * cw + cw / 2}" y="${H - 6}" text-anchor="middle" style="fill:var(--muted)">${esc(c)}</text>` })
-  el.innerHTML = `<svg width="${W}" height="${H}">${s}</svg>`
+  paintChart(el, `<svg width="${W}" height="${H}">${s}</svg>`)
 }
 
 const sparkline = (values, w = 150, h = 26, color = 'var(--s1)') => {
@@ -1840,7 +1967,14 @@ const levelClass = p => (p >= critAt() ? 'lvl-crit' : p >= warnAt() ? 'lvl-warn'
 // What it shows is kept by key, so a tile drawn again goes on from there.
 const counted = new Map() // key -> the value shown
 // (money to the cent, over $100 too, so each step of it is seen)
-const COUNT_FMT = { money: v => '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), human: v => human(v) }
+const COUNT_FMT = { money: v => '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), human: v => human(v), pct: v => pct(v), int: v => Math.round(v).toLocaleString() }
+// a number that changed: its tile glows up for a moment (not at the first sight of it)
+const countTargets = new Map() // key -> the target last seen
+const BUMP = [
+  { boxShadow: '0 0 0 0 transparent' },
+  { boxShadow: '0 0 0 1px color-mix(in srgb, var(--s1) 45%, transparent), 0 0 24px color-mix(in srgb, var(--s1) 26%, transparent)', offset: 0.3 },
+  { boxShadow: '0 0 0 0 transparent' },
+]
 const counter = (key, value, fmt) => `<span class="num" data-count="${value}" data-key="${esc(key)}" data-fmt="${fmt}">${COUNT_FMT[fmt](counted.get(key) ?? value)}</span>`
 let countAt = 0
 const drawCounters = t => {
@@ -1848,6 +1982,13 @@ const drawCounters = t => {
   const k = 1 - Math.exp(-dt / 140)
   for (const el of document.querySelectorAll('[data-count]')) {
     const key = el.dataset.key, target = Number(el.dataset.count)
+    // (as shown: a percent moving in its decimals is no change to see)
+    const label = COUNT_FMT[el.dataset.fmt](target)
+    const before = countTargets.get(key)
+    if (before !== label) {
+      countTargets.set(key, label)
+      if (before !== undefined && !reduceMotion) el.closest('.tile')?.animate(BUMP, { duration: 1100, easing: 'ease-out' })
+    }
     let shown = counted.get(key) ?? target
     shown = Math.abs(target - shown) < Math.abs(target) * 1e-4 + 1e-6 ? target : shown + (target - shown) * k
     counted.set(key, shown)
@@ -1864,7 +2005,7 @@ const drawTiles = () => {
     `<div class="label">${label}</div><div class="value">${value}</div>${extra}<div class="foot">${foot}</div></div>`)
   if (u) {
     const p = u.percent ?? 0
-    tile('Context window', pct(p), `${human(u.tokens ?? 0)} of ${human(u.window ?? 0)} tokens`, `<div class="meter"><div style="width:${clamp(p, 0, 100)}%;background:${meterColor(p)}"></div></div>`, '', `hero ${levelClass(p)}`)
+    tile('Context window', counter(`ctx:${S.view}`, p, 'pct'), `${human(u.tokens ?? 0)} of ${human(u.window ?? 0)} tokens`, `<div class="meter"><div style="width:${clamp(p, 0, 100)}%;background:${meterColor(p)}"></div></div>`, '', `hero ${levelClass(p)}`)
     for (const l of u.limits ?? []) {
       const safe = limitSafety(l)
       const eta = !safe.isSafe
@@ -1877,7 +2018,7 @@ const drawTiles = () => {
         safe.safeRate != null ? `Safe pace until the reset: at most ${safe.safeRate.toFixed(1)}%/h` : '',
         !safe.isSafe ? `At this pace full ${whenFull(now() + safe.etaMs)}, ${dur(safe.pauseMs)} before the reset: pause that long (or go slower) to stay under 100%` : '',
       ].filter(Boolean).join('\n')
-      tile(`${limitName(l.kind)} limit`, pct(l.percent), eta, `<div class="meter"><div style="width:${clamp(l.percent, 0, 100)}%;background:${meterColor(l.percent)}"></div></div>`, more,
+      tile(`${limitName(l.kind)} limit`, counter(`lim:${l.kind}`, l.percent, 'pct'), eta, `<div class="meter"><div style="width:${clamp(l.percent, 0, 100)}%;background:${meterColor(l.percent)}"></div></div>`, more,
         (window.limitFlash?.[l.kind] ?? 0) > now() ? 'lvl-reset' : levelClass(l.percent))
     }
     // "Today" and "All time": what was spent in that range, as the report counts
@@ -1898,19 +2039,21 @@ const drawTiles = () => {
   }
   const add = sum(acts, a => a.stats?.add), mod = sum(acts, a => a.stats?.mod), del = sum(acts, a => a.stats?.del)
   const tot = Math.max(1, add + mod + del)
-  tile('Lines changed', human(add + mod + del), `<span class="stat-add">+${add}</span> · <span class="stat-mod">~${mod}</span> · <span class="stat-del">−${del}</span>`,
+  // (each count by what the tiles cover now: a range or chat changed counts from where it was)
+  const scopeKey = `${S.range}:${S.selected === 'all' ? 'all' : S.view}`
+  tile('Lines changed', counter(`lines:${scopeKey}`, add + mod + del, 'human'), `<span class="stat-add">+${add}</span> · <span class="stat-mod">~${mod}</span> · <span class="stat-del">−${del}</span>`,
     `<div class="lines3"><div style="width:${(add / tot) * 100}%;background:var(--add)"></div><div style="width:${(mod / tot) * 100}%;background:var(--mod)"></div><div style="width:${(del / tot) * 100}%;background:var(--del)"></div></div>`)
   const files = new Set(acts.filter(a => a.action !== 'running' && a.action !== 'searching').map(a => a.file))
   const edited = new Set(acts.filter(a => a.action === 'editing' || a.action === 'writing').map(a => a.file))
-  tile('Files', String(files.size), `${edited.size} edited · ${files.size - edited.size} only read`)
+  tile('Files', counter(`files:${scopeKey}`, files.size, 'int'), `${edited.size} edited · ${files.size - edited.size} only read`)
   const span = Math.max(60e3, now() - rangeStart())
-  tile('Tool calls', String(acts.length), `${(acts.length / (span / 60e3)).toFixed(1)} per minute`, sparkline(activitySeries(acts, 24).map(b => b.total), 150, 26, 'var(--s2)'))
+  tile('Tool calls', counter(`calls:${scopeKey}`, acts.length, 'int'), `${(acts.length / (span / 60e3)).toFixed(1)} per minute`, sparkline(activitySeries(acts, 24).map(b => b.total), 150, 26, 'var(--s2)'))
   const th = snap.thinking
   const live = th?.turnStartedAt && (th.turnEndedAt ?? 0) < th.turnStartedAt
   const last = turns[turns.length - 1]
   tile(live ? 'This turn' : 'Last turn', live ? `<span class="num" data-since="${th.turnStartedAt}"></span>` : last ? dur(last.ms) : '—', turns.length ? `Ø ${dur(sum(turns, t => t.ms) / turns.length)} · longest ${dur(Math.max(...turns.map(t => t.ms)))}` : '')
   const errors = acts.filter(a => a.isError).length
-  tile('Errors', `<span class="status-icon" style="color:${errors ? 'var(--crit)' : 'var(--good)'}">${errors ? '✗' : '✓'}</span> ${errors}`, acts.length ? `${((errors / acts.length) * 100).toFixed(1)}% of tool calls failed` : '')
+  tile('Errors', `<span class="status-icon" style="color:${errors ? 'var(--crit)' : 'var(--good)'}">${errors ? '✗' : '✓'}</span> ${counter(`errors:${scopeKey}`, errors, 'int')}`, acts.length ? `${((errors / acts.length) * 100).toFixed(1)}% of tool calls failed` : '')
   // a newer version on GitHub: a tile to install it with one click (extras.js)
   const up = !TILE_MODE && window.updateTile?.()
   if (up) tiles.push(up)
@@ -2160,9 +2303,9 @@ const drawPrompts = (force = false) => {
     .sort((a, b) => (b.at || 0) - (a.at || 0) || b.i - a.i)
     .slice(0, 8)
   const via = p => (p.during ? (p.viaDashboard ? ' · from the dashboard' : ' · typed while working') : '')
-  $('#pc-earlier').innerHTML = earlier.length === 0
+  glideList($('#pc-earlier'), earlier.length === 0
     ? '<li style="cursor:default"><span class="t"></span><span class="x muted">No earlier prompt in this chat</span></li>'
-    : earlier.map(p => `<li data-from="${p.at}" data-to="${p.to}" class="${S.filter.window?.from === p.at ? 'on' : ''}${p.during ? ' during' : ''}" title="${esc(p.text)}${via(p)}"><span class="t">${p.at ? hm(p.at) : ''}</span><span class="x">${p.midTurn ? '<span class="muted">↳ </span>' : ''}${esc(p.text.replace(/\s+/g, ' '))}</span><button class="film" title="Watch what Claude did for it as a film">🎬</button></li>`).join('')
+    : earlier.map(p => `<li data-from="${p.at}" data-to="${p.to}" class="${S.filter.window?.from === p.at ? 'on' : ''}${p.during ? ' during' : ''}" title="${esc(p.text)}${via(p)}"><span class="t">${p.at ? hm(p.at) : ''}</span><span class="x">${p.midTurn ? '<span class="muted">↳ </span>' : ''}${esc(p.text.replace(/\s+/g, ' '))}</span><button class="film" title="Watch what Claude did for it as a film">🎬</button></li>`).join(''))
   for (const li of $('#pc-earlier').querySelectorAll('li[data-from]')) {
     li.querySelector('.film').onclick = e => { e.stopPropagation(); window.playFilm?.(S.view, Number(li.dataset.from), Number(li.dataset.to), `Prompt at ${hm(Number(li.dataset.from))}`) }
     li.onclick = () => showTurn(Number(li.dataset.from), Number(li.dataset.to), `Prompt at ${hm(Number(li.dataset.from))}`)
@@ -2610,14 +2753,14 @@ const drawFeed = () => {
   const list = scoped().slice(-40).reverse()
   const cur = S.snap?.current
   const items = cur && !cur.isDone ? [cur, ...list] : list
-  $('#feed').innerHTML = items.map(a => {
+  // (a new row glides in, the rest slide along: glideList)
+  const changed = glideList($('#feed'), items.map(a => {
     const k = kindOf(a)
-    const isNew = !feedIds.has(a.id)
     const st = a.stats ?? {}
-    return `<li class="${isNew ? 'enter' : ''}" data-id="${esc(a.id)}"><span class="t">${clock(a.startedAt)}</span><span class="dot" style="background:${a.isError ? 'var(--crit)' : kindVar(k)}"></span><span class="what">${esc(ACTION_LABEL[a.action] ?? a.action)} <b>${esc(a.action === 'running' ? (a.detail ?? a.rows?.[0]?.text ?? a.file) : where(a))}</b></span>${st.add ? `<span class="stat-add">+${st.add}</span>` : ''}${st.mod ? `<span class="stat-mod">~${st.mod}</span>` : ''}${st.del ? `<span class="stat-del">−${st.del}</span>` : ''}<span class="t">${a.isDone && a.doneAt ? dur(a.doneAt - a.startedAt) : '…'}</span></li>`
-  }).join('')
+    return `<li data-id="${esc(a.id)}"><span class="t">${clock(a.startedAt)}</span><span class="dot" style="background:${a.isError ? 'var(--crit)' : kindVar(k)}"></span><span class="what">${esc(ACTION_LABEL[a.action] ?? a.action)} <b>${esc(a.action === 'running' ? (a.detail ?? a.rows?.[0]?.text ?? a.file) : where(a))}</b></span>${st.add ? `<span class="stat-add">+${st.add}</span>` : ''}${st.mod ? `<span class="stat-mod">~${st.mod}</span>` : ''}${st.del ? `<span class="stat-del">−${st.del}</span>` : ''}<span class="t">${a.isDone && a.doneAt ? dur(a.doneAt - a.startedAt) : '…'}</span></li>`
+  }).join(''))
   feedIds = new Set(items.map(a => a.id))
-  for (const li of $('#feed').children) li.onclick = () => replayAction(li.dataset.id)
+  if (changed) for (const li of $('#feed').children) li.onclick = () => replayAction(li.dataset.id)
 }
 
 // Buckets the actions over the range: [{ t, total, byKind }].
@@ -2840,11 +2983,11 @@ const drawHistory = () => {
     (!q || `${a.file} ${a.detail ?? ''} ${a.rows?.[0]?.text ?? ''}`.toLowerCase().includes(q)))
   const shown = list.slice(-400).reverse()
   $('#hist-count').textContent = `${shown.length} of ${list.length}`
-  $('#history tbody').innerHTML = shown.map(a => {
+  const changed = glideList($('#history tbody'), shown.map(a => {
     const k = kindOf(a), st = a.stats ?? {}
     return `<tr data-id="${esc(a.id)}"${a.isError ? ' class="err"' : ''}><td class="num muted">${S.range === 'session' ? clock(a.startedAt) : dayHm(a.startedAt)}</td><td><span class="chip"><span class="dot" style="background:${kindVar(k)}"></span>${esc(ACTION_LABEL[a.action] ?? a.action)}</span>${a.agentId ? ' <span class="muted">◈</span>' : ''}</td><td title="${esc(a.file)}"><b>${esc(a.action === 'running' ? a.file : where(a))}</b> <span class="muted">${esc(a.action === 'running' ? '' : dirName(a.file).split(/[\\/]/).slice(-2).join('/'))}</span></td><td class="r stat-add">${st.add || ''}</td><td class="r stat-mod">${st.mod || ''}</td><td class="r stat-del">${st.del || ''}</td><td class="r num">${tookOf(a) != null ? dur(tookOf(a)) : ''}</td><td class="muted" style="max-width:420px;overflow:hidden;text-overflow:ellipsis">${esc(a.detail ?? a.rows?.[0]?.text ?? '')}</td></tr>`
-  }).join('')
-  for (const tr of $('#history tbody').children) tr.onclick = () => replayAction(tr.dataset.id)
+  }).join(''))
+  if (changed) for (const tr of $('#history tbody').children) tr.onclick = () => replayAction(tr.dataset.id)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2882,9 +3025,10 @@ function drawWritten() {
   const exact = n => n.toLocaleString()
   const c = chatCounts?.get(S.view)
   const t = todayTotals
+  // (the numbers count up to a new value, as the tiles' do)
   const html = c?.prompts
-    ? `✎ <b>${exact(c.prompts)}</b> ${c.prompts === 1 ? 'prompt' : 'prompts'} · <b>${exact(c.words)}</b> words in this chat`
-    : t ? `✎ <b>${exact(t.prompts)}</b> ${t.prompts === 1 ? 'prompt' : 'prompts'} · <b>${exact(t.words)}</b> words today` : ''
+    ? `✎ <b>${counter(`wp:${S.view}`, c.prompts, 'int')}</b> ${c.prompts === 1 ? 'prompt' : 'prompts'} · <b>${counter(`ww:${S.view}`, c.words, 'int')}</b> words in this chat`
+    : t ? `✎ <b>${counter('tp', t.prompts, 'int')}</b> ${t.prompts === 1 ? 'prompt' : 'prompts'} · <b>${counter('tw', t.words, 'int')}</b> words today` : ''
   if (!html) return
   el.hidden = false
   setHtml(el, html)
@@ -3124,9 +3268,21 @@ const selectSession = id => {
   store.set('lc.session', id)
   sessMenu.hidden = true
   if (id !== 'auto' && id !== 'all') S.autoView = id
-  showView(pickView())
+  // another chat: the page crosses over to it instead of jumping
+  const view = pickView()
+  if (view !== S.view && document.startViewTransition && !reduceMotion) document.startViewTransition(() => showView(view))
+  else showView(view)
 }
-$('#sess-btn').onclick = e => { e.stopPropagation(); sessMenu.hidden = !sessMenu.hidden; if (!sessMenu.hidden) drawMenu() }
+$('#sess-btn').onclick = e => {
+  e.stopPropagation()
+  sessMenu.hidden = !sessMenu.hidden
+  if (sessMenu.hidden) return
+  drawMenu()
+  // its rows come in once, as it opens
+  sessMenu.classList.add('opening')
+  clearTimeout(sessMenu.__opening)
+  sessMenu.__opening = setTimeout(() => sessMenu.classList.remove('opening'), 450)
+}
 document.addEventListener('click', e => { if (!sessMenu.hidden && !e.target.closest('.picker-wrap')) sessMenu.hidden = true })
 
 // ── style: Aurora Pro (default) or the original Classic ──
@@ -3150,6 +3306,7 @@ const applyShared = prefs => {
   Object.assign(sharedPrefs, prefs)
   look = store.get('lc.style') || 'aurora'; applyStyle(look)
   theme = store.get('lc.theme') || 'system'; applyTheme(theme)
+  applyMotion()
   tilesHtml = ''
   drawTiles()
 }

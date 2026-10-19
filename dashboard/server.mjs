@@ -995,7 +995,7 @@ const sendFile = (res, file, type) =>
 // this server's hidden child: Windows PowerShell quits at once when started
 // apart from any console.
 // the look and the coloring steps the tile windows share with the main window
-const SHARED_PREFS = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme', 'lc.openWithClaude']
+const SHARED_PREFS = ['lc.warnAt', 'lc.critAt', 'lc.style', 'lc.theme', 'lc.openWithClaude', 'lc.motion']
 const PREFS_FILE = path.join(HOME, 'live-code-prefs.json')
 const prefs = (() => { try { return JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8')) } catch { return {} } })()
 const tileWindows = new Map() // "tile" or "tile@detail" -> its process

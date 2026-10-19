@@ -320,7 +320,7 @@ document.head.appendChild(Object.assign(document.createElement('style'), { textC
 .pc-plan .seg.done { background: var(--good); }
 .pc-plan .seg.running { background: var(--s4); box-shadow: 0 0 10px color-mix(in srgb, var(--s4) 60%, transparent); animation: pulse 1.2s ease-in-out infinite; }
 .pc-plan.finished .ph b { color: var(--good-ink); }
-@media (prefers-reduced-motion: reduce) { .pc-plan .seg.running { animation: none; } }
+:root.calm .pc-plan .seg.running { animation: none; }
 ` }))
 const planBox = Object.assign(document.createElement('div'), { className: 'pc-plan', hidden: true })
 $('#pc-text').after(planBox)
@@ -697,6 +697,9 @@ const bindNumber = (id, key, def, unit, after) => {
 }
 bindNumber('#set-voice-rate', 'lc.voiceRate', 100, '%')
 bindCheck('#set-open-with-claude', 'lc.openWithClaude', 'on')
+// animations: like Windows, always, never (index.html's applyMotion); the tile windows follow
+$('#set-motion').value = store.get('lc.motion') || 'system'
+$('#set-motion').onchange = e => { store.set('lc.motion', e.target.value); applyMotion(); sendPrefs() }
 bindCheck('#set-think', 'lc.think', 'on')
 bindNumber('#set-think-after', 'lc.thinkAfter', 2.5, ' s')
 bindNumber('#set-warn-at', 'lc.warnAt', 70, '%', () => drawTiles())

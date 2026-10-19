@@ -65,8 +65,12 @@ main { display: grid; gap: 14px; padding: 16px 20px 24px; grid-template-columns:
 .tf .meta .grow { flex: 1; }
 .tf button { border: 1px solid rgba(248,113,113,.5); background: rgba(248,113,113,.12); color: var(--del); border-radius: 999px; padding: 1px 9px; font: inherit; font-size: 11.5px; cursor: pointer; }
 .none { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 80px 0; }
-@media (prefers-reduced-motion: reduce) { .tile, .ln.new, .th .dot.live, .tile.done { animation: none; transition: none; } }
+:root.calm .tile, :root.calm .ln.new, :root.calm .th .dot.live, :root.calm .tile.done { animation: none; transition: none; }
 </style>
+<script>
+// still or moving as the dashboard is set (its "Animations" setting, kept in this browser)
+try { const p = localStorage.getItem('lc.motion') || 'system'; if (p === 'off' || (p === 'system' && matchMedia('(prefers-reduced-motion: reduce)').matches)) document.documentElement.classList.add('calm') } catch {}
+</script>
 </head>
 <body>
 <header>
