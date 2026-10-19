@@ -1074,6 +1074,9 @@ if (!TILE_MODE) {
     if (next === shape) return true
     const fresh = !shape.startsWith(since ? 'run' : 'done')
     shape = next
+    // only the clock ticks: rebuilding the bar would restart the squeeze every second
+    const clock = since && !fresh && box.querySelector('.cb-squeeze') && box.querySelector('.cb-time')
+    if (clock) { clock.textContent = mmss(Date.now() - since); return true }
     if (since) {
       box.className = 'compact-bar compacting'
       box.innerHTML = `${squeeze}<span class="cb-text"><b>Compacting…</b> · Claude sums up the chat so far</span><span class="cb-time">${mmss(Date.now() - since)}</span>`
