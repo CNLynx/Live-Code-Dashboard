@@ -181,7 +181,7 @@ const openAsk = (a, index, count) => {
   shown = a
   askBox.className = `ask ${a.kind}`
   askBox.innerHTML = askHtml(a, index, count)
-  askWrap.hidden = false
+  reveal(askWrap, true, 'pop')
   if (isNew) {
     if (rang.key !== askKey(a)) {
       rang = { key: askKey(a), at: Date.now(), times: 1 }
@@ -193,8 +193,8 @@ const openAsk = (a, index, count) => {
 }
 const closeAsk = () => {
   shown = null
-  askWrap.hidden = true
-  askBox.innerHTML = ''
+  reveal(askWrap, false, 'pop')
+  setTimeout(() => { if (!shown) askBox.innerHTML = '' }, 260)
 }
 
 const sendAnswer = async (a, answer) => {
@@ -328,7 +328,7 @@ let planKey = ''
 setInterval(() => {
   const p = S.snap?.plan
   const active = !!p && p.total > 0 && (!p.isFinished || Date.now() - p.updatedAt < 120_000)
-  if (planBox.hidden !== !active) planBox.hidden = !active
+  reveal(planBox, active)
   if (!active) { planKey = ''; return }
   const key = JSON.stringify([S.view, p])
   if (key === planKey) return
@@ -354,7 +354,7 @@ let stopArmed = 0
 setInterval(() => {
   const s = S.sessions.get(S.view)
   const can = !!s?.snap?.session?.canStop && isBusy(s.snap)
-  stopBtn.hidden = !can
+  reveal(stopBtn, can, 'pop')
   if (Date.now() > stopArmed && stopBtn.textContent !== '■ Stop') stopBtn.textContent = '■ Stop'
 }, 300)
 stopBtn.onclick = async () => {
@@ -385,7 +385,7 @@ window.playFilm = async (sid, from, to, label) => {
   R.film = { sid, list, label, index: 0, from: list[0].startedAt, to: list[list.length - 1].doneAt ?? list[list.length - 1].startedAt }
   R.follow = false; R.paused = false
   $('#pause').textContent = 'Pause'
-  $('#golive').hidden = false
+  reveal($('#golive'), true, 'pop')
   R.queue = list.slice(1)
   start(list[0])
   drawFilm()
@@ -408,7 +408,7 @@ const jumpFilm = i => {
 }
 const drawFilm = () => {
   const fl = R.film
-  filmBar.hidden = !fl
+  reveal(filmBar, !!fl)
   if (!fl) return
   const span = Math.max(1, fl.to - fl.from)
   const at = a => clamp(((a.startedAt - fl.from) / span) * 100, 0, 100)
@@ -444,7 +444,7 @@ $('#pause').addEventListener('click', () => setTimeout(drawFilm, 0))
 // ════════════════════════════════════════════════════════════════════════════
 const sheetWrap = $('#sheet-wrap')
 const sheet = $('#sheet')
-const closeSheet = () => { sheetWrap.hidden = true; sheet.innerHTML = '' }
+const closeSheet = () => { reveal(sheetWrap, false, 'pop'); setTimeout(() => { if (sheetWrap.hidden) sheet.innerHTML = '' }, 260) }
 sheetWrap.addEventListener('click', e => { if (e.target === sheetWrap) closeSheet() })
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheetWrap.hidden) closeSheet() })
 
@@ -488,7 +488,7 @@ window.showDiff = async (sid, from, to, file) => {
     for (const b of sheet.querySelectorAll('[data-replay]')) b.onclick = () => { closeSheet(); replayAction(b.dataset.replay) }
   }
   draw()
-  sheetWrap.hidden = false
+  reveal(sheetWrap, true, 'pop')
 }
 
 // the result box's buttons
@@ -666,8 +666,8 @@ const showTab = tab => {
   if (tab === 'lights') loadHue()
 }
 $('#set-tabs').onclick = e => { const b = e.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab) }
-$('#set-btn').onclick = e => { e.stopPropagation(); setPop.hidden = !setPop.hidden; if (!setPop.hidden) showTab(store.get('lc.setTab') || 'sound') }
-document.addEventListener('click', e => { if (!setPop.hidden && !e.target.closest('.set-wrap')) setPop.hidden = true })
+$('#set-btn').onclick = e => { e.stopPropagation(); const open = setPop.hidden; reveal(setPop, open, 'pop'); if (open) showTab(store.get('lc.setTab') || 'sound') }
+document.addEventListener('click', e => { if (!setPop.hidden && !e.target.closest('.set-wrap')) reveal(setPop, false, 'pop') })
 const bindCheck = (id, key, def, after) => {
   const el = $(id)
   el.checked = (store.get(key) ?? def) === 'on'
@@ -1023,7 +1023,7 @@ if (!TILE_MODE) {
     const box = $('#pc-model')
     if (!box) return
     const s = S.snap?.session
-    if (!s?.canPickModel || TILE_MODE) { if (!box.hidden) box.hidden = true; key = ''; return }
+    if (!s?.canPickModel || TILE_MODE) { reveal(box, false, 'pop'); key = ''; return }
     const sid = S.view
     let p = pending.get(sid)
     if (p && ((p.model === s.modelPick && p.effort === s.effortPick) || Date.now() - p.at > 20_000)) { pending.delete(sid); p = undefined }
@@ -1036,7 +1036,7 @@ if (!TILE_MODE) {
     box.innerHTML =
       `<select data-k="model" class="${model ? 'picked' : ''}" title="The model this chat's next requests go with${s.model ? `\nNow: ${niceModel(s.model)}` : ''}">${opt('', `Model: Claude's choice${s.model && !model ? ` · ${niceModel(s.model)}` : ''}`, model)}${MODELS.map(([v, l]) => opt(v, l, model)).join('')}</select>` +
       `<select data-k="effort" class="${effort ? 'picked' : ''}" title="How hard it thinks${s.effort ? `\nNow: ${s.effort}` : ''}">${opt('', `Effort: Claude's choice${s.effort && !effort ? ` · ${s.effort}` : ''}`, effort)}${EFFORTS.map(v => opt(v, `Effort: ${v}`, effort)).join('')}</select>`
-    box.hidden = false
+    reveal(box, true, 'pop')
     for (const sel of box.querySelectorAll('select')) sel.onchange = async () => {
       const pick = { model: box.querySelector('[data-k="model"]').value, effort: box.querySelector('[data-k="effort"]').value }
       pending.set(sid, { ...pick, at: Date.now() })

@@ -1501,6 +1501,35 @@ const applyMotion = () => { reduceMotion = calmNow(); document.documentElement.c
 const OUT = [{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: 'translateY(-10px)', filter: 'blur(2px)' }]
 const IN = [{ opacity: 0, transform: 'translateY(12px)', filter: 'blur(2px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }]
 const GLIDE = 'cubic-bezier(.2,.8,.2,1)'
+// Nothing pops in or out: reveal(el, show) fades a block in place and folds the
+// space it takes open or shut ('fold'), or lets an overlay or menu grow from where
+// it sits ('pop'). Asked again midway, it turns around from where it is.
+const revealing = new WeakMap()
+const reveal = (el, show, how = 'fold') => {
+  if (!el) return
+  const run = revealing.get(el)
+  if (!run && el.hidden === !show) return
+  if (run?.show === show) return
+  run?.anim.cancel()
+  revealing.delete(el)
+  el.style.overflow = el.style.boxSizing = ''
+  if (reduceMotion) { el.hidden = !show; return }
+  el.hidden = false
+  const cs = getComputedStyle(el)
+  let frames
+  if (how === 'pop') frames = [{ opacity: 0, transform: 'translateY(-6px) scale(.97)' }, { opacity: 1, transform: 'none' }]
+  else {
+    const full = { height: `${el.offsetHeight}px`, marginTop: cs.marginTop, marginBottom: cs.marginBottom, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, borderTopWidth: cs.borderTopWidth, borderBottomWidth: cs.borderBottomWidth }
+    const none = { height: '0px', marginTop: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px', borderTopWidth: '0px', borderBottomWidth: '0px' }
+    el.style.overflow = 'hidden'
+    el.style.boxSizing = 'border-box'
+    frames = [{ ...none, opacity: 0 }, { ...full, opacity: 0, offset: 0.45 }, { ...full, opacity: 1 }]
+  }
+  if (!show) frames.reverse().forEach(f => { if (f.offset != null) f.offset = 1 - f.offset })
+  const anim = el.animate(frames, { duration: how === 'pop' ? 200 : 520, easing: GLIDE })
+  revealing.set(el, { anim, show })
+  anim.onfinish = () => { revealing.delete(el); el.style.overflow = el.style.boxSizing = ''; if (!show) el.hidden = true }
+}
 
 // ── charts that glide ──
 // A chart drawn anew moves from its last picture to the new one: each mark
@@ -1768,7 +1797,7 @@ $('#speed').onclick = e => { const b = e.target.closest('button'); if (!b) retur
 $('#diff').checked = R.keepDeleted
 $('#diff').onchange = e => { R.keepDeleted = e.target.checked; store.set('lc.diff', R.keepDeleted ? '1' : '0') }
 $('#golive').onclick = () => {
-  R.follow = true; R.queue = []; $('#golive').hidden = true
+  R.follow = true; R.queue = []; reveal($('#golive'), false, 'pop')
   const cur = S.snap?.current
   if (cur) start(cur, true)
 }
@@ -1779,7 +1808,7 @@ const replayAction = async id => {
     try { const r = await fetch('/action/' + encodeURIComponent(id)); if (r.ok) { const full = await r.json(); Object.assign(a, full) } } catch {}
   }
   R.follow = false; R.queue = []; R.paused = false; $('#pause').textContent = 'Pause'
-  $('#golive').hidden = false
+  reveal($('#golive'), true, 'pop')
   start(a)
   if (!(a.rows?.length)) codeBox.innerHTML = '<div class="empty">The code of this older entry was not kept. The newest 400 entries keep theirs.</div>'
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -2340,8 +2369,8 @@ let promptKey = ''
 const drawPrompts = (force = false) => {
   const card = $('#prompt-card')
   const list = promptsOf(S.snap)
-  if (list.length === 0) { if (!card.hidden) card.hidden = true; promptKey = ''; return }
-  if (card.hidden) card.hidden = false
+  if (list.length === 0) { reveal(card, false); promptKey = ''; return }
+  reveal(card, true)
   const ti = turnPromptIndex(list)
   const cur = list[ti]
   // typed while Claude worked on it: shown beneath it, in order
@@ -2556,8 +2585,8 @@ const drawSaid = () => {
     return
   }
   saidKey = key
-  if (!cur || (list.length === 0 && recent.length === 0)) { box.hidden = true; box.innerHTML = ''; return }
-  if (box.hidden) box.hidden = false
+  if (!cur || (list.length === 0 && recent.length === 0)) { reveal(box, false); return }
+  reveal(box, true)
   const say = (n, cls = '') => `<div class="say ${cls}"><span class="ic">✦</span><span class="x" title="Click to show it whole">${mdLite(n.text)}</span><span class="t" data-at="${n.at}">${n.at ? ago(n.at) : ''}</span></div>`
   const isDone = !live && !!th.turnEndedAt && list.length > 0
   const shown = list.slice(0, -1)
@@ -2704,7 +2733,7 @@ let whyShown = ''
 const drawWhy = () => {
   const why = whyOf(R.item, S.snap)
   const el = $('#live-why')
-  if (why !== whyShown) { whyShown = why; el.hidden = !why; el.innerHTML = why ? `<b>for</b>${esc(why)}` : '' }
+  if (why !== whyShown) { whyShown = why; reveal(el, !!why); if (why) el.innerHTML = `<b>for</b>${esc(why)}` }
   const cur = S.snap?.current
   setText($('#now-why'), cur && !cur.isDone ? (whyOf(cur, S.snap) ? `→ ${whyOf(cur, S.snap)}` : '') : '')
 }
@@ -3343,7 +3372,7 @@ const drawMenu = () => {
 const selectSession = id => {
   S.selected = id
   store.set('lc.session', id)
-  sessMenu.hidden = true
+  reveal(sessMenu, false, 'pop')
   if (id !== 'auto' && id !== 'all') S.autoView = id
   // another chat: the page crosses over to it instead of jumping
   const view = pickView()
@@ -3352,7 +3381,7 @@ const selectSession = id => {
 }
 $('#sess-btn').onclick = e => {
   e.stopPropagation()
-  sessMenu.hidden = !sessMenu.hidden
+  reveal(sessMenu, sessMenu.hidden, 'pop')
   if (sessMenu.hidden) return
   drawMenu()
   // its rows come in once, as it opens
@@ -3360,7 +3389,7 @@ $('#sess-btn').onclick = e => {
   clearTimeout(sessMenu.__opening)
   sessMenu.__opening = setTimeout(() => sessMenu.classList.remove('opening'), 450)
 }
-document.addEventListener('click', e => { if (!sessMenu.hidden && !e.target.closest('.picker-wrap')) sessMenu.hidden = true })
+document.addEventListener('click', e => { if (!sessMenu.hidden && !e.target.closest('.picker-wrap')) reveal(sessMenu, false, 'pop') })
 
 // ── style: Aurora Pro (default) or the original Classic ──
 const applyStyle = st => {
