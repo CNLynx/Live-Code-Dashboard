@@ -1009,6 +1009,50 @@ if (!TILE_MODE) {
   void loadDeckPrompts()
 }
 
+// ── compact before it is too late ──
+// At 70 % of the context window and more, a bar over the live view offers to
+// compact the chat now (as /compact does), when it suits, instead of Claude
+// doing it on its own mid-task. Asked while Claude works, it waits for the turn's end.
+{
+  const AT = 70, CRIT = 85
+  const asked = new Map() // sid -> when "Compact now" was clicked
+  const ring = p => { const r = 14, c = 2 * Math.PI * r; return `<svg width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="${r}" fill="none" stroke="color-mix(in srgb, var(--cb) 22%, transparent)" stroke-width="4"/><circle cx="17" cy="17" r="${r}" fill="none" stroke="var(--cb)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(c * Math.min(100, p)) / 100} ${c}"/></svg>` }
+  let shape = ''
+  const draw = () => {
+    const box = $('#compact-bar')
+    if (!box) return
+    const sid = S.view
+    const p = S.snap?.usage?.percent
+    const at = asked.get(sid)
+    // asked: until the context has come down (or a minute and a half without it)
+    if (at && (p == null || p < AT - 15 || Date.now() - at > 90_000)) asked.delete(sid)
+    if (p == null || p < AT || TILE_MODE) { box.hidden = true; shape = ''; return }
+    const busy = isBusy(S.snap)
+    const waiting = asked.has(sid)
+    const crit = p >= CRIT
+    const text = waiting
+      ? (busy ? '<b>Compacting once this turn ends</b> · Claude finishes its step first' : '<b>Compacting…</b> · the chat is being summed up')
+      : `<b>Context ${pct(p)} full</b> · ${crit ? 'Claude will soon have to summarize on its own, maybe mid-task' : 'compact now, while it suits, so it does not happen mid-task'}`
+    const next = `${crit}|${waiting}|${busy}|${Math.round(p)}`
+    if (next === shape) return
+    const fresh = shape === ''
+    shape = next
+    box.className = `compact-bar${crit ? ' crit' : ''}`
+    box.innerHTML = `<span class="cb-gauge">${ring(p)}<b>${Math.round(p)}%</b></span><span class="cb-text">${text}</span><button type="button"${waiting ? ' disabled' : ''} title="As /compact does: Claude sums up the chat so far and goes on from that summary">${waiting ? '⏳ Asked' : '🗜 Compact now'}</button>`
+    box.hidden = false
+    if (fresh && !reduceMotion) box.animate([{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: GLIDE })
+    box.querySelector('button').onclick = async () => {
+      asked.set(sid, Date.now())
+      shape = ''
+      draw()
+      const r = await post('/send', { sid, kind: 'compact' }).catch(() => null)
+      if (!r?.ok) { asked.delete(sid); shape = ''; draw(); smallToast('Could not ask the chat to compact', 'bad') }
+    }
+  }
+  setInterval(draw, 1000)
+  window.drawCompact = draw
+}
+
 // ── the site's host building it ──
 // What the chat shown pushed is built by its host (Cloudflare, Vercel, Netlify):
 // the server reads the host's checks on GitHub (deploys.mjs). The host tells

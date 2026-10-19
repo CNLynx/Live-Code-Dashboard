@@ -332,8 +332,20 @@ let inboxTimer: Timer | undefined
 // not bring back: a message older than this session's start (a minute's grace)
 // was sent long ago, and is only marked, never sent again.
 let inboxSince = 0
+// The dashboard's "Compact now": as /compact does, between turns; asked while
+// Claude works, once the turn has ended (the inbox's next look, each second).
+// A few tries at most, should the engine refuse it.
+let compactTries = 0
+const compactWhenFree = async ($: Engine) => {
+  if (compactTries === 0 || inTurn) return
+  compactTries--
+  const done = await $.session.compact().then(() => true, () => false)
+  if (done) compactTries = 0
+}
+
 const checkInbox = async ($: Engine) => {
   if (sessionId === '' || isEnded) return
+  await compactWhenFree($)
   const text = await readText($, `${claudeHome($.plugin.root)}/live-code-inbox-${sessionId.replace(/[^A-Za-z0-9_-]/g, '')}.json`)
   if (text === undefined) return
   let list: unknown
@@ -355,6 +367,11 @@ const checkInbox = async ($: Engine) => {
     if (message.kind === 'stop') {
       await update($, inboxHandled, was => [...was, id].slice(-300))
       if (mainTurnId !== '') void $.turn.abort({ turnId: mainTurnId }).catch(() => undefined)
+      continue
+    }
+    if (message.kind === 'compact') {
+      await update($, inboxHandled, was => [...was, id].slice(-300))
+      compactTries = 5
       continue
     }
     if (typeof message.text !== 'string' || message.text.trim() === '') continue

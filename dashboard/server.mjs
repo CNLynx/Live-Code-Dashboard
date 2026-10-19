@@ -775,18 +775,18 @@ const handleSend = async (req, res) => {
 
   const text = typeof body?.text === 'string' ? body.text.trim() : ''
   if (kind === 'prompt' && (text === '' || text.length > MAX_TEXT)) { reply(400, { error: 'empty or too long' }); return }
-  if (kind !== 'prompt' && kind !== 'stop') { reply(400, { error: 'unknown kind' }); return }
+  if (kind !== 'prompt' && kind !== 'stop' && kind !== 'compact') { reply(400, { error: 'unknown kind' }); return }
   const id = queueMessage(sid, kind, text)
   reply(200, { ok: true, id })
 }
 
-// A message for a chat's mod, in its inbox: a prompt, or a stop.
+// A message for a chat's mod, in its inbox: a prompt, a stop, or a compaction.
 const queueMessage = (sid, kind, text) => {
   const file = path.join(HOME, `live-code-inbox-${sid}.json`)
   let list = []
   try { list = JSON.parse(fs.readFileSync(file, 'utf8')) } catch { list = [] }
   if (!Array.isArray(list)) list = []
-  const message = kind === 'stop' ? { id: crypto.randomUUID(), kind: 'stop', at: Date.now() } : { id: crypto.randomUUID(), text, at: Date.now() }
+  const message = kind === 'stop' || kind === 'compact' ? { id: crypto.randomUUID(), kind, at: Date.now() } : { id: crypto.randomUUID(), text, at: Date.now() }
   list = [...list.filter(m => Date.now() - (m.at ?? 0) < INBOX_KEEP_MS), message]
   writeAtomic(file, JSON.stringify(list))
   // the prompt list shows it at once

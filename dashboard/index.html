@@ -824,6 +824,20 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
 .versions { display: inline-flex; flex-direction: column; justify-content: center; gap: 2px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--grid); font-size: 10.5px; line-height: 1.15; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .versions:empty, .versions:not(:has(span:not(:empty))) { display: none; }
 .versions .v-installed { color: var(--muted); }
+/* the context filling up (70 % and more): a bar to compact the chat now */
+.compact-bar { --cb: var(--serious); display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 9px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--cb) 45%, transparent); background: color-mix(in srgb, var(--cb) 10%, var(--surface)); font-size: 13px; }
+.compact-bar[hidden] { display: none; }
+.compact-bar.crit { --cb: var(--crit); animation: cb-pulse 2.4s ease-in-out infinite; }
+.compact-bar .cb-gauge { position: relative; width: 34px; height: 34px; flex: none; }
+.compact-bar .cb-gauge svg { transform: rotate(-90deg); }
+.compact-bar .cb-gauge b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10.5px; color: var(--cb); font-variant-numeric: tabular-nums; }
+.compact-bar .cb-text { flex: 1; min-width: 0; color: var(--ink-2); }
+.compact-bar .cb-text b { color: var(--ink); }
+.compact-bar button { font: inherit; font-weight: 650; padding: 6px 14px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--cb) 60%, transparent); background: color-mix(in srgb, var(--cb) 22%, transparent); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.compact-bar button:hover { background: color-mix(in srgb, var(--cb) 34%, transparent); }
+.compact-bar button:disabled { opacity: .6; cursor: default; }
+@keyframes cb-pulse { 50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--cb) 40%, transparent), 0 0 18px color-mix(in srgb, var(--cb) 25%, transparent); } }
+:root.calm .compact-bar.crit { animation: none; }
 /* the site's host building it (deploys.mjs): the host's mark, what it does, a bar */
 .deploy-bar { display: grid; gap: 6px; margin: 0 0 10px; }
 .deploy-bar[hidden] { display: none; }
@@ -1009,6 +1023,7 @@ header.top .btn, header.top .seg button { white-space: nowrap; flex-shrink: 0; }
         <span class="pos" id="film-pos"></span>
         <button id="film-close" title="Back to live">✕ Live</button>
       </div>
+      <div class="compact-bar" id="compact-bar" hidden></div>
       <div class="deploy-bar" id="deploy-bar" hidden></div>
       <div class="live-head" id="live-head"><span class="muted">Waiting for Claude to touch a file…</span></div>
       <div class="path" id="live-path"></div>
