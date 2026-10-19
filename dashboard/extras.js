@@ -1089,9 +1089,28 @@ if (!TILE_MODE) {
         arc?.animate([{ strokeDasharray: `${(c * from) / 100} ${c}` }, { strokeDasharray: `${(c * to) / 100} ${c}` }], { duration: 1100, easing: GLIDE, fill: 'forwards' })
       }
     }
+    unhide(box)
     box.hidden = false
     if (fresh && !reduceMotion) box.animate([{ opacity: 0, transform: 'scaleY(.6)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: GLIDE })
     return true
+  }
+  // going away: fades and folds up, so the page below slides up instead of jumping
+  let hiding = null
+  const hide = box => {
+    if (box.hidden || hiding) return
+    if (reduceMotion) { box.hidden = true; return }
+    const cs = getComputedStyle(box)
+    box.style.overflow = 'hidden'
+    box.style.boxSizing = 'border-box'
+    hiding = box.animate([
+      { opacity: 1, height: `${box.offsetHeight}px`, marginTop: cs.marginTop, marginBottom: cs.marginBottom, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, borderTopWidth: cs.borderTopWidth, borderBottomWidth: cs.borderBottomWidth },
+      { opacity: 0, offset: 0.45 },
+      { opacity: 0, height: '0px', marginTop: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px', borderTopWidth: '0px', borderBottomWidth: '0px' },
+    ], { duration: 650, easing: GLIDE })
+    hiding.onfinish = () => { box.hidden = true; box.style.overflow = box.style.boxSizing = ''; hiding = null }
+  }
+  const unhide = box => {
+    if (hiding) { hiding.onfinish = null; hiding.cancel(); hiding = null; box.style.overflow = box.style.boxSizing = '' }
   }
   const draw = () => {
     const box = $('#compact-bar')
@@ -1103,7 +1122,7 @@ if (!TILE_MODE) {
     const at = asked.get(sid)
     // asked: until the context has come down (or a minute and a half without it)
     if (at && (p == null || p < AT - 15 || Date.now() - at > 90_000)) asked.delete(sid)
-    if (p == null || p < AT || TILE_MODE) { box.hidden = true; shape = ''; return }
+    if (p == null || p < AT || TILE_MODE) { hide(box); shape = ''; return }
     const busy = isBusy(S.snap)
     const waiting = asked.has(sid)
     const crit = p >= CRIT
@@ -1120,6 +1139,7 @@ if (!TILE_MODE) {
     shape = next
     box.className = `compact-bar${crit ? ' crit' : ''}`
     box.innerHTML = `<span class="cb-gauge">${ring(p)}<b>${Math.round(p)}%</b></span><span class="cb-text">${text}</span><button type="button"${waiting ? ' disabled' : ''} title="As /compact does: Claude sums up the chat so far and goes on from that summary">${waiting ? '⏳ Asked' : '🗜 Compact now'}</button>`
+    unhide(box)
     box.hidden = false
     if (fresh && !reduceMotion) box.animate([{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: GLIDE })
     box.querySelector('button').onclick = () => askCompact(sid)
