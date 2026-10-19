@@ -35,6 +35,8 @@ showVersion()
 // (the first answer may come before GitHub's), then now and then
 setTimeout(showVersion, 8000)
 setInterval(showVersion, 2 * 60_000)
+// told by the server the moment the installed or the newest version changes
+window.showVersion = showVersion
 
 // The update tile: there while a newer version is out, or while one installs.
 window.updateTile = () => {

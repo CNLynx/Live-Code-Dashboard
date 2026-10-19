@@ -62,8 +62,34 @@ const checkLatest = async () => {
       headers: { Accept: 'application/vnd.github.raw+json', 'User-Agent': 'live-code-dashboard' },
       signal: AbortSignal.timeout(5000),
     })
-    if (r.ok) { latest.version = String((await r.json()).version ?? ''); latest.checkedAt = Date.now() }
+    if (r.ok) {
+      const was = latest.version
+      latest.version = String((await r.json()).version ?? ''); latest.checkedAt = Date.now()
+      if (latest.version !== was) broadcast({ type: 'versions' })
+    }
   } catch {}
+}
+// A release from this copy (its version risen) or a change kept (git): the pages
+// are told at once, and GitHub is asked every 20 s until it names the new version
+// (its API can lag a little behind the push), for five minutes at most.
+let chasing = null
+const versionsChanged = () => {
+  unpublished.at = 0
+  broadcast({ type: 'versions' })
+  if (!newerVersion(installed() || VERSION, latest.version || '0')) return
+  clearInterval(chasing)
+  const until = Date.now() + 300e3
+  const chase = async () => {
+    latest.at = 0
+    await checkLatest()
+    if (!newerVersion(installed() || VERSION, latest.version || '0') || Date.now() > until) clearInterval(chasing)
+  }
+  chasing = setInterval(chase, 20e3)
+  void chase()
+}
+let versionsDue = null
+for (const dir of [path.join(HERE, '..', '.claude-plugin'), path.join(HERE, '..', '.git', 'refs', 'heads')]) {
+  try { fs.watch(dir, () => { clearTimeout(versionsDue); versionsDue = setTimeout(versionsChanged, 1000) }) } catch {}
 }
 const KEEP_ACTIONS = 6000
 const KEEP_ROWS = 400 // the newest actions keep their code, for a replay

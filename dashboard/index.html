@@ -3347,6 +3347,8 @@ const connect = () => {
       applyShared(msg.prefs)
     } else if (msg.type === 'reload') {
       reloadWhenSafe()
+    } else if (msg.type === 'versions') {
+      window.showVersion?.()
     } else if (msg.type === 'update') {
       window.onUpdateState?.(msg.update)
     } else if (msg.type === 'dictate' || msg.type === 'dictation') {
