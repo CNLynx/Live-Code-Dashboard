@@ -145,6 +145,8 @@ export type Ask = {
   reason?: string
   questions?: AskQuestion[]
   at: number
+  // left unanswered until then, Claude goes on by itself
+  until?: number
   agentId?: string
 }
 

@@ -702,7 +702,7 @@ const writeAtomic = (file, text) => {
 
 // What one answer may hold: a decision, a reason, the picked labels per question.
 const cleanAnswer = raw => {
-  const decision = ['allow', 'deny', 'dialog', 'answer'].includes(raw?.decision) ? raw.decision : null
+  const decision = ['allow', 'deny', 'dialog', 'answer', 'skip'].includes(raw?.decision) ? raw.decision : null
   if (decision === null) return null
   const out = { decision }
   if (typeof raw.reason === 'string' && raw.reason.trim() !== '') out.reason = raw.reason.trim().slice(0, 500)

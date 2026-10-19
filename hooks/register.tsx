@@ -498,7 +498,9 @@ let mainTurnId = ''
 // there, from the band's buttons, or from the usual dialog when the person
 // picks it. The answer arrives as ~/.claude/live-code-answer-<id>.json.
 const asks = atom({ plugin: 'live-code', key: 'asks' } as const, [] as Ask[])
-type Answer = { decision?: 'allow' | 'deny' | 'dialog' | 'answer'; reason?: string; answers?: Record<string, string>; response?: string }
+type Answer = { decision?: 'allow' | 'deny' | 'dialog' | 'answer' | 'skip' | 'timeout'; reason?: string; answers?: Record<string, string>; response?: string }
+// a question nobody answers does not hold the chat (and the lights) forever
+const ASK_TIMEOUT_MS = 5 * 60_000
 const safeId = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, '')
 const answerPath = ($: Engine, id: string) => `${claudeHome($.plugin.root)}/live-code-answer-${safeId(id)}.json`
 // the server marks the file every two seconds while a dashboard is connected
@@ -521,7 +523,10 @@ const awaitAnswer = async ($: Engine, ask: Ask, signal?: AbortSignal): Promise<A
     for (let round = 0; round < 720; round++) {
       if (signal?.aborted) return undefined
       if (!(await remoteActive($))) return { decision: 'dialog' }
-      const ran = await $.process.run(['node', `${$.plugin.root}/bin/wait-answer.mjs`, answerPath($, ask.id), '20'], { timeoutMs: 40_000 }).catch(() => undefined)
+      const left = ask.until !== undefined ? ask.until - (await clockNow($)) : Infinity
+      if (left <= 0) return { decision: 'timeout' }
+      const wait = Math.max(1, Math.min(20, Math.ceil(left / 1000)))
+      const ran = await $.process.run(['node', `${$.plugin.root}/bin/wait-answer.mjs`, answerPath($, ask.id), String(wait)], { timeoutMs: 40_000 }).catch(() => undefined)
       // no node to wait with: the dialog asks as always
       if (ran === undefined || ran.exitCode !== 0) return { decision: 'dialog' }
       if (ran.stdout.trim() === '') continue
@@ -1506,11 +1511,21 @@ export const register: Register = on => {
       ...(typeof q.unit === 'string' ? { unit: q.unit } : {}),
     }))
     if (questions.length === 0) return next(e)
+    const asked = await clockNow($)
     const answer = await awaitAnswer(
       $,
-      { id: e.tool_use_id, kind: 'question', tool: 'AskUserQuestion', title: questions[0]!.question, detail: '', questions, at: await clockNow($), agentId: agentOf(e) },
+      { id: e.tool_use_id, kind: 'question', tool: 'AskUserQuestion', title: questions[0]!.question, detail: '', questions, at: asked, until: asked + ASK_TIMEOUT_MS, agentId: agentOf(e) },
       next.signal,
     )
+    // skipped, or left unanswered: Claude goes on with what it would recommend
+    if (answer?.decision === 'skip' || answer?.decision === 'timeout') {
+      return {
+        result: { questions: raw, answers: {} },
+        text:
+          (answer.decision === 'skip' ? 'The user skipped these questions.' : `The user did not answer within ${ASK_TIMEOUT_MS / 60_000} minutes and may be away.`) +
+          ' Do not wait and do not ask them again now: go on with the option you would recommend (or the safest sensible default), say briefly which one you took, and leave anything hard to undo (publishing, deleting, sending) for later.',
+      } as never
+    }
     if (answer?.decision !== 'answer' || answer.answers === undefined) return next(e)
     const given = Object.fromEntries(
       Object.entries(answer.answers)
@@ -2457,6 +2472,9 @@ export const register: Register = on => {
               ) : (
                 <Text color="inactive">This one is answered in the dashboard, or in the usual dialog:</Text>
               )}
+              {ask.kind === 'question' ? (
+                <Button key="skip" plain onPress={answerFrom($, ask.id, { decision: 'skip' })}><Text color="inactive">Skip</Text></Button>
+              ) : null}
               <Button key="dialog" plain onPress={answerFrom($, ask.id, { decision: 'dialog' })}><Text color="inactive">Show the usual dialog</Text></Button>
             </Box>
           )}

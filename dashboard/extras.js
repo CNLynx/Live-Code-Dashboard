@@ -166,7 +166,9 @@ const askHtml = (a, index, count) => {
     return `<div class="q"><span class="hd">${esc(q.header || 'Question')}${q.multiSelect ? ' · pick any' : ''}</span><div class="qt"${qi === 0 ? ' id="ask-title"' : ''}>${esc(q.question)}</div>${body}</div>`
   }).join('')
   return head + qs +
-    `<div class="acts"><button class="bt go" data-a="answer">Send answer<kbd>Enter</kbd></button><span class="grow"></span>` +
+    `<div class="acts"><button class="bt go" data-a="answer">Send answer<kbd>Enter</kbd></button>` +
+    `<button class="bt plain" data-a="skip" title="Claude goes on with the option it would recommend">Skip</button><span class="grow"></span>` +
+    (a.until ? `<span class="note" data-until="${a.until}"></span>` : '') +
     `<button class="bt plain" data-a="dialog" title="Answer it in the Claude window instead">Usual dialog</button><button class="bt plain" data-a="later">Later<kbd>Esc</kbd></button></div>`
 }
 
@@ -206,7 +208,7 @@ const sendAnswer = async (a, answer) => {
     picks.delete(askKey(a))
     answered.set(askKey(a), Date.now())
     closeAsk()
-    smallToast(answer.decision === 'allow' ? `Allowed in “${a.chat}”` : answer.decision === 'deny' ? `Denied in “${a.chat}”` : answer.decision === 'dialog' ? `Now in the Claude window of “${a.chat}”` : `Answer sent to “${a.chat}”`)
+    smallToast(answer.decision === 'allow' ? `Allowed in “${a.chat}”` : answer.decision === 'deny' ? `Denied in “${a.chat}”` : answer.decision === 'dialog' ? `Now in the Claude window of “${a.chat}”` : answer.decision === 'skip' ? `Skipped · “${a.chat}” goes on by itself` : `Answer sent to “${a.chat}”`)
   } catch (error) {
     for (const b of askBox.querySelectorAll('button')) b.disabled = false
     smallToast(`Not sent: ${error.message}`, 'bad')
@@ -294,8 +296,9 @@ const drawAsks = (force = false) => {
   // a gentle reminder now and then while it waits
   if (shown && Date.now() - rang.at > 45_000 && rang.times < 3 && toneOn('lc.toneAsk') && store.get('lc.askRemind') !== 'off') { rang.at = Date.now(); rang.times++; playNotes(shown.kind === 'permission' ? PERMISSION_TONE : QUESTION_TONE, { force: true, vol: 0.3 }) }
   for (const el of askBox.querySelectorAll('[data-since]')) setText(el, `waiting ${dur(Date.now() - Number(el.dataset.since))}`)
+  for (const el of askBox.querySelectorAll('[data-until]')) { const s = Math.max(0, Math.round((Number(el.dataset.until) - Date.now()) / 1000)); setText(el, `goes on by itself in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`) }
   const aside = list.filter(a => !answered.has(askKey(a))).length - (shown ? 1 : 0)
-  if (askPill.hidden !== aside <= 0) askPill.hidden = aside <= 0
+  reveal(askPill, aside > 0, 'pop')
   setText(askPill, `❓ ${aside} ${aside === 1 ? 'question waits' : 'questions wait'}`)
   // the tab says it too
   titleBlink++
