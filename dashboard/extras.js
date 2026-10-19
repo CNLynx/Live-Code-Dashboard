@@ -1147,8 +1147,23 @@ if (!TILE_MODE) {
     if (fresh && !reduceMotion) box.animate([{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: GLIDE })
     box.querySelector('button').onclick = () => askCompact(sid)
   }
+  // A compaction only from a real press on the button: pressed down on it, and
+  // the button already on screen a moment before, never one that just slid
+  // (or was redrawn) under a finger meant for the tile.
+  const BTN = '.tile-compact:not(:disabled), #compact-bar:not([hidden]) button:not(:disabled)'
+  let shownSince = 0
+  let down = { at: 0, on: false }
+  const watchShown = () => { shownSince = document.querySelector(BTN) ? shownSince || Date.now() : 0 }
+  setInterval(watchShown, 150)
+  document.addEventListener('pointerdown', e => {
+    watchShown()
+    down = { at: Date.now(), on: !!e.target.closest?.(BTN) && shownSince > 0 && Date.now() - shownSince >= 700 }
+  }, true)
+  const pressed = () => down.on && Date.now() - down.at < 1500
   // asked from the bar or from the context tile's own button
   const askCompact = async sid => {
+    if (!pressed()) return
+    down = { at: 0, on: false }
     if (asked.has(sid)) return
     asked.set(sid, Date.now())
     shape = ''
