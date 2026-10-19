@@ -7,6 +7,8 @@ $req = Get-Content -LiteralPath $StateFile -Raw -Encoding UTF8 | ConvertFrom-Jso
 $repo = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $splat = @{ Pick = @($req.picks); Message = [string]$req.message }
 if ($req.minor) { $splat.Minor = $true }
+# (a try that builds and checks it all, publishing nothing)
+if ($req.dryRun) { $splat.DryRun = $true }
 
 $out = @()
 try {
