@@ -27,16 +27,17 @@ const SESSION_FILE = /^live-code-session-([A-Za-z0-9_-]+)\.json$/
 const LOG = process.env.LIVE_CODE_LOG ?? path.join(HOME, 'live-code-log.jsonl')
 const PORT = Number(process.env.LIVE_CODE_PORT ?? 4477)
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(HERE, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version } catch { return '' } })()
-// the newest published version (GitHub), looked up at most hourly, for the
+const installed = () => { try { return JSON.parse(fs.readFileSync(path.join(HERE, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version } catch { return '' } }
+const VERSION = installed()
+// the newest published version (GitHub), looked up every ten minutes, for the
 // dashboard to show beside the installed one. Through GitHub's API, not its raw
 // file host, whose copies lag minutes behind a release; a failed look, or one
 // that still names an older version than the one running (a release only just
 // out), is tried again in five minutes.
 const latest = { version: '', at: 0, checkedAt: 0 }
 const checkLatest = async () => {
-  const settled = latest.version && !newerVersion(VERSION, latest.version)
-  if (Date.now() - latest.at < (settled ? 3600e3 : 300e3)) return
+  const settled = latest.version && !newerVersion(installed() || VERSION, latest.version)
+  if (Date.now() - latest.at < (settled ? 600e3 : 300e3)) return
   latest.at = Date.now()
   try {
     const r = await fetch('https://api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json?ref=main', {
@@ -1229,7 +1230,7 @@ const server = http.createServer((req, res) => {
   } else if (url.pathname === '/about') {
     // which copy runs: the mod starts its own one in its place after an update
     void checkLatest()
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: VERSION, latest: latest.version, latestCheckedAt: latest.checkedAt }))
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: installed() || VERSION, latest: latest.version, latestCheckedAt: latest.checkedAt }))
   } else if (url.pathname === '/events') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
     res.write('retry: 2000\n\n')
