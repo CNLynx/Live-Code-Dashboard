@@ -87,6 +87,12 @@ button { font: inherit; color: inherit; }
   background: linear-gradient(135deg, var(--s7), var(--s1)); font-size: 12px; }
 .pill { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 999px; background: var(--surface);
   border: 1px solid var(--ring); white-space: nowrap; font-weight: 600; }
+/* the status pill keeps one width whatever the task says: a pill growing and
+   shrinking with each step made the bar wrap differently (tablet) and twitch */
+#status { flex: none; width: 300px; box-sizing: border-box; }
+#status .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#status .timer { flex: none; font-variant-numeric: tabular-nums; }
+@media (max-width: 1750px) { #status { width: 260px; } }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .pill.working .dot { background: var(--s1); box-shadow: 0 0 0 0 var(--s1); animation: pulse 1.6s ease-out infinite; }
 .pill.thinking .dot { background: var(--s7); animation: pulse 1.6s ease-out infinite; }
