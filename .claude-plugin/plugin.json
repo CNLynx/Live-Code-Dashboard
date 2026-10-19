@@ -1,6 +1,6 @@
 {
   "name": "live-code",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "description": "Live dashboard for Claude Code: watch every read and edit as it happens, with costs, limits, context and charts. Stream Deck and Philips Hue built in.",
   "author": { "name": "CNLynx", "url": "https://github.com/CNLynx" },
   "homepage": "https://github.com/CNLynx/Live-Code-Dashboard",
