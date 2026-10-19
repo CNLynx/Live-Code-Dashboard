@@ -38,7 +38,13 @@ const isDevCopy = p => /[\\/]dev-mods[\\/]/i.test(p)
 const usable = p => p && fs.existsSync(p)
 const args = process.argv.slice(2)
 const sessionId = args.find(a => a.startsWith('--session='))?.slice(10) ?? ''
-const server = [args.find(a => !a.startsWith('--')), isDevCopy(here) && usable(deck.server) ? deck.server : here, deck.server].find(usable)
+// A developer's working copy (a git checkout of the mod, as new as this copy or
+// newer) keeps serving: Claude runs the copy in its plugin cache, but the pages
+// should come from the folder being worked on, so a change shows at once.
+const versionAt = serverFile => readJson(path.join(path.dirname(serverFile), '..', '.claude-plugin', 'plugin.json'))?.version ?? ''
+const atLeast = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return true }
+const isWorkingCopy = p => usable(p) && fs.existsSync(path.join(path.dirname(p), '..', '.git')) && atLeast(versionAt(p), versionAt(here))
+const server = [args.find(a => !a.startsWith('--')), (isDevCopy(here) || isWorkingCopy(deck.server)) && usable(deck.server) ? deck.server : here, deck.server].find(usable)
 const same = (a, b) => !!a && !!b && path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase()
 
 const get = p => new Promise(resolve => {

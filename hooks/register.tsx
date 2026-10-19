@@ -1293,6 +1293,18 @@ const beginTurn = async ($: Engine, text: string) => {
   void publish($)
 }
 
+// Runs bin/ensure-server.mjs, told this chat (its own feed, written as it
+// starts, is not taken for another chat at work); how it went is kept in
+// ~/.claude/live-code-ensure-run.json, for finding out why the dashboard did (not) open.
+const runEnsure = async ($: Engine) => {
+  const at = await clockNow($)
+  const ran = await $.process.run(['node', `${$.plugin.root}/bin/ensure-server.mjs`, `--session=${sessionId}`], { timeoutMs: 15_000 }).then(
+    r => ({ exitCode: r.exitCode, stdout: r.stdout.slice(0, 400), stderr: r.stderr.slice(0, 1500) }),
+    (e: unknown) => ({ error: String(e).slice(0, 1500) }),
+  )
+  await $.fs.write(`${claudeHome($.plugin.root)}/live-code-ensure-run.json`, JSON.stringify({ at, session: sessionId, ...ran }, null, 1)).catch(() => undefined)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -1313,8 +1325,7 @@ export const register: Register = on => {
     isEnded = false
     sessionId = await $.session.id().then(id => (typeof id === 'string' ? id : ''), () => '')
     // the dashboard server starts with Claude: unless it runs, it is started, hidden
-    // (told this chat, so its own feed, written now, is not taken for another chat at work)
-    void $.process.run(['node', `${$.plugin.root}/bin/ensure-server.mjs`, `--session=${sessionId}`], { timeoutMs: 15_000 }).catch(() => undefined)
+    void runEnsure($)
     void publish($)
     inboxTimer?.cancel()
     try {
