@@ -7,7 +7,7 @@
 // them to the dashboard page over server-sent events. No dependencies:
 // `node server.mjs`. Listens on 127.0.0.1 only, and exits once no window has
 // been open for a while.
-import { execFileSync, spawn } from 'node:child_process'
+import { execFile, execFileSync, spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -66,7 +66,8 @@ const releaseState = () => {
     if (s.state === 'running') {
       let alive = !!s.pid
       try { if (s.pid) process.kill(s.pid, 0) } catch { alive = false }
-      if (!alive && Date.now() - s.at > 5000) return { ...s, state: 'failed', out: [s.error || 'The release stopped without a word; nothing was published unless GitHub shows a new version. See .\\release.ps1 -List'] }
+      // (its process id arrives a moment after it was asked for)
+      if (!alive && Date.now() - s.at > (s.pid ? 3000 : 20_000)) return { ...s, state: 'failed', out: [s.error || 'The release stopped without a word; nothing was published unless GitHub shows a new version. See .\\release.ps1 -List'] }
       if (Date.now() - s.at > 15 * 60_000) return { ...s, state: 'failed', out: ['The release did not report back; see .\\release.ps1 -List'] }
     }
     return s
@@ -85,13 +86,22 @@ const startRelease = (picks, message, minor, dryRun) => {
   const state = { state: 'running', at: Date.now(), picks, message, minor, dryRun }
   const write = s => { try { fs.writeFileSync(RELEASE_STATE, JSON.stringify(s)); return true } catch { return false } }
   if (!write(state)) return 'Could not write the release state'
-  // (started by Windows itself, apart from this server: it may be swapped for a
-  // fresh one while the release runs, which lays new files into this folder)
+  // Started by Windows itself (WMI), hidden: apart from this server, which is
+  // swapped for a fresh one when the release lays new files into this folder,
+  // and with a console of its own (Windows PowerShell started without one, as a
+  // detached child, ends at once without a word).
   const ps = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-  const child = spawn(ps, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(REPO, 'bin', 'dev-release.ps1'), '-StateFile', RELEASE_STATE], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true })
-  child.on('error', e => write({ ...state, state: 'failed', at: Date.now(), out: [`Could not start PowerShell: ${e.message}`] }))
-  if (child.pid) write({ ...state, pid: child.pid })
-  child.unref()
+  const line = `"${ps}" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${path.join(REPO, 'bin', 'dev-release.ps1')}" -StateFile "${RELEASE_STATE}"`
+  execFile(ps, ['-NoProfile', '-Command',
+    `$si = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{ ShowWindow = [uint16]0 }; ` +
+    `$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = '${line.replace(/'/g, "''")}'; CurrentDirectory = '${REPO.replace(/'/g, "''")}'; ProcessStartupInformation = $si }; ` +
+    `"$($r.ReturnValue) $($r.ProcessId)"`],
+  { encoding: 'utf8', windowsHide: true, timeout: 15_000 }, (error, out) => {
+    const [code, pid] = String(out ?? '').trim().split(/\s+/).map(Number)
+    if (error || code !== 0 || !pid) { write({ ...state, state: 'failed', at: Date.now(), out: [`Could not start the release: ${error?.message ?? `code ${code}`}`] }); return }
+    // (only while it still runs: it may have reported back already)
+    try { if (JSON.parse(fs.readFileSync(RELEASE_STATE, 'utf8')).state === 'running') write({ ...state, pid }) } catch {}
+  })
   return ''
 }
 // the newest published version (GitHub), looked up every ten minutes, for the
