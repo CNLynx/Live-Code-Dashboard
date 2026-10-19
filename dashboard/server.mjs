@@ -35,17 +35,47 @@ const CUSTOM_DIR = path.join(HOME, 'live-code-custom')
 // released (release.ps1 keeps them on the branch 'lokal', released ones on 'main').
 // The version number only rises with a release, so without this a copy full of
 // new changes would read the same as GitHub's.
-const unpublished = { n: 0, at: 0 }
+const REPO = path.join(HERE, '..')
+const unpublished = { n: 0, at: 0, since: 0, list: [] }
 const countUnpublished = () => {
   if (Date.now() - unpublished.at < 20_000) return unpublished.n
   unpublished.at = Date.now()
+  unpublished.list = []
   try {
-    const root = path.join(HERE, '..')
-    if (!fs.existsSync(path.join(root, '.git'))) return (unpublished.n = 0)
-    const out = execFileSync('git', ['-C', root, 'log', '--format=%h', 'main..lokal'], { encoding: 'utf8', windowsHide: true, timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] })
-    unpublished.n = out.split('\n').filter(Boolean).length
-  } catch { unpublished.n = 0 }
+    if (fs.existsSync(path.join(REPO, '.git'))) {
+      const out = execFileSync('git', ['-C', REPO, 'log', '--reverse', '--format=%h%x09%ct%x09%s', 'main..lokal'], { encoding: 'utf8', windowsHide: true, timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] })
+      unpublished.list = out.split('\n').filter(Boolean).map(line => { const [sha, ct, ...s] = line.split('\t'); return { sha, at: Number(ct) * 1000, subject: s.join('\t') } })
+    }
+  } catch {}
+  unpublished.n = unpublished.list.length
+  unpublished.since = unpublished.list[0]?.at ?? 0
   return unpublished.n
+}
+// The mod's author (and only they: a file on their PC, never in the repo, says
+// so) publishes from the dashboard: the changes kept, picked, and release.ps1
+// run apart (bin/dev-release.ps1), its outcome in RELEASE_STATE.
+const DEV_FILE = path.join(HOME, 'live-code-dev.json')
+const RELEASE_STATE = path.join(HOME, 'live-code-release.json')
+const isDev = () => {
+  try { return JSON.parse(fs.readFileSync(DEV_FILE, 'utf8')).dev === true && fs.existsSync(path.join(REPO, 'release.ps1')) && fs.existsSync(path.join(REPO, '.git')) } catch { return false }
+}
+const releaseState = () => {
+  try {
+    const s = JSON.parse(fs.readFileSync(RELEASE_STATE, 'utf8'))
+    // a run that never reported back (the PC slept, it was ended)
+    if (s.state === 'running' && Date.now() - s.at > 15 * 60_000) return { ...s, state: 'failed', out: ['The release did not report back; see .\\release.ps1 -List'] }
+    return s
+  } catch { return { state: 'idle' } }
+}
+const startRelease = (picks, message, minor) => {
+  if (releaseState().state === 'running') return 'A release is already running'
+  countUnpublished()
+  const known = new Set(unpublished.list.map(c => c.sha))
+  if (picks.length === 0 || !picks.every(p => known.has(p))) return 'Pick changes that are still unpublished'
+  try { fs.writeFileSync(RELEASE_STATE, JSON.stringify({ state: 'running', at: Date.now(), picks, message, minor })) } catch { return 'Could not write the release state' }
+  const ps = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+  spawn(ps, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(REPO, 'bin', 'dev-release.ps1'), '-StateFile', RELEASE_STATE], { cwd: REPO, detached: true, stdio: 'ignore', windowsHide: true }).unref()
+  return ''
 }
 // the newest published version (GitHub), looked up every ten minutes, for the
 // dashboard to show beside the installed one. Through GitHub's API, not its raw
@@ -1323,10 +1353,29 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ update }))
   } else if (url.pathname === '/update') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ update }))
+  } else if (url.pathname === '/dev' || url.pathname === '/dev/release') {
+    // the author's publishing (isDev): nothing at all for anyone else
+    if (!isTrusted(req) || !isDev()) { res.writeHead(404).end('{}'); return }
+    if (req.method !== 'POST') {
+      unpublished.at = 0
+      countUnpublished()
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pending: unpublished.list, release: releaseState(), version: installed() }))
+      return
+    }
+    let body = ''
+    req.on('data', c => { body += c; if (body.length > 20_000) req.destroy() })
+    req.on('end', () => {
+      let m = {}
+      try { m = JSON.parse(body) } catch {}
+      const picks = Array.isArray(m.picks) ? m.picks.filter(p => typeof p === 'string' && /^[0-9a-f]{7,40}$/.test(p)) : []
+      const message = String(m.message ?? '').replace(/[\r\n"`$]/g, ' ').trim().slice(0, 160)
+      const error = message ? startRelease(picks, message, m.minor === true) : 'Say in a few words what changed'
+      res.writeHead(error ? 400 : 200, { 'Content-Type': 'application/json' }).end(JSON.stringify(error ? { error } : { ok: true }))
+    })
   } else if (url.pathname === '/about') {
     // which copy runs: the mod starts its own one in its place after an update
     void checkLatest()
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: installed() || VERSION, running: VERSION, startedAt: STARTED_AT, unpublished: countUnpublished(), live: LIVE_URL && prefs['lc.liveCount'] !== 'off' && Date.now() - live.at < 11 * 60_000 ? live.n : null, latest: latest.version, latestCheckedAt: latest.checkedAt }))
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: installed() || VERSION, running: VERSION, startedAt: STARTED_AT, unpublished: countUnpublished(), unpublishedSince: unpublished.since, dev: isDev() || undefined, live: LIVE_URL && prefs['lc.liveCount'] !== 'off' && Date.now() - live.at < 11 * 60_000 ? live.n : null, latest: latest.version, latestCheckedAt: latest.checkedAt }))
   } else if (url.pathname === '/events') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
     res.write('retry: 2000\n\n')

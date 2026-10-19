@@ -30,8 +30,11 @@ const showVersion = () => fetch('/about').then(r => r.json()).then(a => {
   // (a working copy's changes not released yet: same number as GitHub, newer code)
   const own = $('#ver-installed')
   own.textContent = `installed v${a.version}${a.unpublished ? ` + ${a.unpublished} unpublished` : ''}`
-  own.className = `v-installed${a.unpublished ? ' ahead' : ''}`
-  own.title = a.unpublished ? `${a.unpublished} change${a.unpublished === 1 ? '' : 's'} kept locally, not on GitHub yet` : ''
+  // (the author: kept a day or more unpublished, it reminds softly; a click publishes)
+  const stale = a.unpublished && a.unpublishedSince && Date.now() - a.unpublishedSince > 86400e3
+  own.className = `v-installed${a.unpublished ? ' ahead' : ''}${a.dev && a.unpublished ? ' dev' : ''}${a.dev && stale ? ' stale' : ''}`
+  own.title = a.unpublished ? `${a.unpublished} change${a.unpublished === 1 ? '' : 's'} kept locally, not on GitHub yet${stale ? `, the oldest since ${whenFull(a.unpublishedSince)}` : ''}${a.dev ? '\nClick to publish' : ''}` : ''
+  own.onclick = a.dev && a.unpublished ? () => openPublish() : null
   const el = $('#ver-latest')
   // (newer than GitHub: a version not released yet, or one GitHub does not show yet)
   const ahead = a.latest && newer(a.version, a.latest)
@@ -42,6 +45,70 @@ const showVersion = () => fetch('/about').then(r => r.json()).then(a => {
   showLive(a.live)
   drawTiles()
 }).catch(() => {})
+
+// ── publishing, for the mod's author only (the server says so: /about's dev) ──
+// The changes kept locally, each to pick; a few words on what changed; patch or
+// minor; then release.ps1 runs apart and this sheet follows it until it is done.
+const devGet = () => fetch('/dev', { headers: { 'X-Live-Code-Secret': SECRET } }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+let devWatch = null
+const openPublish = async () => {
+  const d = await devGet()
+  if (!d) { smallToast('Publishing is not available here', 'bad'); return }
+  const ago = t => { const h = (Date.now() - t) / 3600e3; return h < 1 ? `${Math.max(1, Math.round(h * 60))}m ago` : h < 48 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago` }
+  const next = minor => { const v = String(d.version || '0.0.0').split('.').map(Number); return minor ? `${v[0]}.${v[1] + 1}.0` : `${v[0]}.${v[1]}.${v[2] + 1}` }
+  const draw = rel => {
+    const running = rel?.state === 'running'
+    sheet.innerHTML =
+      `<div class="sh"><b>⇪ Publish to GitHub</b><span class="muted">${plural(d.pending.length, 'change')} kept locally · now v${esc(d.version)}</span><button class="x" title="Close (Esc)">✕</button></div>` +
+      `<div class="pub">` +
+      (rel && rel.state !== 'idle' && rel.state !== 'running' && Date.now() - rel.at < 30 * 60e3
+        ? `<div class="pub-out ${rel.state}"><b>${rel.state === 'done' ? `✓ Released v${esc(rel.version)}` : '✗ Not published'}</b><pre>${esc((rel.out ?? []).join('\n'))}</pre></div>` : '') +
+      (running ? `<div class="pub-run"><span class="pub-spin"></span>Publishing: checking, testing, pushing… <span class="muted">(about a minute)</span></div>`
+        : d.pending.length === 0 ? '<div class="muted">Nothing left to publish.</div>'
+        : `<div class="pub-list">${d.pending.map(c => `<label><input type="checkbox" value="${esc(c.sha)}" checked><span class="pub-subj">${esc(c.subject)}</span><span class="muted num">${esc(c.sha)} · ${ago(c.at)}</span></label>`).join('')}</div>` +
+          `<input class="pub-msg" type="text" maxlength="160" placeholder="What changed, in a few words (the release title)">` +
+          `<div class="pub-row"><div class="seg pub-kind"><button data-minor="0" class="on">Patch · v${next(false)}</button><button data-minor="1">Minor · v${next(true)}</button></div><button class="pub-go">⇪ Publish</button></div>` +
+          `<div class="muted pub-hint">Checked and tested first; if anything fails, nothing is published. Users see the update within minutes.</div>`) +
+      `</div>`
+    sheet.querySelector('.x').onclick = closeSheet
+    if (running || d.pending.length === 0) return
+    let minor = false
+    const msg = sheet.querySelector('.pub-msg')
+    const picked = () => [...sheet.querySelectorAll('.pub-list input:checked')].map(i => i.value)
+    // the title proposed from what is picked, until the person writes their own
+    let own = false
+    const propose = () => { if (!own) msg.value = d.pending.filter(c => picked().includes(c.sha)).map(c => c.subject).join('; ').slice(0, 160) }
+    msg.oninput = () => { own = msg.value.trim() !== '' }
+    for (const i of sheet.querySelectorAll('.pub-list input')) i.onchange = propose
+    propose()
+    for (const b of sheet.querySelectorAll('.pub-kind button')) b.onclick = () => { minor = b.dataset.minor === '1'; for (const x of sheet.querySelectorAll('.pub-kind button')) x.classList.toggle('on', x === b) }
+    sheet.querySelector('.pub-go').onclick = async () => {
+      const picks = picked()
+      if (!picks.length) { smallToast('Pick at least one change', 'bad'); return }
+      if (!msg.value.trim()) { msg.focus(); smallToast('Say in a few words what changed', 'bad'); return }
+      const r = await post('/dev/release', { picks, message: msg.value.trim(), minor }).then(x => x.json()).catch(() => ({ error: 'The dashboard could not be reached' }))
+      if (r.error) { smallToast(r.error, 'bad'); return }
+      follow()
+    }
+  }
+  // while it runs: a look every two seconds, then the outcome and the list anew
+  const follow = () => {
+    clearInterval(devWatch)
+    draw({ state: 'running' })
+    devWatch = setInterval(async () => {
+      if (sheetWrap.hidden) { clearInterval(devWatch); return }
+      const x = await devGet()
+      if (!x || x.release.state === 'running') return
+      clearInterval(devWatch)
+      Object.assign(d, x)
+      draw(x.release)
+      if (x.release.state === 'done') { smallToast(`Released v${x.release.version} ✓`); showVersion() }
+    }, 2000)
+  }
+  if (d.release.state === 'running') follow(); else draw(d.release)
+  reveal(sheetWrap, true, 'pop')
+}
+window.openPublish = openPublish
 showVersion()
 // (the first answer may come before GitHub's), then now and then
 setTimeout(showVersion, 8000)
