@@ -22,3 +22,14 @@ G add -A | Out-Null
 if (-not (G status --porcelain)) { Write-Host 'Nothing changed.'; exit 0 }
 G commit -q -m $Name | Out-Null
 Write-Host "Kept locally: $Name" -ForegroundColor Cyan
+
+# Claude runs the mod from its plugin cache, copied from this folder at install
+# and refreshed only when the version number changes: the copy of this version
+# takes the change now, so Claude's next start runs it.
+$version = ([regex]::Match([IO.File]::ReadAllText("$PWD\.claude-plugin\plugin.json"), '"version":\s*"([^"]+)"')).Groups[1].Value
+$cache = Join-Path $env:USERPROFILE ".claude\plugins\cache\cnlynx\live-code\$version"
+if ($version -and (Test-Path $cache)) {
+  robocopy $PWD $cache /MIR /XD .git node_modules /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -lt 8) { Write-Host "Claude's copy ($version) brought up to date: restart Claude to run it" -ForegroundColor Cyan }
+  else { Write-Host "Claude's copy could not be brought up to date (robocopy $LASTEXITCODE)" -ForegroundColor Yellow }
+}
