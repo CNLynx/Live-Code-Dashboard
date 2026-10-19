@@ -29,6 +29,7 @@ const PORT = Number(process.env.LIVE_CODE_PORT ?? 4477)
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const installed = () => { try { return JSON.parse(fs.readFileSync(path.join(HERE, '..', '.claude-plugin', 'plugin.json'), 'utf8')).version } catch { return '' } }
 const VERSION = installed()
+const STARTED_AT = Date.now()
 // the newest published version (GitHub), looked up every ten minutes, for the
 // dashboard to show beside the installed one. Through GitHub's API, not its raw
 // file host, whose copies lag minutes behind a release; a failed look, or one
@@ -101,8 +102,15 @@ const broadcast = msg => {
 // open page, which reloads when nothing would be lost by it.
 const PAGE_FILE = /\.(html|js|css)$/
 let pageChangeDue = null
+let swapDue = null
 try {
   fs.watch(HERE, (_, name) => {
+    // this server's own code changed: bin/ensure-server.mjs swaps it for a fresh one
+    if (name && name.endsWith('.mjs')) {
+      clearTimeout(swapDue)
+      swapDue = setTimeout(() => spawn(process.execPath, [path.join(HERE, '..', 'bin', 'ensure-server.mjs'), '--swap'], { detached: true, stdio: 'ignore', windowsHide: true }).unref(), 1500)
+      return
+    }
     if (!name || !PAGE_FILE.test(name)) return
     clearTimeout(pageChangeDue)
     pageChangeDue = setTimeout(() => broadcast({ type: 'reload', file: name }), 400)
@@ -1230,7 +1238,7 @@ const server = http.createServer((req, res) => {
   } else if (url.pathname === '/about') {
     // which copy runs: the mod starts its own one in its place after an update
     void checkLatest()
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: installed() || VERSION, latest: latest.version, latestCheckedAt: latest.checkedAt }))
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pid: process.pid, server: fileURLToPath(import.meta.url), version: installed() || VERSION, running: VERSION, startedAt: STARTED_AT, latest: latest.version, latestCheckedAt: latest.checkedAt }))
   } else if (url.pathname === '/events') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' })
     res.write('retry: 2000\n\n')

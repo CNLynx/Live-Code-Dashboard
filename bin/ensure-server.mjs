@@ -85,9 +85,15 @@ if (server && !isDevCopy(server) && !same(deck.server, server)) {
 }
 
 const about = await get('/about').then(d => { try { return JSON.parse(d) } catch { return undefined } })
+// The server running is out of date: an older version (it says which it runs, an
+// older one only what is installed), or its code changed since it started.
+const codeChangedAt = dir => { try { return Math.max(...fs.readdirSync(dir).filter(n => n.endsWith('.mjs')).map(n => fs.statSync(path.join(dir, n)).mtimeMs)) } catch { return 0 } }
+const stale = a => !!a?.server && same(a.server, server) && (
+  (a.running ?? a.version) !== versionAt(server) || (a.startedAt ? codeChangedAt(path.dirname(server)) > a.startedAt : !a.running))
 if (await get('/health')) {
-  // an older copy runs (a server from before /about, or another folder's): this one in its place
-  if (server && about?.server && !same(about.server, server) && !isDevCopy(server)) {
+  // an older copy runs (a server from before /about, another folder's, or old code): this one in its place
+  if (server && about?.server && (!same(about.server, server) || stale(about)) && !isDevCopy(server)) {
+    log(`swapped the server (${about.running ?? about.version} → ${versionAt(server)})`)
     try { process.kill(about.pid) } catch {}
     await new Promise(r => setTimeout(r, 600))
     start()
@@ -99,6 +105,8 @@ if (await get('/health')) {
   start()
   process.stdout.write(`started ${server}`)
 }
+// asked by the server itself after its code changed: only the swap, no window
+if (args.includes('--swap')) process.exit(0)
 
 // Claude starting: the dashboard opens, unless switched off in its settings or
 // already open (that one stays where it is). The Claude app starts its chats
