@@ -8,7 +8,7 @@
 
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-mod-d97757)
-![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)
+![License: PolyForm Noncommercial / Small Business](https://img.shields.io/badge/license-PolyForm%20Noncommercial%20%2F%20Small%20Business-blue)
 
 [English](#english) · [Deutsch](#deutsch)
 
@@ -192,7 +192,7 @@ If Live Code saves you time, you can support its development. Thank you!
 
 ### License
 
-[PolyForm Noncommercial 1.0.0](LICENSE): free to use, change and share for any **noncommercial** purpose (personal use, hobby, study, research, nonprofits). **Selling it or using it commercially is not allowed** without the author's permission. Ask via [GitHub](https://github.com/CNLynx).
+[PolyForm Noncommercial 1.0.0 or PolyForm Small Business 1.0.0](LICENSE), your choice: free to use, change and share for any **noncommercial** purpose (personal use, hobby, study, research, nonprofits) and in **small businesses** (fewer than 100 people and less than 1 million USD revenue a year). **Selling it, or using it in a larger company, is not allowed** without the author's permission. Ask via [GitHub](https://github.com/CNLynx).
 
 ---
 
@@ -297,10 +297,10 @@ Wenn dir Live Code Zeit spart, kannst du die Weiterentwicklung unterstützen. Da
 
 ### Lizenz
 
-[PolyForm Noncommercial 1.0.0](LICENSE): kostenlos nutzen, anpassen und teilen für jeden **nicht-kommerziellen** Zweck (privat, Hobby, Lernen, Forschung, gemeinnützige Organisationen). **Verkaufen oder kommerziell nutzen ist nicht erlaubt**, ausser mit Erlaubnis des Autors. Anfragen über [GitHub](https://github.com/CNLynx).
+[PolyForm Noncommercial 1.0.0 oder PolyForm Small Business 1.0.0](LICENSE), nach Wahl: kostenlos nutzen, anpassen und teilen für jeden **nicht-kommerziellen** Zweck (privat, Hobby, Lernen, Forschung, gemeinnützige Organisationen) und in **kleinen Firmen** (weniger als 100 Personen und weniger als 1 Million USD Umsatz im Jahr). **Verkaufen oder in grösseren Firmen nutzen ist nicht erlaubt**, ausser mit Erlaubnis des Autors. Anfragen über [GitHub](https://github.com/CNLynx).
 
 ---
 
 <div align="center">
-Made by <a href="https://github.com/CNLynx">Lynx</a> · <a href="LICENSE">PolyForm Noncommercial 1.0.0</a>
+Made by <a href="https://github.com/CNLynx">Lynx</a> · <a href="LICENSE">PolyForm Noncommercial / Small Business 1.0.0</a>
 </div>
