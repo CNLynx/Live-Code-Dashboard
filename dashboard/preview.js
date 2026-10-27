@@ -125,8 +125,8 @@
   const info = () => (P.blender?.mode === 'on' ? P.blender.info : null)
   const working = () => { const i = info(); return !!i?.running && Date.now() - i.at < 5 * 60_000 }
   const kilo = n => (n >= 10_000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n))
-  const HOW = { made: 'made', render: 'rendered in Blender', sent: 'sent to you', looked: 'looked at', browser: 'browser', search: 'web search', web: 'page read', browse: 'browser opened', blender: 'Blender' }
-  const ICON = { made: '🖼️', render: '🎬', sent: '📤', looked: '👁️', browser: '📸', search: '🔎', web: '🌐', browse: '🧭', blender: '🧊' }
+  const HOW = { made: 'made', render: 'rendered in Blender', sent: 'sent to you', looked: 'looked at', browser: 'browser', search: 'web search', web: 'page read', browse: 'browser opened', blender: 'Blender', click: 'click in the browser', type: 'typed in the browser', key: 'key in the browser', scroll: 'scrolled in the browser', server: 'dev server', bg: 'in the background', file: 'file made', download: 'downloaded' }
+  const ICON = { made: '🖼️', render: '🎬', sent: '📤', looked: '👁️', browser: '📸', search: '🔎', web: '🌐', browse: '🧭', blender: '🧊', click: '🖱️', type: '⌨️', key: '⌨️', scroll: '↕️', server: '🖥️', file: '📦', download: '⬇️' }
   const drawMeta = () => {
     const i = info()
     tabs[0].disabled = !i
@@ -144,7 +144,9 @@
     } else if (P.tab === 'images') {
       const it = P.images.find(x => x.id === P.cur)
       setText(title, it ? (it.how === 'browser' ? 'Browser screenshot' : it.name) : 'Images')
-      setText(meta, it ? [HOW[it.how] ?? it.how, IMG.cur && IMG.item?.id === it.id ? `${IMG.cur.naturalWidth}×${IMG.cur.naturalHeight}` : '', `${dur(Date.now() - it.at)} ago`].filter(Boolean).join(' · ') : '')
+      // (a browser step shown on this shot: that step)
+      const step = IMG.mark && IMG.mark.shotId === it?.id ? P.items.find(x => x.id === IMG.mark.id) : null
+      setText(meta, it ? [step ? `${ICON[step.how] ?? ''} ${step.name}` : it.why || HOW[it.how] || it.how, it.prevId ? 'before | after: drag the line' : '', IMG.cur && IMG.item?.id === it.id ? `${IMG.cur.naturalWidth}×${IMG.cur.naturalHeight}` : '', IMG.view.z > 1.01 ? `${Math.round(IMG.view.z * 100)}%` : '', `${dur(Date.now() - (step ?? it).at)} ago`].filter(Boolean).join(' · ') : '')
     } else setText(title, 'Preview')
   }
 
@@ -377,15 +379,25 @@ void main() {
   }
 
   // ── images: built up tile by tile ──
+  // Zoomed by the wheel (at the pointer), moved by dragging, back by a double
+  // click. An image written anew shows its earlier version beside it, split by
+  // a line that can be dragged (before | after). A browser shot shows where a
+  // click landed: a pulsing ring (and what was typed) on top.
   const imx = imc.getContext('2d')
-  const IMG = { cur: null, prev: null, item: null, start: 0, anim: false, jitter: [], raf: 0 }
+  const IMG = { cur: null, prev: null, item: null, start: 0, anim: false, jitter: [], raf: 0, before: null, split: 1, splitAt: 0, mark: null, view: { z: 1, px: 0, py: 0 } }
+  const markEl = Object.assign(document.createElement('div'), { className: 'pv-mark' })
+  const capEl = Object.assign(document.createElement('div'), { className: 'pv-cap' })
+  imc.parentElement.append(markEl, capEl)
   const ease = x => 1 - (1 - x) ** 3
   const fit = (im, W, H, pad) => {
     const s = Math.min((W - 2 * pad) / im.naturalWidth, (H - 2 * pad) / im.naturalHeight, 3 * (devicePixelRatio || 1))
     const w = im.naturalWidth * s, h = im.naturalHeight * s
     return { x: (W - w) / 2, y: (H - h) / 2, w, h }
   }
-  const BUILD_MS = 1650, SHINE_MS = 700
+  // the fitted place, zoomed and moved as the person likes it
+  const viewed = (r, W, H) => { const v = IMG.view, cx = W / 2, cy = H / 2; return { x: cx + (r.x - cx) * v.z + v.px, y: cy + (r.y - cy) * v.z + v.py, w: r.w * v.z, h: r.h * v.z } }
+  const BUILD_MS = 1650, SHINE_MS = 700, SPLIT_MS = 900
+  let lastRect = null
   const drawImg = t => {
     const dpr = Math.min(2, devicePixelRatio || 1)
     const W = Math.max(1, Math.round(imc.clientWidth * dpr)), H = Math.max(1, Math.round(imc.clientHeight * dpr))
@@ -395,13 +407,14 @@ void main() {
     const pad = (P.dock ? 4 : 12) * dpr
     // the one before fades as the new one builds
     if (IMG.prev && e < 800) {
-      const r = fit(IMG.prev, W, H, pad)
+      const r = viewed(fit(IMG.prev, W, H, pad), W, H)
       imx.globalAlpha = 1 - ease(Math.min(1, e / 700))
       imx.drawImage(IMG.prev, r.x, r.y, r.w, r.h)
     }
     const im = IMG.cur
-    if (!im) { imx.globalAlpha = 1; return false }
-    const r = fit(im, W, H, pad)
+    if (!im) { imx.globalAlpha = 1; lastRect = null; placeMark(); return false }
+    const r = viewed(fit(im, W, H, pad), W, H)
+    lastRect = { ...r, dpr }
     imx.save()
     imx.beginPath()
     if (imx.roundRect) imx.roundRect(r.x, r.y, r.w, r.h, 8 * dpr); else imx.rect(r.x, r.y, r.w, r.h)
@@ -426,6 +439,7 @@ void main() {
       }
     }
     // done: a soft light runs across it once
+    const built = IMG.anim ? BUILD_MS + SHINE_MS : 350
     if (IMG.anim && e >= BUILD_MS && e < BUILD_MS + SHINE_MS) {
       busy = true
       const p = (e - BUILD_MS) / SHINE_MS, x = r.x - r.w * 0.4 + p * r.w * 1.8
@@ -435,32 +449,104 @@ void main() {
       imx.fillStyle = g; imx.fillRect(r.x, r.y, r.w, r.h)
       imx.globalCompositeOperation = 'source-over'
     }
+    // before | after: the earlier version left of the line, the line glides in once
+    if (IMG.before && e >= built) {
+      if (!IMG.splitAt) IMG.splitAt = t
+      const p = Math.min(1, (t - IMG.splitAt) / SPLIT_MS)
+      if (IMG.split > 0.999 || p < 1) { IMG.split = 1 - 0.5 * ease(p); busy = busy || p < 1 }
+      const sx = r.x + r.w * IMG.split
+      imx.globalAlpha = 1
+      imx.save(); imx.beginPath(); imx.rect(r.x, r.y, sx - r.x, r.h); imx.clip()
+      imx.drawImage(IMG.before, r.x, r.y, r.w, r.h)
+      imx.restore()
+      imx.fillStyle = 'rgba(255,255,255,.9)'; imx.fillRect(sx - dpr, r.y, 2 * dpr, r.h)
+      imx.beginPath(); imx.arc(sx, r.y + r.h / 2, 9 * dpr, 0, Math.PI * 2); imx.fill()
+      imx.fillStyle = 'rgba(0,0,0,.55)'; imx.font = `${600} ${11 * dpr}px system-ui, sans-serif`
+      imx.fillText('‹›', sx - 6 * dpr, r.y + r.h / 2 + 4 * dpr)
+      const tag = (text, x, right) => { const w = imx.measureText(text).width + 12 * dpr; imx.fillStyle = 'rgba(0,0,0,.55)'; imx.fillRect(right ? x - w : x, r.y + 6 * dpr, w, 18 * dpr); imx.fillStyle = '#fff'; imx.fillText(text, (right ? x - w : x) + 6 * dpr, r.y + 19 * dpr) }
+      if (sx - r.x > 60 * dpr) tag('before', r.x + 6 * dpr, false)
+      if (r.x + r.w - sx > 60 * dpr) tag('after', r.x + r.w - 6 * dpr, true)
+    }
     imx.restore()
     imx.globalAlpha = 1
+    placeMark()
     return busy || (IMG.prev && e < 800)
+  }
+  // the ring where a click landed, over the picture as it is zoomed and moved
+  const placeMark = () => {
+    const m = IMG.mark
+    const on = !!(m && lastRect && IMG.item?.id === m.shotId && Number.isFinite(m.x) && P.tab === 'images')
+    markEl.classList.toggle('on', on)
+    capEl.classList.toggle('on', !!(m && IMG.item?.id === m.shotId && m.text && P.tab === 'images'))
+    if (m?.text) setText(capEl, m.text)
+    if (!on) return
+    const r = lastRect
+    markEl.style.transform = `translate(${(r.x + m.x * r.w) / r.dpr}px, ${(r.y + m.y * r.h) / r.dpr}px)`
+    markEl.dataset.kind = m.kind
   }
   const runImg = () => {
     cancelAnimationFrame(IMG.raf)
     const step = t => { IMG.raf = drawImg(t) ? requestAnimationFrame(step) : 0 }
     IMG.raf = requestAnimationFrame(step)
   }
-  const showImg = (item, animate) => {
-    const im = new Image()
-    im.decoding = 'async'
-    im.onload = () => {
-      IMG.prev = IMG.cur; IMG.cur = im; IMG.item = item
-      IMG.start = performance.now(); IMG.anim = animate && !calm(); IMG.jitter = []
-      runImg(); drawMeta()
-    }
-    im.src = `/image?id=${item.id}`
+  const redraw = () => { if (!IMG.raf) drawImg(performance.now()) }
+  const loadImage = src => new Promise(resolve => { const im = new Image(); im.decoding = 'async'; im.onload = () => resolve(im); im.onerror = () => resolve(null); im.src = src })
+  const showImg = async (item, animate) => {
+    const [im, before] = await Promise.all([loadImage(`/image?id=${item.id}`), item.prevId ? loadImage(`/image?id=${item.prevId}`) : null])
+    if (!im || P.cur !== item.id) return
+    IMG.prev = IMG.cur; IMG.cur = im; IMG.item = item; IMG.before = before
+    IMG.split = 1; IMG.splitAt = 0; IMG.view = { z: 1, px: 0, py: 0 }
+    IMG.start = performance.now(); IMG.anim = animate && !calm(); IMG.jitter = []
+    runImg(); drawMeta()
   }
-  const pick = (item, animate) => {
-    P.cur = item.id
+  const pick = (item, animate, mark = null) => {
+    IMG.mark = mark
     for (const t of strip.children) t.classList.toggle('on', Number(t.dataset.id) === item.id)
-    for (const r of list.children) r.classList.toggle('on', r.dataset.id === String(item.id))
-    showImg(item, animate)
+    for (const r of list.children) r.classList.toggle('on', r.dataset.id === String(mark?.id ?? item.id))
+    // (the same picture again, a new mark on it: no new build)
+    if (P.cur === item.id && IMG.item?.id === item.id) { placeMark(); drawMeta(); return }
+    P.cur = item.id
+    void showImg(item, animate)
     drawMeta()
   }
+  // the wheel zooms at the pointer, a drag moves it (or the before|after line), a double click fits it again
+  const toCanvas = e => { const b = imc.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1); return { x: (e.clientX - b.left) * dpr, y: (e.clientY - b.top) * dpr, dpr } }
+  imc.addEventListener('wheel', e => {
+    if (!IMG.cur) return
+    e.preventDefault()
+    const m = toCanvas(e), W = imc.width, H = imc.height, v = IMG.view
+    const z2 = Math.max(1, Math.min(12, v.z * Math.exp(-e.deltaY * 0.0015)))
+    const bx = W / 2 + (m.x - W / 2 - v.px) / v.z, by = H / 2 + (m.y - H / 2 - v.py) / v.z
+    IMG.view = z2 === 1 ? { z: 1, px: 0, py: 0 } : { z: z2, px: m.x - W / 2 - (bx - W / 2) * z2, py: m.y - H / 2 - (by - H / 2) * z2 }
+    redraw()
+  }, { passive: false })
+  imc.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || !IMG.cur) return
+    const m0 = toCanvas(e)
+    const r = lastRect
+    const onLine = IMG.before && r && Math.abs(m0.x - (r.x + r.w * IMG.split)) < 14 * m0.dpr && m0.y > r.y && m0.y < r.y + r.h
+    imc.setPointerCapture(e.pointerId)
+    imc.classList.add(onLine ? 'splitting' : 'panning')
+    let last = m0
+    const move = ev => {
+      const m = toCanvas(ev)
+      if (onLine) { IMG.split = Math.max(0, Math.min(1, (m.x - r.x) / r.w)); IMG.splitAt = 1 }
+      else { IMG.view = { ...IMG.view, px: IMG.view.px + m.x - last.x, py: IMG.view.py + m.y - last.y } }
+      last = m
+      redraw()
+    }
+    const up = () => { imc.classList.remove('splitting', 'panning'); imc.removeEventListener('pointermove', move) }
+    imc.addEventListener('pointermove', move)
+    imc.addEventListener('pointerup', up, { once: true })
+    imc.addEventListener('pointercancel', up, { once: true })
+  })
+  imc.addEventListener('pointermove', e => {
+    if (imc.classList.contains('panning') || imc.classList.contains('splitting')) return
+    const m = toCanvas(e), r = lastRect
+    imc.classList.toggle('on-line', !!(IMG.before && r && Math.abs(m.x - (r.x + r.w * IMG.split)) < 14 * m.dpr && m.y > r.y && m.y < r.y + r.h))
+  })
+  imc.addEventListener('dblclick', () => { IMG.view = { z: 1, px: 0, py: 0 }; redraw() })
+
   const addThumb = item => {
     const t = new Image()
     t.src = `/image?id=${item.id}`; t.alt = item.name; t.title = `${item.name} · ${HOW[item.how] ?? ''}`
@@ -473,42 +559,98 @@ void main() {
     strip.scrollTo({ left: strip.scrollWidth, behavior: calm() ? 'auto' : 'smooth' })
   }
 
-  // ── the list: everything seen, newest on top ──
-  // A row: what kind (icon), its name, what it was and when; an image's own
-  // thumbnail (a click shows it above), a page's link (a click opens it).
+  // ── the list: everything seen, newest on top, under the prompt it was for ──
+  // A row: what kind (icon), its name, what it was for (or what it was) and
+  // when; an image's own thumbnail (a click shows it above), a browser step's
+  // shot with where it clicked, a page's link (a click opens it), a command in
+  // the background with its state and newest line. The chat shown only.
+  const STEP = new Set(['click', 'type', 'key', 'scroll'])
+  const iconOf = item => (item.how === 'bg' ? (item.status === 'running' ? '<i class="pv-spin"></i>' : item.status === 'failed' ? '✗' : item.status === 'done' ? '✓' : '⚙️') : ICON[item.how] ?? '•')
+  const subOf = item => {
+    if (item.how === 'bg') return item.status === 'running' ? (item.lines?.at(-1) ?? 'running…') : item.summary || item.status
+    if (item.how === 'file' || item.how === 'download') return `${kiloBytes(item.size)} · ${item.dir ?? ''}`
+    if (item.why) return item.why
+    if (item.how === 'search') return 'web search'
+    if (item.url) return item.url.replace(/^https?:\/\//, '')
+    return HOW[item.how] ?? item.how
+  }
+  const kiloBytes = n => (!n ? '' : n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
+  const nameOf = item => (item.how === 'search' ? `“${item.name}”` : item.how === 'browser' ? 'Browser screenshot' : item.prevId ? `${item.name} (new version)` : item.name)
   const rowOf = item => {
     const li = document.createElement('li')
-    li.className = 'pv-row' + (item.img ? ' has-img' : '')
+    li.className = 'pv-row'
     li.dataset.id = String(item.id)
-    const sub = item.how === 'search' ? 'web search' : item.url ? item.url.replace(/^https?:\/\//, '') : HOW[item.how] ?? item.how
-    li.innerHTML = `<span class="ic">${ICON[item.how] ?? '•'}</span><span class="tx"><b></b><span></span></span>${item.img ? `<img alt="" loading="lazy" src="/image?id=${item.id}">` : `<span class="ago num" data-since="${item.at}"></span>`}`
-    li.querySelector('b').textContent = item.how === 'search' ? `“${item.name}”` : item.how === 'browser' ? 'Browser screenshot' : item.name
-    li.querySelector('.tx span').textContent = item.img ? `${HOW[item.how] ?? item.how} · ` : sub
-    if (item.img) { const ago = document.createElement('span'); ago.className = 'num'; ago.dataset.since = item.at; li.querySelector('.tx span').append(ago) }
-    li.title = item.url || item.name
-    li.addEventListener('click', () => {
-      if (item.img) { P.userTabAt = Date.now(); setTab('images', true); pick(item, true) }
-      else if (item.how === 'blender') setTab('model', true)
-      else if (item.url && /^https?:/.test(item.url)) open(item.url, '_blank', 'noopener')
-      else if (item.how === 'search') open(`https://www.bing.com/search?q=${encodeURIComponent(item.name)}`, '_blank', 'noopener')
-    })
+    li.innerHTML = `<span class="ic"></span><span class="tx"><b></b><span></span></span><span class="end"></span>`
+    li.addEventListener('click', () => onRow(P.items.find(x => String(x.id) === li.dataset.id)))
+    fillRow(li, item)
     return li
   }
-  const addRow = (item, quiet) => {
-    const li = rowOf(item)
-    li.hidden = true
-    list.prepend(li)
-    reveal(li, true)
-    if (quiet) li.getAnimations?.().forEach(a => a.finish())
-    while (list.children.length > 60) list.lastElementChild.remove()
+  const fillRow = (li, item) => {
+    const ic = li.querySelector('.ic'), html = iconOf(item)
+    if (ic.innerHTML !== html) ic.innerHTML = html
+    setText(li.querySelector('b'), nameOf(item))
+    setText(li.querySelector('.tx span'), subOf(item))
+    li.title = [nameOf(item), item.why, item.url, item.command, ...(item.lines ?? [])].filter(Boolean).join('\n')
+    li.classList.toggle('bg-run', item.how === 'bg' && item.status === 'running')
+    const end = li.querySelector('.end')
+    if (item.img && !end.querySelector('img')) end.innerHTML = `<img alt="" loading="lazy" src="/image?id=${item.id}">`
+    else if (!item.img && !end.dataset.since) { end.className = 'end ago num'; end.dataset.since = item.at }
+  }
+  const onRow = item => {
+    if (!item) return
+    P.userTabAt = Date.now()
+    if (item.img) { setTab('images', true); pick(item, true) }
+    else if (STEP.has(item.how) && item.shotId) showStep(item, false)
+    else if (item.how === 'blender') setTab('model', true)
+    else if (item.url && /^https?:/.test(item.url)) open(item.url, '_blank', 'noopener')
+    else if (item.how === 'search') open(`https://www.bing.com/search?q=${encodeURIComponent(item.name)}`, '_blank', 'noopener')
+  }
+  // a step in the browser: its shot above, with where it landed
+  const showStep = (item, animate) => {
+    const shot = P.images.find(x => x.id === item.shotId)
+    if (!shot) return
+    setTab('images', !animate)
+    pick(shot, animate && P.cur !== shot.id, { id: item.id, shotId: shot.id, x: item.x, y: item.y, kind: item.how, text: item.how === 'type' ? `⌨ ${item.typed ?? item.name}` : item.how === 'key' ? `⌨ ${item.name}` : '' })
+  }
+  // The rows, drawn from the items: the same row kept for the same item (no
+  // flicker), a new one folding in; a heading for each prompt.
+  const shownHere = item => S.selected === 'all' || !item.sid || item.sid === S.view
+  let listView = null
+  const renderList = (fresh = new Set()) => {
+    listView = S.view
+    const items = P.items.filter(shownHere).slice().sort((a, b) => b.at - a.at)
+    const want = []
+    let lastPrompt = undefined
+    for (const it of items) {
+      const p = it.prompt?.at ?? 0
+      if (p !== lastPrompt) { want.push({ head: true, key: `h${p}`, text: it.prompt?.text ?? '' }); lastPrompt = p }
+      want.push({ key: String(it.id), item: it })
+    }
+    const have = new Map([...list.children].map(li => [li.dataset.id ?? li.dataset.head, li]))
+    for (const li of have.values()) if (!want.some(w => w.key === (li.dataset.id ?? li.dataset.head))) { li.remove(); have.delete(li.dataset.id ?? li.dataset.head) }
+    let ref = list.firstElementChild
+    for (const w of want) {
+      let li = have.get(w.key)
+      const isNew = !li
+      if (li) { if (!w.head) fillRow(li, w.item) }
+      else if (w.head) {
+        li = document.createElement('li'); li.className = 'pv-group'; li.dataset.head = w.key
+        li.textContent = w.text ? `› ${w.text}` : '› earlier'
+      } else li = rowOf(w.item)
+      if (li === ref) ref = ref.nextElementSibling
+      else list.insertBefore(li, ref)
+      // (what just happened folds in; what was there already is simply there)
+      if (isNew && (fresh.has(w.key) || (w.head && fresh.size))) { li.hidden = true; reveal(li, true) }
+    }
   }
   // one row for each Blender run, kept up to date (its file, parts, step)
   const blenderRow = i => {
     const id = `blender-${i.pid}`
-    const text = `${i.blend || 'Blender'} · ${i.objects} parts`
-    const known = list.querySelector(`[data-id="${id}"]`)
-    if (known) { setText(known.querySelector('b'), text); setText(known.querySelector('.tx span'), i.running ? `building · step ${i.seq}` : 'done'); return }
-    addRow({ id, how: 'blender', name: text, url: '', at: i.at, img: false })
+    const known = P.items.find(x => x.id === id)
+    const patch = { name: `${i.blend || 'Blender'} · ${i.objects} parts`, why: i.running ? `building · step ${i.seq}` : 'done' }
+    if (known) { Object.assign(known, patch); renderList(); return }
+    P.items.push({ id, how: 'blender', at: i.at, img: false, sid: null, prompt: null, ...patch })
+    renderList(new Set([id]))
   }
 
   // ── what the server tells ──
@@ -516,25 +658,32 @@ void main() {
   window.onImage = (image, quiet) => {
     if (!image?.id) return
     const known = P.items.find(x => x.id === image.id)
-    if (known) { Object.assign(known, image); drawMeta(); return }
+    if (known) { Object.assign(known, image); renderList(); drawMeta(); return }
     P.items.push(image)
-    if (P.items.length > 60) P.items.shift()
-    addRow(image, quiet)
-    // (a web search, a page: in the list only)
-    if (!image.img) { if (!quiet) activity(); return }
-    P.images.push(image)
-    if (P.images.length > 40) P.images.shift()
-    addThumb(image)
-    if (quiet) { if (!P.cur) pick(image, false); drawMeta(); return }
-    P.imageAt = Date.now()
+    if (P.items.length > 80) P.items.shift()
+    renderList(quiet ? new Set() : new Set([String(image.id)]))
+    if (image.img) {
+      P.images.push(image)
+      if (P.images.length > 40) P.images.shift()
+      addThumb(image)
+    }
+    if (quiet) { if (image.img && !P.cur) pick(image, false); drawMeta(); return }
+    if (!shownHere(image)) return
     activity()
-    // (unless the person just picked the model to watch)
-    if (P.tab !== 'images' && Date.now() - P.userTabAt > 15_000) setTab('images')
-    pick(image, true)
+    // a step in the browser: shown on its shot (unless the person looks at something else)
+    if (STEP.has(image.how) && image.shotId) { if (Date.now() - P.userTabAt > 8000) showStep(image, true); return }
+    // (a web search, a page, a command, a file: in the list only)
+    if (!image.img) return
+    P.imageAt = Date.now()
+    // (unless the person just picked something to watch)
+    if (Date.now() - P.userTabAt > 8000) {
+      if (P.tab !== 'images') setTab('images')
+      pick(image, true)
+    }
   }
   window.onImages = list => {
     P.ready = true
-    for (const image of list ?? []) window.onImage(image, Date.now() - (image.at ?? 0) > 20_000)
+    for (const image of (list ?? []).slice().sort((a, b) => a.at - b.at)) window.onImage(image, Date.now() - (image.at ?? 0) > 20_000)
   }
 
   const post = mode => fetch('/blender', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ mode }) }).catch(() => {})
@@ -567,6 +716,8 @@ void main() {
 
   // each tick of the page (drawNow): the time words, and away when all is calm
   window.drawBlender = () => {
+    // (another chat shown: its list)
+    if (listView !== S.view) renderList()
     if (!visible()) return
     drawMeta()
     if (!P.dock && !P.pinned && !P.hover && !working() && Date.now() - P.activity > HIDE_AFTER_MS) hide()

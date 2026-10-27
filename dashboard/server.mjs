@@ -19,7 +19,7 @@ import { hueAlarm, hueAsks, hueBuild, hueConfig, hueDone, huePair, hueRooms, pai
 import { ensureWebView2, hasWebView2 } from './webview2.mjs'
 import { deploysFor, followDeploys, pokeDeploys } from './deploys.mjs'
 import { blenderMesh, blenderState, initBlender, setBlenderMode, spotBlender } from './blender.mjs'
-import { imageFile, imagesState, initImages, isImage, showImage, visualsIn, watchImageDirs } from './images.mjs'
+import { imageData, imagesState, initImages, isImage, setDoing, showImage, visualsIn, watchImageDirs } from './images.mjs'
 
 const PUSHED = /git(?:\.exe)?\s+push|gh(?:\.exe)?\s+pr\s+merge/
 
@@ -198,7 +198,8 @@ const send = (res, msg) => res.write(`data: ${JSON.stringify(msg)}\n\n`)
 const broadcast = msg => {
   for (const res of clients) send(res, msg)
 }
-initImages({ broadcast })
+// (the prompt a chat works on, for what it makes: the newest the transcript holds)
+initImages({ broadcast, prompt: sid => prompts.get(sid)?.at(-1) ?? null })
 initBlender({ home: HOME, broadcast })
 
 // ── the pages reload themselves when their files change ──
@@ -744,7 +745,10 @@ const ingest = (sid, feed) => {
   // a command that runs Blender: its live view can be offered (blender.mjs)
   const cur = feed.current
   if (cur?.action === 'running' && !cur.isDone) {
-    spotBlender(`${cur.detail ?? ''}\n${(cur.rows ?? []).slice(0, 20).map(r => r.text).join('\n')}`)
+    const command = (cur.rows ?? []).slice(0, 20).map(r => r.text).join('\n')
+    spotBlender(`${cur.detail ?? ''}\n${command}`)
+    // (what it is for, for the files it makes meanwhile: images.mjs)
+    setDoing(sid, cur.detail ?? '', command)
     noteDirs({ ...cur, sid })
   }
   // the images made where it works show in the preview window (images.mjs)
@@ -1371,11 +1375,14 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' }).end(data)
     })
   } else if (url.pathname === '/image') {
-    // only an image the preview window was told about (its id), never any other file
-    const file = imageFile(Number(url.searchParams.get('id')))
-    if (!file) { res.writeHead(404).end(); return }
-    const ext = path.extname(file).slice(1).toLowerCase()
-    sendFile(res, file, ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`)
+    // only an image the Visual card was told about (its id), never any other file;
+    // as it was then (its kept bytes: a later version does not replace it)
+    const img = imageData(Number(url.searchParams.get('id')))
+    if (!img) { res.writeHead(404).end(); return }
+    const ext = path.extname(img.file).slice(1).toLowerCase()
+    const type = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`
+    if (img.data) res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' }).end(img.data)
+    else sendFile(res, img.file, type)
   } else if (url.pathname === '/custom.css' || url.pathname === '/custom.js') {
     // the person's own touches, kept outside the mod (~/.claude/live-code-custom):
     // an update never overwrites them; none there, an empty file

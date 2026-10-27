@@ -92,9 +92,14 @@ When a chat works in a GitHub repository whose site is built by Cloudflare (Work
 
 The **Visual** card sits beside the live view, below *Current turn*; the live feed has moved below the live view. On top is a stage, and below it a list of everything, newest first:
 - web searches, pages read and pages the browser opened (a click opens them);
+- each step in the browser: a click shows on the screenshot before it as a pulsing ring, and what was typed shows below;
 - the browser's screenshots;
-- images Claude looked at, made or sent to you;
+- images Claude looked at, made or sent to you. An image written anew shows *before | after*, split by a line you can drag;
+- files made (packages, exports, documents) and downloads, with size and folder;
+- commands running in the background, with their newest output lines and then ✓ or ✗;
 - Blender runs.
+
+The list is grouped under the prompt it was for, and each entry says in a few words what it is for. Images zoom with the wheel and move by dragging; a double click fits them again.
 
 Pop it out with ⧉ and it becomes a window that floats over the dashboard and comes by itself. Drag it by its head and size it at its corner. 📌 keeps it open, and ⧉ puts it back.
 - **Images:** an image written where a chat works (a render, a texture a script painted, a screenshot), one sent to you or looked at, or a browser shot builds up on the stage tile by tile.
@@ -268,9 +273,14 @@ Arbeitet ein Chat in einem GitHub-Repo, dessen Seite Cloudflare (Workers oder Pa
 
 Die Karte **Visual** sitzt neben der Live-Ansicht, unter *Current turn*; der Live feed steht jetzt unter der Live-Ansicht. Oben ist eine Bühne, darunter eine Liste mit allem, das Neuste zuoberst:
 - Websuchen, gelesene Seiten und Seiten, die der Browser geöffnet hat (ein Klick öffnet sie);
+- jeder Schritt im Browser: Ein Klick erscheint als pulsierender Ring auf dem Screenshot davor, Getipptes steht darunter;
 - Screenshots des Browsers;
-- Bilder, die Claude angeschaut, erstellt oder dir gesendet hat;
+- Bilder, die Claude angeschaut, erstellt oder dir gesendet hat. Wird ein Bild neu geschrieben, zeigt es *before | after*, getrennt durch eine Linie zum Ziehen;
+- erzeugte Dateien (Pakete, Exporte, Dokumente) und Downloads, mit Grösse und Ordner;
+- Befehle im Hintergrund, mit ihren neusten Ausgabezeilen und danach ✓ oder ✗;
 - Blender-Läufe.
+
+Die Liste ist nach dem Prompt gegliedert, zu dem etwas gehört, und jeder Eintrag sagt in wenigen Worten, wozu er dient. Bilder zoomst du mit dem Mausrad und verschiebst sie durch Ziehen; ein Doppelklick setzt sie zurück.
 
 Mit ⧉ löst du sie heraus. Dann wird sie zu einem Fenster, das über dem Dashboard schwebt und von selbst kommt. Du verschiebst es am Kopf und änderst die Grösse an der Ecke. 📌 hält es offen, ⧉ setzt es zurück.
 - **Bilder:** Ein Bild, das dort entsteht, wo ein Chat arbeitet (ein Render, eine von einem Skript gemalte Textur, ein Screenshot), ein gesendetes oder angeschautes Bild oder ein Browser-Screenshot setzt sich auf der Bühne Kachel für Kachel zusammen.
