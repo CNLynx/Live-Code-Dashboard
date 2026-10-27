@@ -12,6 +12,7 @@ import atexit
 import json
 import os
 import struct
+import sys
 import time
 
 import bpy
@@ -24,7 +25,7 @@ except ImportError:  # (every Blender since 2.8 has it)
 
 _home = os.environ.get("LIVE_CODE_HOME") or os.path.join(os.path.expanduser("~"), ".claude")
 OUT = os.path.join(_home, "live-code-blender")
-EVERY = 1.0  # seconds between two snapshots, at least
+EVERY = 0.25  # seconds between two snapshots, at least
 MAX_TRIS = 400_000  # a bigger scene is cut there
 MAX_RENDERS = 12
 KINDS = {"MESH", "CURVE", "SURFACE", "FONT", "META"}
@@ -152,9 +153,15 @@ def _snapshot(depsgraph=None):
                 tris += nt
             finally:
                 ev.to_mesh_clear()
+        data = b"LCB1" + struct.pack("<I", len(blocks)) + b"".join(blocks)
+        # (nothing changed since the last one: nothing written)
+        sig = hash(data)
+        if sig == _st.get("sig"):
+            return
+        _st["sig"] = sig
         _st["seq"] += 1
         _st["objects"], _st["tris"], _st["cut"] = objects, tris, cut
-        if _write("mesh.bin", b"LCB1" + struct.pack("<I", len(blocks)) + b"".join(blocks)):
+        if _write("mesh.bin", data):
             _info()
     except Exception as e:  # never in the way of the work itself
         print("live-code: no snapshot (%s)" % e)
@@ -218,8 +225,52 @@ def _saved(*_):
         _snapshot()
 
 
+# A script that builds through the data (bpy.data, bmesh, from_pydata) gives
+# Blender no reason to look at the scene until it saves. So a little clock
+# thread asks every STEP_EVERY seconds for a step, and Python takes it in its
+# main thread at the next moment it runs Python code (Py_AddPendingCall, the way
+# it handles signals): every step of a script shows, at no cost in between. A
+# big scene is looked at less often (_due), so the work is never slowed much.
+STEP_EVERY = 0.25
+_tick = {"stop": False, "asked": False, "cb": None}
+
+
+def _step(_arg):
+    _tick["asked"] = False
+    try:
+        if _on() and _due():
+            _snapshot()
+    except BaseException:  # (never an exception into the script)
+        pass
+    return 0
+
+
+def _clock():
+    import ctypes
+    import threading
+
+    add = ctypes.pythonapi.Py_AddPendingCall
+    add.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    add.restype = ctypes.c_int
+    _tick["cb"] = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)(_step)
+    ptr = ctypes.cast(_tick["cb"], ctypes.c_void_p)
+
+    def run():
+        while not _tick["stop"]:
+            time.sleep(STEP_EVERY)
+            if _tick["stop"] or sys.is_finalizing():
+                break
+            # (one at a time: while Blender sits in its own C code, they do not pile up)
+            if not _tick["asked"] and not _st["busy"] and _due():
+                _tick["asked"] = True
+                add(ptr, None)
+
+    threading.Thread(target=run, name="live-code-blender", daemon=True).start()
+
+
 def _bye():
     # (bpy is gone by now: only the note that this Blender has ended)
+    _tick["stop"] = True
     try:
         if _on():
             path = os.path.join(OUT, "info.json")
@@ -248,6 +299,12 @@ def register():
         if fn not in lst:
             lst.append(fn)
     atexit.register(_bye)
+    # (Blender with its window: its operators and the handlers above see each change)
+    if _on() and bpy.app.background:
+        try:
+            _clock()
+        except Exception as e:
+            print("live-code: no step clock (%s)" % e)
 
 
 def unregister():
@@ -255,3 +312,4 @@ def unregister():
         lst = getattr(bpy.app.handlers, name)
         if fn in lst:
             lst.remove(fn)
+    _tick["stop"] = True

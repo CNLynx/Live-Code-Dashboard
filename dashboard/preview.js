@@ -24,8 +24,10 @@
     return { w, h, x: Math.max(8, Math.min(b.x, innerWidth - w - 8)), y: Math.max(8, Math.min(b.y, innerHeight - h - 8)) }
   }
   const place = () => { pv.style.left = `${box.x}px`; pv.style.top = `${box.y}px`; pv.style.width = `${box.w}px`; pv.style.height = `${box.h}px` }
-  const saveBox = () => store.set(BOX_KEY, JSON.stringify(box))
-  addEventListener('resize', () => { if (box && P.open) { box = clampBox(box); place() } })
+  // (until the person moves or sizes it, it sits bottom right, wherever that is now)
+  let boxIsOwn = !!box
+  const saveBox = () => { boxIsOwn = true; store.set(BOX_KEY, JSON.stringify(box)) }
+  addEventListener('resize', () => { if (P.open) { box = clampBox(boxIsOwn && box ? box : defaultBox()); place() } })
 
   // dragged by its head (not by its buttons)
   head.addEventListener('pointerdown', e => {
@@ -59,7 +61,7 @@
   const show = () => {
     if (store.get('lc.preview') === 'off' || P.open) return
     P.open = true
-    box = clampBox(box ?? defaultBox())
+    box = clampBox(boxIsOwn && box ? box : defaultBox())
     place()
     pv.hidden = false
     requestAnimationFrame(() => requestAnimationFrame(() => pv.classList.add('shown')))
@@ -100,7 +102,9 @@
     pv.classList.toggle('empty', !P.hasMesh)
     if (P.tab === 'model' && i) {
       setText(title, i.blend ? i.blend : 'Blender')
-      setText(meta, [`Blender ${i.version}`.trim(), `${i.objects} objects`, `${kilo(i.tris)} triangles${i.cut ? ' (cut)' : ''}`, working() ? 'working…' : 'done', `${dur(Date.now() - i.at)} ago`].join(' · '))
+      // what the last step brought, while it is new
+      const added = P.added?.length && Date.now() - P.addedAt < 6000 ? (P.added.length === 1 ? `+ ${P.added[0]}` : `+ ${P.added.length} parts (${P.added.at(-1)})`) : ''
+      setText(meta, [added, `${i.objects} objects`, `${kilo(i.tris)} triangles${i.cut ? ' (cut)' : ''}`, working() ? `working… step ${i.seq}` : 'done', `${dur(Date.now() - i.at)} ago`, added ? '' : `Blender ${i.version}`.trim()].filter(Boolean).join(' · '))
     } else if (P.tab === 'images') {
       const it = P.images.find(x => x.id === P.cur)
       setText(title, it ? it.name : 'Images')
@@ -116,8 +120,11 @@
     const n = dv.getUint32(off, true); off += 4
     const objs = []
     let nv = 0, ni = 0
+    const dec = new TextDecoder()
     for (let i = 0; i < n; i++) {
-      off += 2 + dv.getUint16(off, true)
+      const nl = dv.getUint16(off, true)
+      const name = dec.decode(new Uint8Array(buf, off + 2, nl)).replace(/\0+$/, '')
+      off += 2 + nl
       const v = dv.getUint32(off, true); off += 4
       const pos = new Float32Array(buf, off, v * 3); off += v * 12
       const np = dv.getUint32(off, true); off += 4
@@ -128,22 +135,30 @@
         parts.push({ col, idx: new Uint32Array(buf, off, k) }); off += k * 4
         ni += k
       }
-      objs.push({ pos, parts }); nv += v
+      objs.push({ name, pos, parts }); nv += v
     }
-    const pos = new Float32Array(nv * 3), idx = new Uint32Array(ni), draws = []
+    const pos = new Float32Array(nv * 3), idx = new Uint32Array(ni), draws = [], objects = []
     const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity]
     let vb = 0, ib = 0
     for (const o of objs) {
       pos.set(o.pos, vb * 3)
+      // its middle (it grows from there) and a fingerprint (to see it changed)
+      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]
+      for (let i = 0; i < o.pos.length; i += 3) for (let a = 0; a < 3; a++) { const x = o.pos[i + a]; if (x < lo[a]) lo[a] = x; if (x > hi[a]) hi[a] = x }
+      let sig = `${o.pos.length}:${o.parts.length}:${lo.join(',')}:${hi.join(',')}`
+      for (let s = 0, step = Math.max(3, Math.floor(o.pos.length / 48) * 3); s < o.pos.length; s += step) sig += `:${o.pos[s].toFixed(4)}`
+      const obj = { name: o.name, center: lo.map((x, a) => (x + hi[a]) / 2), sig, draws: [] }
       for (const part of o.parts) {
         for (let j = 0; j < part.idx.length; j++) idx[ib + j] = part.idx[j] + vb
-        draws.push({ col: part.col, first: ib, count: part.idx.length })
+        obj.draws.push({ col: part.col, first: ib, count: part.idx.length })
+        draws.push(obj.draws.at(-1))
         ib += part.idx.length
       }
+      objects.push(obj)
       vb += o.pos.length / 3
     }
     for (let i = 0; i < pos.length; i += 3) for (let a = 0; a < 3; a++) { const x = pos[i + a]; if (x < min[a]) min[a] = x; if (x > max[a]) max[a] = x }
-    return { pos, idx, draws, min, max, empty: draws.length === 0 }
+    return { pos, idx, draws, objects, min, max, empty: draws.length === 0 }
   }
 
   const GL = (() => {
@@ -152,11 +167,11 @@
     const shader = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s }
     const prog = gl.createProgram()
     gl.attachShader(prog, shader(gl.VERTEX_SHADER, `#version 300 es
-in vec3 p; uniform mat4 mvp; out vec3 wp;
-void main() { wp = p; gl_Position = mvp * vec4(p, 1.0); }`))
+in vec3 p; uniform mat4 mvp; uniform vec3 ctr; uniform float grow; out vec3 wp;
+void main() { wp = ctr + (p - ctr) * grow; gl_Position = mvp * vec4(wp, 1.0); }`))
     gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, `#version 300 es
 precision highp float;
-in vec3 wp; uniform vec3 col; uniform vec3 eye; uniform float lines; uniform float alpha; out vec4 o;
+in vec3 wp; uniform vec3 col; uniform vec3 eye; uniform float lines; uniform float alpha; uniform float glow; out vec4 o;
 void main() {
   if (lines > 0.5) { o = vec4(col * alpha, alpha); return; }
   vec3 n = normalize(cross(dFdx(wp), dFdy(wp)));
@@ -164,11 +179,13 @@ void main() {
   if (dot(n, v) < 0.0) n = -n;
   float d = 0.30 + 0.56 * max(dot(n, normalize(vec3(0.45, -0.55, 0.75))), 0.0) + 0.16 * max(dot(n, normalize(vec3(-0.6, 0.5, 0.35))), 0.0) + 0.10 * (n.z * 0.5 + 0.5);
   float rim = pow(1.0 - max(dot(n, v), 0.0), 3.0) * 0.16;
-  o = vec4((col * d + rim) * alpha, alpha);
+  // (a part just added or changed glows warm for a moment)
+  vec3 c = mix(col * d + rim, vec3(1.0, 0.62, 0.32), glow * 0.55) + glow * 0.12;
+  o = vec4(c * alpha, alpha);
 }`))
     gl.bindAttribLocation(prog, 0, 'p')
     gl.linkProgram(prog)
-    const U = Object.fromEntries(['mvp', 'col', 'eye', 'lines', 'alpha'].map(k => [k, gl.getUniformLocation(prog, k)]))
+    const U = Object.fromEntries(['mvp', 'col', 'eye', 'lines', 'alpha', 'ctr', 'grow', 'glow'].map(k => [k, gl.getUniformLocation(prog, k)]))
     const vao = gl.createVertexArray(), vbo = gl.createBuffer(), ibo = gl.createBuffer()
     gl.bindVertexArray(vao)
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0)
@@ -178,13 +195,30 @@ void main() {
     gl.bindBuffer(gl.ARRAY_BUFFER, gvbo); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0)
     gl.bindVertexArray(null)
     let mesh = null, gridN = 0, bornAt = 0
+    // each part's moment: when it came (it grows in then), when it last changed (it glows)
+    const parts = new Map() // name -> { sig, born, changed }
+    const GROW_MS = 560, GLOW_MS = 1100
 
     const cam = { yaw: -0.9, pitch: 0.42, zoom: 1, t: [0, 0, 0], r: 1, goalT: [0, 0, 0], goalR: 1, userAt: 0 }
-    const set = m => {
-      if (!m) return
+    // live: a step Blender just took (what is new grows in, one part after the
+    // other); otherwise (the page just opened) it is simply there
+    const set = (m, live) => {
+      if (!m) return []
       const first = !mesh || mesh.empty
       mesh = m
-      if (m.empty) return
+      const t = performance.now(), added = []
+      const fresh = m.objects.filter(o => !parts.has(o.name))
+      const gap = Math.min(150, 1600 / Math.max(1, fresh.length))
+      for (const o of m.objects) {
+        const was = parts.get(o.name)
+        if (!was) {
+          parts.set(o.name, { sig: o.sig, born: live && !calm() ? t + added.length * gap : 0, changed: 0 })
+          added.push(o.name)
+        } else if (was.sig !== o.sig) { was.sig = o.sig; if (live) was.changed = t }
+      }
+      const names = new Set(m.objects.map(o => o.name))
+      for (const name of parts.keys()) if (!names.has(name)) parts.delete(name)
+      if (m.empty) return added
       gl.bindVertexArray(vao)
       gl.bindBuffer(gl.ARRAY_BUFFER, vbo); gl.bufferData(gl.ARRAY_BUFFER, m.pos, gl.STATIC_DRAW)
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.idx, gl.STATIC_DRAW)
@@ -202,7 +236,9 @@ void main() {
       }
       gl.bindBuffer(gl.ARRAY_BUFFER, gvbo); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.STATIC_DRAW)
       gridN = lines.length / 3
+      return added
     }
+    const backOut = x => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * (x - 1) ** 3 + c1 * (x - 1) ** 2 }
 
     const mul = (a, b) => { const o = new Float32Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3]; return o }
     const persp = (fy, asp, n, f) => { const t = 1 / Math.tan(fy / 2); return new Float32Array([t / asp, 0, 0, 0, 0, t, 0, 0, 0, 0, (f + n) / (n - f), -1, 0, 0, 2 * f * n / (n - f), 0]) }
@@ -237,10 +273,23 @@ void main() {
       // the grid first, faint (it takes its colour from the page)
       const ink = getComputedStyle(pv).color.match(/\d+(\.\d+)?/g)?.map(Number) ?? [128, 128, 128]
       gl.uniform1f(U.lines, 1); gl.uniform3f(U.col, ink[0] / 255, ink[1] / 255, ink[2] / 255); gl.uniform1f(U.alpha, 0.10 * alpha)
+      gl.uniform1f(U.grow, 1); gl.uniform1f(U.glow, 0); gl.uniform3f(U.ctr, 0, 0, 0)
       gl.bindVertexArray(gvao); gl.drawArrays(gl.LINES, 0, gridN)
       gl.uniform1f(U.lines, 0); gl.uniform1f(U.alpha, alpha)
       gl.bindVertexArray(vao)
-      for (const d of mesh.draws) { gl.uniform3fv(U.col, d.col); gl.drawElements(gl.TRIANGLES, d.count, gl.UNSIGNED_INT, d.first * 4) }
+      for (const o of mesh.objects) {
+        const st = parts.get(o.name)
+        let grow = 1, glow = 0
+        if (st?.born) {
+          const a = (t - st.born) / GROW_MS
+          if (a <= 0) continue // (its turn is still to come)
+          if (a < 1) grow = Math.max(0.001, backOut(a))
+          glow = Math.max(0, 1 - (t - st.born) / GLOW_MS)
+        }
+        if (st?.changed) glow = Math.max(glow, 1 - (t - st.changed) / GLOW_MS)
+        gl.uniform3fv(U.ctr, o.center); gl.uniform1f(U.grow, grow); gl.uniform1f(U.glow, glow)
+        for (const d of o.draws) { gl.uniform3fv(U.col, d.col); gl.drawElements(gl.TRIANGLES, d.count, gl.UNSIGNED_INT, d.first * 4) }
+      }
       gl.bindVertexArray(null)
     }
 
@@ -271,16 +320,24 @@ void main() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden && P.open) loopGl() })
 
   let meshBusy = false, meshAgain = false
-  const loadMesh = async () => {
+  const loadMesh = async live => {
     if (meshBusy) { meshAgain = true; return }
     meshBusy = true
     try {
       const r = await fetch('/blender/mesh', { cache: 'no-store' })
-      if (r.ok) { const m = parseMesh(await r.arrayBuffer()); if (m) { GL?.set(m); P.hasMesh = !m.empty } }
+      if (r.ok) {
+        const m = parseMesh(await r.arrayBuffer())
+        if (m) {
+          const added = GL?.set(m, live) ?? []
+          P.hasMesh = !m.empty
+          // what this step brought, for the line below the model
+          if (live && added.length) { P.added = added; P.addedAt = Date.now() }
+        }
+      }
     } catch {}
     meshBusy = false
     drawMeta()
-    if (meshAgain) { meshAgain = false; void loadMesh() }
+    if (meshAgain) { meshAgain = false; void loadMesh(true) }
   }
 
   // ── images: built up tile by tile ──
@@ -413,7 +470,7 @@ void main() {
     const i = info()
     if (i && (!was || i.meshAt !== was.meshAt || i.seq !== was.seq)) {
       const fresh = Date.now() - i.at < 20_000
-      void loadMesh()
+      void loadMesh(fresh && !!was)
       if (fresh && was) {
         activity()
         if (P.tab !== 'model' && Date.now() - P.imageAt > 8000 && Date.now() - P.userTabAt > 15_000) setTab('model')
