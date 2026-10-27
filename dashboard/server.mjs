@@ -19,7 +19,7 @@ import { hueAlarm, hueAsks, hueBuild, hueConfig, hueDone, huePair, hueRooms, pai
 import { ensureWebView2, hasWebView2 } from './webview2.mjs'
 import { deploysFor, followDeploys, pokeDeploys } from './deploys.mjs'
 import { blenderMesh, blenderState, initBlender, setBlenderMode, spotBlender } from './blender.mjs'
-import { imageFile, imagesState, initImages, sentImagesIn, watchImageDirs } from './images.mjs'
+import { imageFile, imagesState, initImages, isImage, showImage, visualsIn, watchImageDirs } from './images.mjs'
 
 const PUSHED = /git(?:\.exe)?\s+push|gh(?:\.exe)?\s+pr\s+merge/
 
@@ -251,8 +251,10 @@ const lastTitleIn = text => {
   try { return JSON.parse(`"${found}"`) } catch { return found }
 }
 
+const transcriptsMissing = new Map() // sid -> when last looked for in vain
 const transcriptOf = sid => {
   if (transcripts.has(sid)) return transcripts.get(sid)
+  if (Date.now() - (transcriptsMissing.get(sid) ?? 0) < 20_000) return null
   let found = null
   try {
     for (const dir of fs.readdirSync(PROJECTS)) {
@@ -262,7 +264,9 @@ const transcriptOf = sid => {
   } catch {
     // no projects folder: no titles
   }
-  transcripts.set(sid, found)
+  // (none yet, as a chat just begun: looked for again next time)
+  if (found) transcripts.set(sid, found)
+  else transcriptsMissing.set(sid, Date.now())
   return found
 }
 
@@ -335,8 +339,6 @@ const readPrompts = sid => {
     promptsRead.set(sid, mtime)
     // tool output can fill the end of a long chat: read further back when it holds too few
     let tail = readTail(file, PROMPT_TAIL_BYTES)
-    // (an image Claude sent the person shows in the preview window: images.mjs)
-    sentImagesIn(tail.text, sid)
     let found = promptsIn(tail.text)
     if (found.length < PROMPTS_KEPT && !tail.isWhole) {
       tail = readTail(file, PROMPT_TAIL_BYTES * 8)
@@ -363,6 +365,29 @@ const readPrompts = sid => {
     return false
   }
 }
+
+// ── what the chats look at and show, for the Visual card (images.mjs) ──
+// The transcript of each chat active in the last ten minutes, looked at every
+// 1.5 s and read (its end) when it grew: web searches, pages, the browser sent
+// somewhere, files sent to the person. The browser's screenshots land in a
+// folder beside it (<sid>/tool-results), which is watched.
+const visualsRead = new Map() // sid -> transcript size read
+setInterval(() => {
+  for (const s of sessions.values()) {
+    if (Date.now() - s.mtime > 10 * 60_000) continue
+    const file = transcriptOf(s.id)
+    if (!file) continue
+    try {
+      const size = fs.statSync(file).size
+      if (visualsRead.get(s.id) === size) continue
+      const was = visualsRead.get(s.id) ?? 0
+      visualsRead.set(s.id, size)
+      // (only what is new since last time, a little more for a line cut in two)
+      visualsIn(readTail(file, Math.min(size, Math.max(64 * 1024, size - was + 4096))).text, s.id)
+      watchImageDirs([path.join(path.dirname(file), s.id, 'tool-results')], s.id, 'browser')
+    } catch {}
+  }
+}, 1500).unref()
 
 // ── today's prompts, over every chat ──
 // How many prompts the person sent today and with how many words: every
@@ -737,6 +762,8 @@ const ingest = (sid, feed) => {
     fresh.push(a)
     append({ k: 'a', d: a })
     noteDirs(a)
+    // an image Claude looked at: shown in the Visual view as well
+    if (was === undefined && a.action === 'reading' && isImage(a.file) && Date.now() - (a.startedAt ?? 0) < 10 * 60_000) showImage(a.file, 'looked', sid)
     // a push or a merge: the site's host builds now, so its state is looked at again soon
     if (was === undefined && a.action === 'running' && PUSHED.test(JSON.stringify(a.detail ?? a.rows ?? ''))) pokeDeploys(dirsOf(sid, feed.session?.cwd))
   }

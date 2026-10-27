@@ -542,6 +542,41 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .pv-strip img.fresh { transform: scale(.6); opacity: 0; }
 .pv-strip img:hover { opacity: .85; }
 .pv-strip img.on { opacity: 1; outline-color: var(--pv); }
+/* docked: the same window, fixed in the side column (the Visual card) */
+.pv-dock { position: relative; display: flex; flex-direction: column; min-height: 380px; }
+/* (wide: the row grows so that the Visual card beside the live view has room; nothing spills out of it) */
+@media (min-width: 1101px) {
+  .code { height: clamp(420px, 62vh, 880px); }
+  .side > .card.feed-card { min-height: 0; overflow: hidden; }
+  .pv-dock { flex: 1 1 0; min-height: 0; }
+}
+/* the live feed, below the live view, across the page */
+.feedrow { margin-bottom: 14px; }
+.feedrow .feed { max-height: 260px; }
+.pv-away { margin: auto; color: var(--muted); font-size: 13px; text-align: center; }
+.pv-dock:has(.pv) .pv-away { display: none; }
+.pv.docked { position: relative; left: auto !important; top: auto !important; width: auto !important; height: auto !important; min-width: 0; min-height: 0; max-width: none; max-height: none;
+  flex: 1 1 0; resize: none; z-index: auto; border: 0; border-radius: 0; box-shadow: none; background: none; opacity: 1; transform: none; margin: 0 -2px;
+  grid-template-rows: auto minmax(150px, 1.15fr) minmax(90px, 1fr); }
+.pv.docked .pv-head { cursor: default; padding: 2px 0 8px; }
+.pv.docked .pv-body { border-radius: 10px; background: radial-gradient(120% 90% at 50% 45%, color-mix(in srgb, var(--pv) 6%, transparent), color-mix(in srgb, var(--ink) 3%, transparent) 70%); }
+.pv.docked .pv-float-only, .pv.docked .pv-strip { display: none; }
+.pv.docked .pv-foot { border-top: 0; padding: 8px 0 0; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+.pv:not(.docked) .pv-list { display: none; }
+.pv-none { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 4px; padding: 16px; color: var(--muted); font-size: 12.5px; line-height: 1.5; pointer-events: none; opacity: 0; transition: opacity .45s; }
+.pv-none b { color: var(--ink-2); font-size: 13px; }
+.pv.nothing .pv-none { opacity: 1; }
+.pv-list { list-style: none; margin: 0; padding: 0; overflow: auto; min-height: 0; display: grid; align-content: start; gap: 2px; scrollbar-width: thin; }
+.pv-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; padding: 5px 6px; border-radius: 8px; font-size: 12.5px; cursor: pointer; transition: background .2s; }
+.pv-row:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.pv-row.on { background: color-mix(in srgb, var(--pv) 12%, transparent); }
+.pv-row .ic { font-size: 14px; text-align: center; }
+.pv-row .tx { min-width: 0; display: grid; }
+.pv-row .tx b { font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-row .tx span { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-row img { width: 46px; height: 30px; object-fit: cover; border-radius: 5px; }
+.pv-row .ago { color: var(--muted); font-size: 11px; }
+.pv-row.has-img { grid-template-columns: 22px minmax(0, 1fr) auto; }
 .dp.bl-offer { --dp: #f5792a; margin: 0 0 10px; }
 .dp.bl-offer[hidden] { display: none; }
 .dp.bl-offer .bl-ic { width: 12px; height: 12px; border-radius: 50%; background: var(--dp); justify-self: center; }
@@ -1256,8 +1291,8 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
         <div class="hint">While Claude thinks longer, the code blurs back and an owl ponders over it.</div>
         <label class="big"><input type="checkbox" id="set-idle-anim"> Idle animation in the live view</label>
         <div class="hint">When nothing happens for a few seconds, the code fades and the owl flies about its tree until Claude works again.</div>
-        <label class="big"><input type="checkbox" id="set-preview"> Preview window for images and Blender</label>
-        <div class="hint">A window that floats over the dashboard and comes by itself: an image made where Claude works, rendered or sent to you builds up in it tile by tile. Drag it by its head, size it at its corner; 📌 keeps it open.</div>
+        <label class="big"><input type="checkbox" id="set-preview"> Visual popped out (⧉): it comes by itself</label>
+        <div class="hint">The Visual card sits beside the live view. Popped out with ⧉, it floats over the dashboard and comes by itself when an image or a model changes; drag it by its head, size it at its corner, 📌 keeps it open, ⧉ puts it back.</div>
         <label class="big"><input type="checkbox" id="set-blender"> Blender live: watch the model as Claude builds it</label>
         <div class="hint">For this, a small script goes into the startup scripts of the Blender Claude uses; it writes only to ~/.claude/live-code-blender, nothing leaves this PC. Off: the script is taken away again.</div>
         <label class="vol">Only after <input type="range" id="set-think-after" min="1" max="10" step="0.5"><span class="num" id="set-think-after-n"></span></label>
@@ -1391,10 +1426,20 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
         <div class="card-title">Current turn <span class="sub num" id="turn-sub"></span></div>
         <div class="chart" id="timeline"></div>
       </div>
+      <!-- what Claude sees and makes: images, Blender, the web (preview.js) -->
       <div class="card feed-card">
-        <div class="card-title">Live feed <span class="sub">every action as it lands</span></div>
-        <ul class="feed" id="feed"></ul>
+        <div class="card-title">Visual <span class="sub">images, Blender, browser and web, as they happen</span></div>
+        <div class="pv-dock" id="pv-dock">
+          <div class="pv-away" id="pv-away">In its own window · <button class="btn" id="pv-dock-here">Show it here</button></div>
+        </div>
       </div>
+    </div>
+  </section>
+
+  <section class="feedrow">
+    <div class="card">
+      <div class="card-title">Live feed <span class="sub">every action as it lands</span></div>
+      <ul class="feed" id="feed"></ul>
     </div>
   </section>
 
@@ -3820,17 +3865,20 @@ connect()
   <div class="pv-head" id="pv-head">
     <span class="pv-dot"></span><b class="pv-title" id="pv-title">Preview</b>
     <span class="pv-tabs"><button data-pv="model" disabled>3D model</button><button data-pv="images" disabled>Images</button></span>
-    <button class="pv-btn" id="pv-pin" title="Keep it open">📌</button>
-    <button class="pv-btn" id="pv-close" title="Close (opens again with the next image or model change)">✕</button>
+    <button class="pv-btn" id="pv-pop" title="In a window of its own / back into the dashboard">⧉</button>
+    <button class="pv-btn pv-float-only" id="pv-pin" title="Keep it open">📌</button>
+    <button class="pv-btn pv-float-only" id="pv-close" title="Close (opens again with the next image or model change)">✕</button>
   </div>
   <div class="pv-body">
     <canvas class="pv-gl" id="pv-gl"></canvas>
     <canvas class="pv-img" id="pv-img"></canvas>
     <div class="pv-empty" id="pv-empty"><b>Blender is at work</b><span>the model shows as soon as there is one</span></div>
+    <div class="pv-none"><b>Nothing to see yet</b><span>Images Claude makes, looks at or sends you, browser shots, web searches and Blender models show here as they happen.</span></div>
   </div>
   <div class="pv-foot">
     <span class="pv-meta num" id="pv-meta"></span>
     <div class="pv-strip" id="pv-strip"></div>
+    <ol class="pv-list" id="pv-list"></ol>
   </div>
 </div>
 <script src="/details.js"></script>

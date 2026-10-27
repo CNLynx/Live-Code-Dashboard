@@ -10,6 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 const IMAGE = /\.(png|jpe?g|webp|gif|bmp)$/i
+export const isImage = file => typeof file === 'string' && IMAGE.test(file)
 const SKIP = /[\\/](?:node_modules|\.git|\.cache|@cache|__pycache__|\.next|dist[\\/]assets|\.wrangler)[\\/]/i
 const MAX_BYTES = 40 * 1024 * 1024
 const KEEP = 40
@@ -28,24 +29,38 @@ const recent = () => shown.filter(s => Date.now() - s.at < 15 * 60_000).map(({ f
 export const imagesState = () => recent()
 export const imageFile = id => shown.find(s => s.id === id)?.file ?? null
 
+// Something seen without a picture of its own: a web search, a page fetched,
+// the browser sent somewhere. Each tool call once (its id).
+const eventsSeen = new Set()
+export const noteVisual = (key, how, name, url, sid, at = Date.now()) => {
+  if (!key || eventsSeen.has(key) || typeof name !== 'string' || !name.trim()) return
+  eventsSeen.add(key)
+  if (Date.now() - at > 15 * 60_000) return
+  const item = { id: nextId++, file: null, name: name.trim().slice(0, 200), url: typeof url === 'string' ? url.slice(0, 500) : '', at, how, sid, img: false }
+  shown.push(item)
+  while (shown.length > KEEP) shown.shift()
+  const { file: _, ...out } = item
+  tell(out)
+}
+
 // One image to show. The same file, unchanged, only once.
 export const showImage = (file, how, sid = null) => {
   if (typeof file !== 'string' || !IMAGE.test(file)) return
   let st
   try { st = fs.statSync(file) } catch { return }
   if (!st.isFile() || st.size === 0 || st.size > MAX_BYTES) return
-  const known = shown.find(s => s.file.toLowerCase() === file.toLowerCase())
+  const known = shown.find(s => s.file && s.file.toLowerCase() === file.toLowerCase())
   if (known && known.mtime === st.mtimeMs) {
     // (sent after it was made: said so, not shown twice)
     if (how === 'sent' && known.how !== 'sent') { known.how = 'sent'; tell({ ...known, file: undefined, again: true }) }
     return
   }
-  if (how !== 'sent' && how !== 'render') {
+  if (how === 'made') {
     burst = burst.filter(t => Date.now() - t < 10_000)
     if (burst.length >= BURST) return
     burst.push(Date.now())
   }
-  const item = { id: nextId++, file, name: path.basename(file), at: Date.now(), how, sid, size: st.size, mtime: st.mtimeMs }
+  const item = { id: nextId++, file, name: path.basename(file), at: Date.now(), how, sid, size: st.size, mtime: st.mtimeMs, img: true }
   if (known) shown.splice(shown.indexOf(known), 1)
   shown.push(item)
   while (shown.length > KEEP) shown.shift()
@@ -66,7 +81,7 @@ const covered = dir => {
 }
 // The folders the active chats work in now (server.mjs dirsOf): each watched
 // with its subfolders, unless a folder above it already is.
-export const watchImageDirs = (dirs, sid) => {
+export const watchImageDirs = (dirs, sid, how = 'made') => {
   for (const raw of dirs) {
     if (typeof raw !== 'string' || !path.isAbsolute(raw)) continue
     const dir = path.resolve(raw)
@@ -75,7 +90,7 @@ export const watchImageDirs = (dirs, sid) => {
     if (tooWide(dir) || covered(dir)) { for (const [d, x] of watchers) if ((dir.toLowerCase() + path.sep).startsWith(d.toLowerCase() + path.sep)) { x.at = Date.now(); x.sid = sid } continue }
     try { if (!fs.statSync(dir).isDirectory()) continue } catch { continue }
     try {
-      const entry = { at: Date.now(), sid, watcher: null }
+      const entry = { at: Date.now(), sid, how, watcher: null }
       entry.watcher = fs.watch(dir, { recursive: true }, (_, name) => {
         if (!name || !IMAGE.test(name)) return
         const file = path.join(dir, name)
@@ -85,7 +100,7 @@ export const watchImageDirs = (dirs, sid) => {
           pending.delete(file)
           // (written or copied here just now, not merely looked at)
           try { const st = fs.statSync(file); if (Date.now() - Math.max(st.mtimeMs, st.birthtimeMs || 0) > 15_000) return } catch { return }
-          showImage(file, 'made', entry.sid)
+          showImage(file, entry.how, entry.sid)
         }, SETTLE_MS))
       })
       entry.watcher.on('error', () => { try { entry.watcher.close() } catch {} watchers.delete(dir) })
@@ -99,23 +114,35 @@ setInterval(() => {
   for (const [d, x] of watchers) if (Date.now() - x.at > WATCH_FOR_MS) { try { x.watcher.close() } catch {} watchers.delete(d) }
 }, 60_000).unref()
 
-// What a chat sent the person: SendUserFile in its transcript (the newest part
-// of it, as read for the prompts), each call once.
+// What a chat looked at and showed, from its transcript (the newest part of
+// it, as read for the prompts), each tool call once: files sent to the person
+// (SendUserFile), web searches, pages fetched, the browser sent to a page.
 const sentSeen = new Set()
-export const sentImagesIn = (text, sid) => {
-  if (!text.includes('SendUserFile')) return
+const BROWSE = /(?:Claude_Browser|claude-in-chrome)__(?:navigate|preview_start)$/
+const host = url => { try { return new URL(url).host } catch { return String(url ?? '') } }
+export const visualsIn = (text, sid) => {
+  if (!/"(?:SendUserFile|WebSearch|WebFetch|mcp__[^"]*?(?:navigate|preview_start))"/.test(text)) return
   for (const line of text.split('\n')) {
-    if (!line.includes('"SendUserFile"')) continue
+    if (!line.includes('"tool_use"')) continue
     let entry
     try { entry = JSON.parse(line) } catch { continue }
     const at = Date.parse(entry.timestamp ?? '') || 0
+    if (Date.now() - at > 10 * 60_000) continue
     for (const c of entry.message?.content ?? []) {
-      if (c?.type !== 'tool_use' || c.name !== 'SendUserFile' || sentSeen.has(c.id)) continue
-      sentSeen.add(c.id)
-      if (Date.now() - at > 10 * 60_000) continue
-      const cwd = typeof entry.cwd === 'string' ? entry.cwd : ''
-      for (const f of Array.isArray(c.input?.files) ? c.input.files : []) {
-        if (typeof f === 'string') showImage(path.isAbsolute(f) ? f : path.resolve(cwd, f), 'sent', sid)
+      if (c?.type !== 'tool_use' || sentSeen.has(c.id)) continue
+      const input = c.input ?? {}
+      if (c.name === 'SendUserFile') {
+        sentSeen.add(c.id)
+        const cwd = typeof entry.cwd === 'string' ? entry.cwd : ''
+        for (const f of Array.isArray(input.files) ? input.files : []) {
+          if (typeof f === 'string') showImage(path.isAbsolute(f) ? f : path.resolve(cwd, f), 'sent', sid)
+        }
+      } else if (c.name === 'WebSearch' && typeof input.query === 'string') {
+        sentSeen.add(c.id); noteVisual(c.id, 'search', input.query, '', sid, at)
+      } else if (c.name === 'WebFetch' && typeof input.url === 'string') {
+        sentSeen.add(c.id); noteVisual(c.id, 'web', host(input.url), input.url, sid, at)
+      } else if (BROWSE.test(c.name ?? '') && typeof input.url === 'string' && /^(https?:|file:|[\w.-]+\.\w)/.test(input.url)) {
+        sentSeen.add(c.id); noteVisual(c.id, 'browse', host(/^\w+:/.test(input.url) ? input.url : `https://${input.url}`), input.url, sid, at)
       }
     }
   }

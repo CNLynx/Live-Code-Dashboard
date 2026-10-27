@@ -1,18 +1,23 @@
-// ── the preview window ──
-// Floats over the dashboard and comes by itself: while Claude works in Blender,
+// ── Visual: what Claude sees and makes ──
+// Fixed in the side column (the Visual card), or, popped out (⧉), a window that
+// floats over the dashboard and comes by itself. While Claude works in Blender,
 // the model as it is built, turning (blender.mjs, live_code_blender.py); an
-// image made where a chat works, rendered by Blender or sent to the person
-// (images.mjs) builds up in it tile by tile. Dragged by its head, sized at its
-// corner, both kept; it goes again a while after the last change, unless pinned.
+// image made where a chat works, rendered, sent to the person, looked at, or a
+// browser shot (images.mjs) builds up tile by tile; below, the list of all of
+// it with the web searches and pages. The floating one is dragged by its head
+// and sized at its corner, both kept; it goes again a while after the last
+// change, unless pinned.
 (() => {
   const pv = $('#pv')
   if (!pv || TILE_MODE) return
-  const head = $('#pv-head'), glc = $('#pv-gl'), imc = $('#pv-img'), meta = $('#pv-meta'), strip = $('#pv-strip'), title = $('#pv-title')
+  const head = $('#pv-head'), glc = $('#pv-gl'), imc = $('#pv-img'), meta = $('#pv-meta'), strip = $('#pv-strip'), title = $('#pv-title'), list = $('#pv-list'), dock = $('#pv-dock')
   const tabs = [...pv.querySelectorAll('[data-pv]')]
   const HIDE_AFTER_MS = 45_000
   const calm = () => document.documentElement.classList.contains('calm')
-  const P = { blender: null, images: [], cur: null, tab: '', pinned: store.get('lc.pvPin') === 'on', activity: 0, imageAt: 0, userTabAt: 0, hover: false, open: false, meshAt: 0, hasMesh: false }
+  const P = { blender: null, images: [], items: [], cur: null, tab: '', pinned: store.get('lc.pvPin') === 'on', activity: 0, imageAt: 0, userTabAt: 0, hover: false, open: false, meshAt: 0, hasMesh: false, dock: store.get('lc.pvMode') !== 'float' }
   pv.classList.toggle('pinned', P.pinned)
+  // on screen now: docked always, floating while open
+  const visible = () => P.dock || P.open
 
   // ── where it sits ──
   const BOX_KEY = 'lc.pvBox'
@@ -27,11 +32,11 @@
   // (until the person moves or sizes it, it sits bottom right, wherever that is now)
   let boxIsOwn = !!box
   const saveBox = () => { boxIsOwn = true; store.set(BOX_KEY, JSON.stringify(box)) }
-  addEventListener('resize', () => { if (P.open) { box = clampBox(boxIsOwn && box ? box : defaultBox()); place() } })
+  addEventListener('resize', () => { if (P.open && !P.dock) { box = clampBox(boxIsOwn && box ? box : defaultBox()); place() } })
 
-  // dragged by its head (not by its buttons)
+  // dragged by its head (not by its buttons), while it floats
   head.addEventListener('pointerdown', e => {
-    if (e.button !== 0 || e.target.closest('button')) return
+    if (P.dock || e.button !== 0 || e.target.closest('button')) return
     const r = pv.getBoundingClientRect()
     const dx = e.clientX - r.left, dy = e.clientY - r.top
     head.setPointerCapture(e.pointerId)
@@ -45,6 +50,7 @@
   // sized at its corner (CSS resize): kept, and the pictures drawn anew
   let sizeDue = null
   new ResizeObserver(() => {
+    if (P.dock) { if (P.tab === 'images') drawImg(performance.now()); return }
     // (only a size the person gave it: not while it is away or still coming in)
     if (!P.open || !box || pv.hidden || !pv.classList.contains('shown') || pv.classList.contains('dragging')) return
     // (its own size, not as the coming-in animation scales it)
@@ -59,7 +65,7 @@
   pv.addEventListener('pointerleave', () => { P.hover = false; P.activity = Math.max(P.activity, Date.now() - HIDE_AFTER_MS + 8000) })
 
   const show = () => {
-    if (store.get('lc.preview') === 'off' || P.open) return
+    if (P.dock || store.get('lc.preview') === 'off' || P.open) return
     P.open = true
     box = clampBox(boxIsOwn && box ? box : defaultBox())
     place()
@@ -68,12 +74,38 @@
     loopGl()
   }
   const hide = () => {
-    if (!P.open) return
+    if (P.dock || !P.open) return
     P.open = false
     pv.classList.remove('shown')
-    setTimeout(() => { if (!P.open) pv.hidden = true }, 520)
+    setTimeout(() => { if (!P.open && !P.dock) pv.hidden = true }, 520)
   }
   $('#pv-close').addEventListener('click', hide)
+  // in the side column, or floating: the same window, moved (its pictures go with it)
+  const settle = () => {
+    pv.classList.toggle('docked', P.dock)
+    if (P.dock) {
+      pv.style.cssText = ''
+      dock.append(pv)
+      pv.hidden = false
+      pv.classList.add('shown')
+      P.open = false
+    } else {
+      document.body.append(pv)
+      pv.classList.remove('shown')
+      pv.hidden = true
+      P.open = false
+    }
+    loopGl()
+    if (P.tab === 'images') requestAnimationFrame(() => drawImg(performance.now()))
+  }
+  const setMode = dockIt => {
+    P.dock = dockIt
+    store.set('lc.pvMode', dockIt ? 'dock' : 'float')
+    settle()
+    if (!dockIt) { P.activity = Date.now(); show() }
+  }
+  $('#pv-pop').addEventListener('click', () => setMode(!P.dock))
+  $('#pv-dock-here')?.addEventListener('click', () => setMode(true))
   $('#pv-pin').addEventListener('click', () => { P.pinned = !P.pinned; store.set('lc.pvPin', P.pinned ? 'on' : 'off'); pv.classList.toggle('pinned', P.pinned) })
 
   const setTab = (tab, byUser) => {
@@ -93,13 +125,16 @@
   const info = () => (P.blender?.mode === 'on' ? P.blender.info : null)
   const working = () => { const i = info(); return !!i?.running && Date.now() - i.at < 5 * 60_000 }
   const kilo = n => (n >= 10_000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n))
-  const HOW = { made: 'made', render: 'rendered in Blender', sent: 'sent to you' }
+  const HOW = { made: 'made', render: 'rendered in Blender', sent: 'sent to you', looked: 'looked at', browser: 'browser', search: 'web search', web: 'page read', browse: 'browser opened', blender: 'Blender' }
+  const ICON = { made: '🖼️', render: '🎬', sent: '📤', looked: '👁️', browser: '📸', search: '🔎', web: '🌐', browse: '🧭', blender: '🧊' }
   const drawMeta = () => {
     const i = info()
     tabs[0].disabled = !i
     tabs[1].disabled = P.images.length === 0
     pv.classList.toggle('working', working())
     pv.classList.toggle('empty', !P.hasMesh)
+    // (nothing for the stage: what it will show, said once)
+    pv.classList.toggle('nothing', !i && P.images.length === 0)
     if (P.tab === 'model' && i) {
       setText(title, i.blend ? i.blend : 'Blender')
       // what the last step brought, while it is new
@@ -107,7 +142,7 @@
       setText(meta, [added, `${i.objects} objects`, `${kilo(i.tris)} triangles${i.cut ? ' (cut)' : ''}`, working() ? `working… step ${i.seq}` : 'done', `${dur(Date.now() - i.at)} ago`, added ? '' : `Blender ${i.version}`.trim()].filter(Boolean).join(' · '))
     } else if (P.tab === 'images') {
       const it = P.images.find(x => x.id === P.cur)
-      setText(title, it ? it.name : 'Images')
+      setText(title, it ? (it.how === 'browser' ? 'Browser screenshot' : it.name) : 'Images')
       setText(meta, it ? [HOW[it.how] ?? it.how, IMG.cur && IMG.item?.id === it.id ? `${IMG.cur.naturalWidth}×${IMG.cur.naturalHeight}` : '', `${dur(Date.now() - it.at)} ago`].filter(Boolean).join(' · ') : '')
     } else setText(title, 'Preview')
   }
@@ -311,13 +346,13 @@ void main() {
   const loopGl = () => {
     if (glRaf || !GL) return
     const step = t => {
-      if (!P.open || P.tab !== 'model' || document.hidden) { glRaf = 0; return }
+      if (!visible() || P.tab !== 'model' || document.hidden) { glRaf = 0; return }
       GL.draw(t)
       glRaf = requestAnimationFrame(step)
     }
     glRaf = requestAnimationFrame(step)
   }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && P.open) loopGl() })
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && visible()) loopGl() })
 
   let meshBusy = false, meshAgain = false
   const loadMesh = async live => {
@@ -421,6 +456,7 @@ void main() {
   const pick = (item, animate) => {
     P.cur = item.id
     for (const t of strip.children) t.classList.toggle('on', Number(t.dataset.id) === item.id)
+    for (const r of list.children) r.classList.toggle('on', r.dataset.id === String(item.id))
     showImg(item, animate)
     drawMeta()
   }
@@ -436,12 +472,55 @@ void main() {
     strip.scrollTo({ left: strip.scrollWidth, behavior: calm() ? 'auto' : 'smooth' })
   }
 
+  // ── the list: everything seen, newest on top ──
+  // A row: what kind (icon), its name, what it was and when; an image's own
+  // thumbnail (a click shows it above), a page's link (a click opens it).
+  const rowOf = item => {
+    const li = document.createElement('li')
+    li.className = 'pv-row' + (item.img ? ' has-img' : '')
+    li.dataset.id = String(item.id)
+    const sub = item.how === 'search' ? 'web search' : item.url ? item.url.replace(/^https?:\/\//, '') : HOW[item.how] ?? item.how
+    li.innerHTML = `<span class="ic">${ICON[item.how] ?? '•'}</span><span class="tx"><b></b><span></span></span>${item.img ? `<img alt="" loading="lazy" src="/image?id=${item.id}">` : `<span class="ago num" data-since="${item.at}"></span>`}`
+    li.querySelector('b').textContent = item.how === 'search' ? `“${item.name}”` : item.how === 'browser' ? 'Browser screenshot' : item.name
+    li.querySelector('.tx span').textContent = item.img ? `${HOW[item.how] ?? item.how} · ` : sub
+    if (item.img) { const ago = document.createElement('span'); ago.className = 'num'; ago.dataset.since = item.at; li.querySelector('.tx span').append(ago) }
+    li.title = item.url || item.name
+    li.addEventListener('click', () => {
+      if (item.img) { P.userTabAt = Date.now(); setTab('images', true); pick(item, true) }
+      else if (item.how === 'blender') setTab('model', true)
+      else if (item.url && /^https?:/.test(item.url)) open(item.url, '_blank', 'noopener')
+      else if (item.how === 'search') open(`https://www.bing.com/search?q=${encodeURIComponent(item.name)}`, '_blank', 'noopener')
+    })
+    return li
+  }
+  const addRow = (item, quiet) => {
+    const li = rowOf(item)
+    li.hidden = true
+    list.prepend(li)
+    reveal(li, true)
+    if (quiet) li.getAnimations?.().forEach(a => a.finish())
+    while (list.children.length > 60) list.lastElementChild.remove()
+  }
+  // one row for each Blender run, kept up to date (its file, parts, step)
+  const blenderRow = i => {
+    const id = `blender-${i.pid}`
+    const text = `${i.blend || 'Blender'} · ${i.objects} parts`
+    const known = list.querySelector(`[data-id="${id}"]`)
+    if (known) { setText(known.querySelector('b'), text); setText(known.querySelector('.tx span'), i.running ? `building · step ${i.seq}` : 'done'); return }
+    addRow({ id, how: 'blender', name: text, url: '', at: i.at, img: false })
+  }
+
   // ── what the server tells ──
   const activity = () => { P.activity = Date.now(); show() }
   window.onImage = (image, quiet) => {
     if (!image?.id) return
-    const known = P.images.find(x => x.id === image.id)
+    const known = P.items.find(x => x.id === image.id)
     if (known) { Object.assign(known, image); drawMeta(); return }
+    P.items.push(image)
+    if (P.items.length > 60) P.items.shift()
+    addRow(image, quiet)
+    // (a web search, a page: in the list only)
+    if (!image.img) { if (!quiet) activity(); return }
     P.images.push(image)
     if (P.images.length > 40) P.images.shift()
     addThumb(image)
@@ -468,6 +547,7 @@ void main() {
     if (setBox) setBox.checked = state?.mode === 'on'
     reveal($('#bl-offer'), !!state?.spotted && !state.mode)
     const i = info()
+    if (i && Date.now() - i.at < 15 * 60_000) blenderRow(i)
     if (i && (!was || i.meshAt !== was.meshAt || i.seq !== was.seq)) {
       const fresh = Date.now() - i.at < 20_000
       void loadMesh(fresh && !!was)
@@ -484,11 +564,13 @@ void main() {
 
   // each tick of the page (drawNow): the time words, and away when all is calm
   window.drawBlender = () => {
-    if (!P.open) return
+    if (!visible()) return
     drawMeta()
-    if (!P.pinned && !P.hover && !working() && Date.now() - P.activity > HIDE_AFTER_MS) hide()
+    if (!P.dock && !P.pinned && !P.hover && !working() && Date.now() - P.activity > HIDE_AFTER_MS) hide()
   }
   bindCheck('#set-preview', 'lc.preview', 'on', () => { if (store.get('lc.preview') === 'off') hide() })
+  settle()
+  drawMeta()
   // what the page was told before this script ran
   if (window.__pvInit?.images) window.onImages(window.__pvInit.images)
   if (window.__pvInit?.blender) window.onBlender(window.__pvInit.blender)
