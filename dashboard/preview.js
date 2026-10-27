@@ -134,7 +134,8 @@
     pv.classList.toggle('working', working())
     pv.classList.toggle('empty', !P.hasMesh)
     // (nothing for the stage: what it will show, said once)
-    pv.classList.toggle('nothing', !i && P.images.length === 0)
+    // (not before the server said what there is: no flash of it on each load)
+    pv.classList.toggle('nothing', P.ready && !i && P.images.length === 0)
     if (P.tab === 'model' && i) {
       setText(title, i.blend ? i.blend : 'Blender')
       // what the last step brought, while it is new
@@ -391,7 +392,7 @@ void main() {
     if (imc.width !== W || imc.height !== H) { imc.width = W; imc.height = H }
     imx.clearRect(0, 0, W, H)
     const e = t - IMG.start
-    const pad = 12 * dpr
+    const pad = (P.dock ? 4 : 12) * dpr
     // the one before fades as the new one builds
     if (IMG.prev && e < 800) {
       const r = fit(IMG.prev, W, H, pad)
@@ -532,6 +533,7 @@ void main() {
     pick(image, true)
   }
   window.onImages = list => {
+    P.ready = true
     for (const image of list ?? []) window.onImage(image, Date.now() - (image.at ?? 0) > 20_000)
   }
 
@@ -544,6 +546,7 @@ void main() {
   window.onBlender = state => {
     const was = P.blender?.info
     P.blender = state
+    P.ready = true
     if (setBox) setBox.checked = state?.mode === 'on'
     reveal($('#bl-offer'), !!state?.spotted && !state.mode)
     const i = info()
