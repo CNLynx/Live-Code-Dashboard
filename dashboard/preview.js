@@ -671,7 +671,27 @@ void main() {
   list.before(pinsBar)
   const pinHead = Object.assign(document.createElement('button'), { className: 'pv-btn pv-pinhere', title: 'Add this image to your next prompt', textContent: '📎' })
   $('#pv-pop').before(pinHead)
-  const sendPins = ids => fetch('/attach', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ sid: S.view, ids }) }).then(r => r.json()).then(listed => window.onAttach({ sid: S.view, list: listed })).catch(() => {})
+  // a small JPEG of each picked image, which Claude's transcript draws under the prompt
+  const thumbs = new Map() // id -> data URL
+  const thumbOf = async id => {
+    if (thumbs.has(id)) return thumbs.get(id)
+    const im = await loadImage(`/image?id=${id}`)
+    if (!im) return null
+    const s = Math.min(1, 360 / im.naturalWidth, 228 / im.naturalHeight)
+    const c = Object.assign(document.createElement('canvas'), { width: Math.max(1, Math.round(im.naturalWidth * s)), height: Math.max(1, Math.round(im.naturalHeight * s)) })
+    const x = c.getContext('2d')
+    x.fillStyle = '#1b1b1b'; x.fillRect(0, 0, c.width, c.height)
+    x.drawImage(im, 0, 0, c.width, c.height)
+    const url = c.toDataURL('image/jpeg', 0.78)
+    thumbs.set(id, url)
+    return url
+  }
+  const sendPins = async ids => {
+    const made = {}
+    for (const id of ids) { const t = await thumbOf(id).catch(() => null); if (t) made[id] = t }
+    return fetch('/attach', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ sid: S.view, ids, thumbs: made }) })
+      .then(r => r.json()).then(listed => window.onAttach({ sid: S.view, list: listed })).catch(() => {})
+  }
   const togglePin = item => {
     if (!item?.img || !S.view) return
     const ids = new Set(P.pins)

@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
-import type { Elements, Hook, Register, Timer, ToolCallResult } from 'claude-code'
+import type { Elements, Hook, Register, RenderElement, Timer, ToolCallResult } from 'claude-code'
 
-import type { Action, AgentLane, Ask, AskQuestion, Attached, FileStat, Plan, PlanItem, Focus, Limit, PanelTab, Row, Stats, ThinkingState, Totals, TurnStat, TurnStep, Usage } from '../types'
+import type { Action, AgentLane, Ask, AskQuestion, Attached, SentPins, FileStat, Plan, PlanItem, Focus, Limit, PanelTab, Row, Stats, ThinkingState, Totals, TurnStat, TurnStep, Usage } from '../types'
 
 type Engine = Parameters<Hook<'tool.call'>>[0]
 type Op = { kind: 'ctx' | 'add' | 'del'; text: string }
@@ -371,7 +371,7 @@ const compactOnce = async ($: Engine) => {
   if (!ran.done) {
     const first = ran.error
     ran = await $.session.compact().then(
-      r => ({ done: !r?.skip, skip: r?.skip ?? false, via: 'session.compact', error: first }),
+      r => ({ done: !r?.skip, skip: !!r?.skip, via: 'session.compact', error: first }),
       (e: unknown) => ({ done: false, error: `${first} | session.compact: ${String(e).slice(0, 300)}` }),
     )
   }
@@ -391,7 +391,12 @@ const readAttached = async ($: Engine) => {
   const text = await readText($, attachFile($))
   try {
     const raw = JSON.parse(text ?? '[]') as unknown
-    if (Array.isArray(raw)) return raw.filter((a): a is Attached => typeof a?.path === 'string' && typeof a?.name === 'string').slice(0, 20)
+    if (Array.isArray(raw)) {
+      return raw
+        .filter((a): a is Attached => typeof a?.path === 'string' && typeof a?.name === 'string')
+        .slice(0, 20)
+        .map(a => ({ path: a.path, name: a.name, ...(typeof a.thumb === 'string' && /^data:image\/(jpeg|png);base64,/.test(a.thumb) && a.thumb.length < 100_000 ? { thumb: a.thumb } : {}) }))
+    }
   } catch {}
   return []
 }
@@ -405,6 +410,12 @@ const clearAttached = async ($: Engine) => {
   await update($, attached, () => [])
   await $.fs.write(attachFile($), '[]').catch(() => undefined)
 }
+// the prompts that took images along: under each, in the transcript, what went with it
+const sentPins = atom({ plugin: 'live-code', key: 'sentPins' } as const, [] as SentPins[])
+const pinKey = (text: string) => text.trim().slice(0, 400)
+// one picture under the prompt: the thumbnail the dashboard made, in an SVG (the desktop draws no bitmap of its own)
+const thumbSvg = (thumb: string, w: number, h: number) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><clipPath id="r"><rect width="${w}" height="${h}" rx="8"/></clipPath><image href="${thumb}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#r)"/><rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="8" fill="none" stroke="#f5792a" stroke-opacity=".55"/></svg>`
 const attachedContext = (list: Attached[]) =>
   [
     `The person attached ${list.length === 1 ? 'an image' : `${list.length} images`} to this prompt from the Live Code dashboard, as if dragged into the chat. Look at ${list.length === 1 ? 'it' : 'each'} with the Read tool before answering:`,
@@ -1495,6 +1506,9 @@ export const register: Register = on => {
     const list = byPerson ? await readAttached($) : []
     if (list.length > 0) {
       await clearAttached($)
+      // (the transcript draws them under this prompt: ui.render UserMessage)
+      const t = await clockNow($)
+      await update($, sentPins, was => [...was, { text: pinKey(e.text), at: t, items: list.map(a => ({ name: a.name, ...(a.thumb ? { thumb: a.thumb } : {}) })) }].slice(-12))
       return next({ ...e, context: [...(e.context ?? []), attachedContext(list)] })
     }
 
@@ -2487,6 +2501,46 @@ export const register: Register = on => {
     )
   })
 
+  // ── under a prompt that took images along: those images ───────────────────
+  // The person's own row as the engine draws it, and below it what went with it
+  // from the dashboard: small pictures on the desktop, their names everywhere.
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    const sent = await read($, sentPins)
+    const hit = sent.length > 0 ? sent.findLast(s => s.text === pinKey(e.props.text)) : undefined
+    if (hit === undefined) return next(e)
+    const own = await next(e)
+    const names = hit.items.map(i => i.name).join(', ')
+    if (e.surface === 'terminal') {
+      const { Box, Text } = $.ui.resolve(e)
+      return (
+        <Box flexDirection="column">
+          {own}
+          <Text wrap="truncate-end"><Text color="#f5792a">📎 {plural(hit.items.length, 'image')}</Text><Text dimColor> from Live Code: {names}</Text></Text>
+        </Box>
+      )
+    }
+    const { Box, Text, Svg } = $.ui.resolve(e) as unknown as Elements['desktop']
+    // (not `h`: that name is what JSX draws with)
+    const thumbW = 132, thumbH = 84
+    return (
+      <Box flexDirection="column" gap={1}>
+        {own}
+        <Box flexDirection="row" gap={1} flexWrap="wrap" alignItems="flex-end">
+          {hit.items.map((item, i) =>
+            item.thumb ? (
+              <Box key={`pin${i}`} flexDirection="column">
+                <Svg source={thumbSvg(item.thumb, thumbW, thumbH)} alt={item.name} width={thumbW} height={thumbH} />
+                <Text color="inactive" wrap="truncate-end">{clip(item.name, 22)}</Text>
+              </Box>
+            ) : (
+              <Text key={`pin${i}`} color="inactive">📎 {item.name}</Text>
+            ),
+          )}
+        </Box>
+      </Box>
+    )
+  })
+
   // ── the band above the prompt: one row of what is happening now ────────────
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
@@ -2535,28 +2589,23 @@ export const register: Register = on => {
     }
     // images picked in the dashboard for the next prompt: a row of their own on top
     const pinned = await read($, attached)
+    const { Box: PinBox, Text: PinText, Button: PinButton } = $.ui.resolve(e)
+    const pinNames = pinned.map(a => a.name).join(', ')
     const pinRow =
       pinned.length === 0 ? null : e.surface === 'terminal' ? (
-        <Text wrap="truncate-end">
-          <Text color="#f5792a" bold>📎 {plural(pinned.length, 'image')}</Text>
-          <Text dimColor> from Live Code go with your next prompt: {pinned.map(a => a.name).join(', ')}</Text>
-        </Text>
-      ) : (() => {
-        const { Box, Text, Button } = $.ui.resolve(e)
-        return (
-          <Box flexDirection="row" gap={1} alignItems="center" height={1} overflow="hidden">
-            <Text color="#f5792a" {...T({ weight: 'semibold' })}>📎 {plural(pinned.length, 'image')}</Text>
-            <Text color="inactive" wrap="truncate-end">from Live Code go with your next prompt · {pinned.map(a => a.name).join(', ')}</Text>
-            <Box flexGrow={1} />
-            <Button key="unpin" plain onPress={() => void clearAttached($)}><Text color="inactive">✕ Remove</Text></Button>
-          </Box>
-        )
-      })()
-    const withPins = (tree: unknown) => {
-      if (pinRow === null) return tree
-      const { Box } = $.ui.resolve(e)
-      return <Box flexDirection="column">{pinRow}{tree}</Box>
-    }
+        <PinText wrap="truncate-end">
+          <PinText color="#f5792a" bold>📎 {plural(pinned.length, 'image')}</PinText>
+          <PinText dimColor> from Live Code go with your next prompt: {pinNames}</PinText>
+        </PinText>
+      ) : (
+        <PinBox flexDirection="row" gap={1} alignItems="center" height={1} overflow="hidden">
+          <PinText color="#f5792a" {...T({ weight: 'semibold' })}>📎 {plural(pinned.length, 'image')}</PinText>
+          <PinText color="inactive" wrap="truncate-end">from Live Code go with your next prompt · {pinNames}</PinText>
+          <PinBox flexGrow={1} />
+          <PinButton key="unpin" plain onPress={() => void clearAttached($)}><PinText color="inactive">✕ Remove</PinText></PinButton>
+        </PinBox>
+      )
+    const withPins = (tree: RenderElement): RenderElement => (pinRow === null ? tree : <PinBox flexDirection="column">{pinRow}{tree}</PinBox>)
     const { live, use, t, think, steps: allSteps, tNo, lanes } = await snapshot($, false)
     if (tNo === 0 && live === null) return pinRow ?? next(e)
     const steps = allSteps.filter(s => s.agentId === undefined)

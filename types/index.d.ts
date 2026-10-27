@@ -164,8 +164,11 @@ export type Plan = {
   updatedAt: number
 }
 
-// An image the person picked in the dashboard for their next prompt.
-export type Attached = { path: string; name: string }
+// An image the person picked in the dashboard for their next prompt; `thumb`, a
+// small JPEG (data URL) the dashboard made, drawn under the prompt once sent.
+export type Attached = { path: string; name: string; thumb?: string }
+// A prompt that took images along, to draw them under it in the transcript.
+export type SentPins = { text: string; at: number; items: { name: string; thumb?: string }[] }
 
 // The tab the pane's bottom panel shows.
 export type PanelTab = 'recent' | 'files' | 'turns' | 'agents'
@@ -199,6 +202,8 @@ declare module 'claude-code' {
       plan: Plan | null
       // the images picked in the dashboard, to go with the person's next prompt
       attached: Attached[]
+      // the prompts that took such images along (the newest few), drawn under them
+      sentPins: SentPins[]
     }
   }
 }

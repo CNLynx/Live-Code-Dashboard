@@ -378,7 +378,8 @@ const attachedOf = sid => {
   if (!/^[A-Za-z0-9_-]+$/.test(sid ?? '')) return []
   try { const list = JSON.parse(fs.readFileSync(attachFileOf(sid), 'utf8')); return Array.isArray(list) ? list : [] } catch { return [] }
 }
-const setAttached = (sid, ids) => {
+// (`thumbs`: a small JPEG per id the page made, which the transcript draws under the prompt)
+const setAttached = (sid, ids, thumbs = {}) => {
   if (typeof sid !== 'string' || !/^[A-Za-z0-9_-]+$/.test(sid)) return null
   const list = []
   for (const id of ids.slice(0, 20)) {
@@ -392,7 +393,8 @@ const setAttached = (sid, ids) => {
         if (!fs.existsSync(file)) fs.writeFileSync(file, img.data)
       } catch { file = img.file }
     }
-    list.push({ id: Number(id), path: file, name: path.basename(img.file) })
+    const thumb = thumbs[id]
+    list.push({ id: Number(id), path: file, name: path.basename(img.file), ...(typeof thumb === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(thumb) && thumb.length < 100_000 ? { thumb } : {}) })
   }
   try { writeAtomic(attachFileOf(sid), JSON.stringify(list)) } catch { return null }
   broadcast({ type: 'attach', sid, list })
@@ -1420,10 +1422,10 @@ const server = http.createServer((req, res) => {
     const sid = url.searchParams.get('sid') ?? ''
     if (req.method !== 'POST') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(attachedOf(sid))); return }
     if (!isTrusted(req)) { res.writeHead(403).end('{}'); return }
-    readBody(req, 4000).then(body => {
+    readBody(req, 2_500_000).then(body => {
       let m = {}
       try { m = JSON.parse(body) } catch {}
-      const list = setAttached(m.sid, Array.isArray(m.ids) ? m.ids : [])
+      const list = setAttached(m.sid, Array.isArray(m.ids) ? m.ids : [], m.thumbs && typeof m.thumbs === 'object' ? m.thumbs : {})
       res.writeHead(list ? 200 : 400, { 'Content-Type': 'application/json' }).end(JSON.stringify(list ?? []))
     }, () => res.writeHead(400).end('[]'))
   } else if (url.pathname === '/image') {
