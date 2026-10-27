@@ -101,6 +101,8 @@ The **Visual** card sits beside the live view, below *Current turn*; the live fe
 
 The list is grouped under the prompt it was for, and each entry says in a few words what it is for. Images zoom with the wheel and move by dragging; a double click fits them again.
 
+**Images into your next prompt:** click an image's 📎, in the list or above for the one shown. Pick as many as you like, and a second click takes one out again. The band above Claude's prompt shows them (📎 2 images, ✕ Remove), and your next prompt takes them along: Claude is told where they are and looks at each, as if you had dragged them into the chat.
+
 Pop it out with ⧉ and it becomes a window that floats over the dashboard and comes by itself. Drag it by its head and size it at its corner. 📌 keeps it open, and ⧉ puts it back.
 - **Images:** an image written where a chat works (a render, a texture a script painted, a screenshot), one sent to you or looked at, or a browser shot builds up on the stage tile by tile.
 - **Blender:** when a chat runs Blender (`blender.exe -b … --python …`), the dashboard offers *Blender live*. Switched on, it puts a small startup script into that Blender's startup scripts. From then on you watch the model turn as Claude builds it, in the dashboard, and each render lands as an image. It writes only to `~/.claude/live-code-blender`. Switched off in Settings → Display, the script is taken away again.
@@ -281,6 +283,8 @@ Die Karte **Visual** sitzt neben der Live-Ansicht, unter *Current turn*; der Liv
 - Blender-Läufe.
 
 Die Liste ist nach dem Prompt gegliedert, zu dem etwas gehört, und jeder Eintrag sagt in wenigen Worten, wozu er dient. Bilder zoomst du mit dem Mausrad und verschiebst sie durch Ziehen; ein Doppelklick setzt sie zurück.
+
+**Bilder in den nächsten Prompt:** Klick auf das 📎 eines Bildes, in der Liste oder oben beim angezeigten. Du kannst beliebig viele wählen, ein zweiter Klick nimmt eines wieder heraus. Das Band über Claudes Eingabe zeigt sie (📎 2 images, ✕ Remove), und dein nächster Prompt nimmt sie mit: Claude erfährt, wo sie liegen, und schaut sich jedes an, als hättest du sie in den Chat gezogen.
 
 Mit ⧉ löst du sie heraus. Dann wird sie zu einem Fenster, das über dem Dashboard schwebt und von selbst kommt. Du verschiebst es am Kopf und änderst die Grösse an der Ecke. 📌 hält es offen, ⧉ setzt es zurück.
 - **Bilder:** Ein Bild, das dort entsteht, wo ein Chat arbeitet (ein Render, eine von einem Skript gemalte Textur, ein Screenshot), ein gesendetes oder angeschautes Bild oder ein Browser-Screenshot setzt sich auf der Bühne Kachel für Kachel zusammen.

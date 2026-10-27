@@ -164,6 +164,9 @@ export type Plan = {
   updatedAt: number
 }
 
+// An image the person picked in the dashboard for their next prompt.
+export type Attached = { path: string; name: string }
+
 // The tab the pane's bottom panel shows.
 export type PanelTab = 'recent' | 'files' | 'turns' | 'agents'
 
@@ -194,6 +197,8 @@ declare module 'claude-code' {
       asks: Ask[]
       // the plan of the task at hand, with its progress
       plan: Plan | null
+      // the images picked in the dashboard, to go with the person's next prompt
+      attached: Attached[]
     }
   }
 }

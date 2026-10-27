@@ -563,7 +563,8 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .pv.docked .pv-head { cursor: default; padding: 2px 0 8px; }
 .pv.docked .pv-body { border-radius: 10px; background: radial-gradient(120% 90% at 50% 45%, color-mix(in srgb, var(--pv) 6%, transparent), color-mix(in srgb, var(--ink) 3%, transparent) 70%); }
 .pv.docked .pv-float-only, .pv.docked .pv-strip { display: none; }
-.pv.docked .pv-foot { border-top: 0; padding: 6px 0 0; gap: 4px; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+.pv.docked .pv-foot { border-top: 0; padding: 6px 0 0; gap: 4px; grid-template-rows: auto auto auto minmax(0, 1fr); min-height: 0; }
+.pv:not(.docked) .pv-pins { display: none; }
 .pv:not(.docked) .pv-list { display: none; }
 .pv-none { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 4px; padding: 16px; color: var(--muted); font-size: 12.5px; line-height: 1.5; pointer-events: none; opacity: 0; transition: opacity .45s; }
 .pv-none b { color: var(--ink-2); font-size: 13px; }
@@ -582,6 +583,23 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .pv-row img { width: 32px; height: 20px; object-fit: cover; border-radius: 4px; }
 .pv-row .ago { color: var(--muted); font-size: 11px; }
 .pv-row .end:empty { display: none; }
+/* 📎: an image for the next prompt (shown on hover, kept lit once picked) */
+.pv-row:has(.pin) { grid-template-columns: 20px minmax(0, 1fr) auto auto; }
+.pv-row .pin { all: unset; cursor: pointer; width: 22px; height: 20px; display: grid; place-items: center; border-radius: 6px; font-size: 12px;
+  opacity: 0; filter: grayscale(1); transition: opacity .2s, filter .2s, background .2s; }
+.pv-row:hover .pin { opacity: .55; }
+.pv-row .pin:hover { opacity: 1; background: color-mix(in srgb, var(--pv) 18%, transparent); }
+.pv-row.pinned .pin { opacity: 1; filter: none; background: color-mix(in srgb, var(--pv) 22%, transparent); }
+.pv-row.pinned { box-shadow: inset 2px 0 0 var(--pv); }
+.pv-pinhere { filter: grayscale(1); }
+.pv-pinhere.on { filter: none; opacity: 1; background: color-mix(in srgb, var(--pv) 22%, transparent); }
+.pv-pinhere[hidden] { display: none; }
+.pv-pins { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 8px; margin-bottom: 4px; border-radius: 8px; font-size: 12px;
+  background: color-mix(in srgb, var(--pv) 12%, transparent); border: 1px solid color-mix(in srgb, var(--pv) 35%, transparent); }
+.pv-pins[hidden] { display: none; }
+.pv-pins .n { font-weight: 650; color: var(--ink); white-space: nowrap; }
+.pv-pins .names { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-pins .btn { padding: 1px 8px; font-size: 11.5px; }
 .pv-row.bg-run b { color: var(--ink); }
 /* a heading per prompt: what the rows below were for */
 .pv-group { padding: 6px 6px 1px; font-size: 11px; font-weight: 650; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-top: 1px solid var(--ring); }
@@ -3754,6 +3772,8 @@ const connect = () => {
       window.onBlender?.(msg.blender)
     } else if (msg.type === 'image') {
       window.onImage?.(msg.image)
+    } else if (msg.type === 'attach') {
+      window.onAttach?.(msg)
     } else if (msg.type === 'update') {
       window.onUpdateState?.(msg.update)
     } else if (msg.type === 'dictate' || msg.type === 'dictation') {

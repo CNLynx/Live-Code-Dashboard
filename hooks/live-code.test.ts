@@ -189,6 +189,25 @@ test('an Edit gets a sentence on what it is for, from the change and the prompt'
   expect(feed?.history?.at(-1)?.why).toBe('Benennt b um, damit der Test den neuen Wert sieht.')
 })
 
+test('images picked in the dashboard go with the next prompt, then are gone', async ($, on) => {
+  // the file the dashboard writes (a session's; this test's has no id) and what the mod writes back
+  const files: Record<string, string> = { 'live-code-attach-.json': '[{"path":"C:/shots/form.png","name":"form.png"},{"path":"C:/shots/after.png","name":"after.png"}]' }
+  engine(on, files)
+  on('fs.write', ((_: unknown, e: { path: string; content?: string; text?: string; data?: string }) => {
+    if (e.path.endsWith('live-code-attach-.json')) files['live-code-attach-.json'] = String(e.content ?? e.text ?? e.data ?? '')
+    return { value: undefined }
+  }) as never)
+  const seen: (readonly string[] | undefined)[] = []
+  on('prompt.submit', ((_: unknown, e: { text: string; context?: readonly string[] }) => { seen.push(e.context); return { text: e.text } }) as never)
+
+  await $.prompt.submit({ text: 'what is wrong with the form?' } as never)
+  expect(seen[0]?.join('\n')).toContain('C:/shots/form.png')
+  expect(seen[0]?.join('\n')).toContain('C:/shots/after.png')
+  // taken along once: the next prompt goes without them
+  await $.prompt.submit({ text: 'and now?' } as never)
+  expect(seen[1]?.join('\n') ?? '').not.toContain('form.png')
+})
+
 test('the desktop draws the usage as a vector gauge', async ($, on) => {
   engine(on)
   await $.tool.call({ tool: 'Read', file_path: 'a.ts' })

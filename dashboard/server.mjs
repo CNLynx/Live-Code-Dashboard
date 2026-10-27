@@ -367,6 +367,47 @@ const readPrompts = sid => {
   }
 }
 
+// ── images for a chat's next prompt ──
+// Picked in the Visual card: the list goes to ~/.claude/live-code-attach-<sid>.json,
+// which that chat's mod shows above the prompt and hands to Claude with the
+// person's next one. Each image as it was when shown (its kept bytes, frozen
+// to ~/.claude/live-code-attach/), so Claude sees the version picked.
+const ATTACH_DIR = path.join(HOME, 'live-code-attach')
+const attachFileOf = sid => path.join(HOME, `live-code-attach-${sid}.json`)
+const attachedOf = sid => {
+  if (!/^[A-Za-z0-9_-]+$/.test(sid ?? '')) return []
+  try { const list = JSON.parse(fs.readFileSync(attachFileOf(sid), 'utf8')); return Array.isArray(list) ? list : [] } catch { return [] }
+}
+const setAttached = (sid, ids) => {
+  if (typeof sid !== 'string' || !/^[A-Za-z0-9_-]+$/.test(sid)) return null
+  const list = []
+  for (const id of ids.slice(0, 20)) {
+    const img = imageData(Number(id))
+    if (!img) continue
+    let file = img.file
+    if (img.data) {
+      try {
+        fs.mkdirSync(ATTACH_DIR, { recursive: true })
+        file = path.join(ATTACH_DIR, `${sid.slice(0, 8)}-${Number(id)}${path.extname(img.file) || '.png'}`)
+        if (!fs.existsSync(file)) fs.writeFileSync(file, img.data)
+      } catch { file = img.file }
+    }
+    list.push({ id: Number(id), path: file, name: path.basename(img.file) })
+  }
+  try { writeAtomic(attachFileOf(sid), JSON.stringify(list)) } catch { return null }
+  broadcast({ type: 'attach', sid, list })
+  return list
+}
+// the band's "Remove" or a prompt that took them along: the pages are told
+try {
+  fs.watch(HOME, (_, name) => {
+    const m = /^live-code-attach-([A-Za-z0-9_-]+)\.json$/.exec(name ?? '')
+    if (m) broadcast({ type: 'attach', sid: m[1], list: attachedOf(m[1]) })
+  })
+} catch {}
+// frozen copies older than a day: let go
+try { for (const f of fs.readdirSync(ATTACH_DIR)) { const p = path.join(ATTACH_DIR, f); if (Date.now() - fs.statSync(p).mtimeMs > 86400e3) fs.rmSync(p, { force: true }) } } catch {}
+
 // ── what the chats look at and show, for the Visual card (images.mjs) ──
 // The transcript of each chat active in the last ten minutes, looked at every
 // 1.5 s and read (its end) when it grew: web searches, pages, the browser sent
@@ -1374,6 +1415,17 @@ const server = http.createServer((req, res) => {
       if (error) { res.writeHead(404).end(); return }
       res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' }).end(data)
     })
+  } else if (url.pathname === '/attach') {
+    // images for a chat's next prompt (Visual card): GET ?sid= the list, POST { sid, ids } sets it
+    const sid = url.searchParams.get('sid') ?? ''
+    if (req.method !== 'POST') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(attachedOf(sid))); return }
+    if (!isTrusted(req)) { res.writeHead(403).end('{}'); return }
+    readBody(req, 4000).then(body => {
+      let m = {}
+      try { m = JSON.parse(body) } catch {}
+      const list = setAttached(m.sid, Array.isArray(m.ids) ? m.ids : [])
+      res.writeHead(list ? 200 : 400, { 'Content-Type': 'application/json' }).end(JSON.stringify(list ?? []))
+    }, () => res.writeHead(400).end('[]'))
   } else if (url.pathname === '/image') {
     // only an image the Visual card was told about (its id), never any other file;
     // as it was then (its kept bytes: a later version does not replace it)

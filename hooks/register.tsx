@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { Elements, Hook, Register, Timer, ToolCallResult } from 'claude-code'
 
-import type { Action, AgentLane, Ask, AskQuestion, FileStat, Plan, PlanItem, Focus, Limit, PanelTab, Row, Stats, ThinkingState, Totals, TurnStat, TurnStep, Usage } from '../types'
+import type { Action, AgentLane, Ask, AskQuestion, Attached, FileStat, Plan, PlanItem, Focus, Limit, PanelTab, Row, Stats, ThinkingState, Totals, TurnStat, TurnStep, Usage } from '../types'
 
 type Engine = Parameters<Hook<'tool.call'>>[0]
 type Op = { kind: 'ctx' | 'add' | 'del'; text: string }
@@ -380,9 +380,41 @@ const compactOnce = async ($: Engine) => {
   await $.fs.write(`${claudeHome($.plugin.root)}/live-code-compact.json`, JSON.stringify({ at, session: sessionId, triesLeft: compactTries, ...ran }, null, 1)).catch(() => undefined)
 }
 
+// ── images picked in the dashboard, for the next prompt ──
+// The dashboard (Visual card) writes them to ~/.claude/live-code-attach-<session>.json;
+// the band above the prompt shows them, and the person's next prompt takes them
+// along: a plugin cannot attach an image's bytes, so Claude is told where they
+// are and looks at each, as if they had been dragged into the chat.
+const attached = atom({ plugin: 'live-code', key: 'attached' } as const, [] as Attached[])
+const attachFile = ($: Engine) => `${claudeHome($.plugin.root)}/live-code-attach-${sessionId.replace(/[^A-Za-z0-9_-]/g, '')}.json`
+const readAttached = async ($: Engine) => {
+  const text = await readText($, attachFile($))
+  try {
+    const raw = JSON.parse(text ?? '[]') as unknown
+    if (Array.isArray(raw)) return raw.filter((a): a is Attached => typeof a?.path === 'string' && typeof a?.name === 'string').slice(0, 20)
+  } catch {}
+  return []
+}
+// (each second, with the inbox: for the band)
+const checkAttached = async ($: Engine) => {
+  const list = await readAttached($)
+  const was = await read($, attached)
+  if (was.length !== list.length || was.some((a, i) => a.path !== list[i]?.path)) await update($, attached, () => list)
+}
+const clearAttached = async ($: Engine) => {
+  await update($, attached, () => [])
+  await $.fs.write(attachFile($), '[]').catch(() => undefined)
+}
+const attachedContext = (list: Attached[]) =>
+  [
+    `The person attached ${list.length === 1 ? 'an image' : `${list.length} images`} to this prompt from the Live Code dashboard, as if dragged into the chat. Look at ${list.length === 1 ? 'it' : 'each'} with the Read tool before answering:`,
+    ...list.map(a => `- ${a.path}`),
+  ].join('\n')
+
 const checkInbox = async ($: Engine) => {
   if (sessionId === '' || isEnded) return
   await compactWhenFree($)
+  await checkAttached($)
   const text = await readText($, `${claudeHome($.plugin.root)}/live-code-inbox-${sessionId.replace(/[^A-Za-z0-9_-]/g, '')}.json`)
   if (text === undefined) return
   let list: unknown
@@ -1456,6 +1488,15 @@ export const register: Register = on => {
 
   on('prompt.submit', async ($, e, next) => {
     await beginTurn($, (e as { text?: string }).text ?? '')
+    // images picked in the dashboard go with the person's next prompt (not a notice or a peer's)
+    const kind = (e.origin as { kind?: string } | undefined)?.kind
+    const byPerson = kind === undefined || kind === 'composer' || kind === 'bridge' || kind === 'sdk' || (kind === 'plugin' && (e.origin as { asUser?: true }).asUser === true)
+    // (read now: picked a moment ago, the band may not show them yet)
+    const list = byPerson ? await readAttached($) : []
+    if (list.length > 0) {
+      await clearAttached($)
+      return next({ ...e, context: [...(e.context ?? []), attachedContext(list)] })
+    }
 
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -2492,8 +2533,32 @@ export const register: Register = on => {
         </Box>
       )
     }
+    // images picked in the dashboard for the next prompt: a row of their own on top
+    const pinned = await read($, attached)
+    const pinRow =
+      pinned.length === 0 ? null : e.surface === 'terminal' ? (
+        <Text wrap="truncate-end">
+          <Text color="#f5792a" bold>📎 {plural(pinned.length, 'image')}</Text>
+          <Text dimColor> from Live Code go with your next prompt: {pinned.map(a => a.name).join(', ')}</Text>
+        </Text>
+      ) : (() => {
+        const { Box, Text, Button } = $.ui.resolve(e)
+        return (
+          <Box flexDirection="row" gap={1} alignItems="center" height={1} overflow="hidden">
+            <Text color="#f5792a" {...T({ weight: 'semibold' })}>📎 {plural(pinned.length, 'image')}</Text>
+            <Text color="inactive" wrap="truncate-end">from Live Code go with your next prompt · {pinned.map(a => a.name).join(', ')}</Text>
+            <Box flexGrow={1} />
+            <Button key="unpin" plain onPress={() => void clearAttached($)}><Text color="inactive">✕ Remove</Text></Button>
+          </Box>
+        )
+      })()
+    const withPins = (tree: unknown) => {
+      if (pinRow === null) return tree
+      const { Box } = $.ui.resolve(e)
+      return <Box flexDirection="column">{pinRow}{tree}</Box>
+    }
     const { live, use, t, think, steps: allSteps, tNo, lanes } = await snapshot($, false)
-    if (tNo === 0 && live === null) return next(e)
+    if (tNo === 0 && live === null) return pinRow ?? next(e)
     const steps = allSteps.filter(s => s.agentId === undefined)
     const ui = $.ui.resolve(e)
     const { Box, Text } = ui
@@ -2530,7 +2595,7 @@ export const register: Register = on => {
               ? '#ea580c'
               : '#16a34a'
 
-      return (
+      return withPins(
         <Box flexDirection="row" gap={1} alignItems="center" height={1} overflow="hidden">
           <Svg source={dotSvg(color)} alt={state.text} width={14} height={14} />
           <Box backgroundColor={state.kind === 'tool' ? color : `${color}26`} paddingX={1}>
@@ -2569,7 +2634,7 @@ export const register: Register = on => {
     const ink =
       state.kind === 'tool' && working !== undefined ? ACTION[working.action].color : state.kind === 'think' ? '#a5b4fc' : '#4ade80'
 
-    return (
+    return withPins(
       <Text wrap="truncate-end">
         <Text color={ink}>
           {state.kind === 'done' ? '✓' : state.kind === 'think' ? THINK_SPIN[slow % THINK_SPIN.length] : SPINNER[slow % SPINNER.length]}{' '}

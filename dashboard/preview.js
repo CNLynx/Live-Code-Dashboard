@@ -136,6 +136,9 @@
     // (nothing for the stage: what it will show, said once)
     // (not before the server said what there is: no flash of it on each load)
     pv.classList.toggle('nothing', P.ready && !i && P.images.length === 0)
+    // the 📎 above: for the image shown
+    pinHead.hidden = P.tab !== 'images' || !P.cur
+    pinHead.classList.toggle('on', P.pins.has(P.cur))
     if (P.tab === 'model' && i) {
       setText(title, i.blend ? i.blend : 'Blender')
       // what the last step brought, while it is new
@@ -580,8 +583,12 @@ void main() {
     const li = document.createElement('li')
     li.className = 'pv-row'
     li.dataset.id = String(item.id)
-    li.innerHTML = `<span class="ic"></span><span class="tx"><b></b><span></span></span><span class="end"></span>`
-    li.addEventListener('click', () => onRow(P.items.find(x => String(x.id) === li.dataset.id)))
+    li.innerHTML = `<span class="ic"></span><span class="tx"><b></b><span></span></span>${item.img ? '<button class="pin" title="Add to your next prompt (click again: take it out)">📎</button>' : ''}<span class="end"></span>`
+    li.addEventListener('click', e => {
+      const it = P.items.find(x => String(x.id) === li.dataset.id)
+      if (e.target.closest('.pin')) { e.stopPropagation(); togglePin(it); return }
+      onRow(it)
+    })
     fillRow(li, item)
     return li
   }
@@ -592,6 +599,7 @@ void main() {
     setText(li.querySelector('.tx span'), subOf(item))
     li.title = [nameOf(item), item.why, item.url, item.command, ...(item.lines ?? [])].filter(Boolean).join('\n')
     li.classList.toggle('bg-run', item.how === 'bg' && item.status === 'running')
+    li.classList.toggle('pinned', P.pins.has(item.id))
     const end = li.querySelector('.end')
     if (item.img && !end.querySelector('img')) end.innerHTML = `<img alt="" loading="lazy" src="/image?id=${item.id}">`
     else if (!item.img && !end.dataset.since) { end.className = 'end ago num'; end.dataset.since = item.at }
@@ -651,6 +659,49 @@ void main() {
     if (known) { Object.assign(known, patch); renderList(); return }
     P.items.push({ id, how: 'blender', at: i.at, img: false, sid: null, prompt: null, ...patch })
     renderList(new Set([id]))
+  }
+
+  // ── images for the next prompt ──
+  // A click on an image's 📎 (in the list, or above for the one shown) adds it
+  // to the chat's next prompt, another takes it out; as many as wanted. The
+  // chat's band above the prompt shows them; the prompt takes them along.
+  P.pins = new Set()
+  const pinsBar = Object.assign(document.createElement('div'), { className: 'pv-pins', hidden: true })
+  pinsBar.innerHTML = '<span class="n"></span><span class="names"></span><button class="btn">✕ Clear</button>'
+  list.before(pinsBar)
+  const pinHead = Object.assign(document.createElement('button'), { className: 'pv-btn pv-pinhere', title: 'Add this image to your next prompt', textContent: '📎' })
+  $('#pv-pop').before(pinHead)
+  const sendPins = ids => fetch('/attach', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ sid: S.view, ids }) }).then(r => r.json()).then(listed => window.onAttach({ sid: S.view, list: listed })).catch(() => {})
+  const togglePin = item => {
+    if (!item?.img || !S.view) return
+    const ids = new Set(P.pins)
+    if (ids.has(item.id)) ids.delete(item.id); else ids.add(item.id)
+    P.pins = ids
+    drawPins()
+    void sendPins([...ids])
+  }
+  pinHead.addEventListener('click', () => togglePin(P.items.find(x => x.id === P.cur)))
+  pinsBar.querySelector('button').addEventListener('click', () => { P.pins = new Set(); drawPins(); void sendPins([]) })
+  const drawPins = () => {
+    for (const li of list.querySelectorAll('.pv-row')) li.classList.toggle('pinned', P.pins.has(Number(li.dataset.id)))
+    pinHead.classList.toggle('on', P.pins.has(P.cur))
+    pinHead.hidden = P.tab !== 'images' || !P.cur
+    const names = P.items.filter(x => P.pins.has(x.id)).map(x => (x.how === 'browser' ? 'screenshot' : x.name))
+    setText(pinsBar.querySelector('.n'), `📎 ${plural(P.pins.size, 'image')} for your next prompt`)
+    setText(pinsBar.querySelector('.names'), names.join(', '))
+    reveal(pinsBar, P.pins.size > 0)
+  }
+  let pinsOf = null
+  // what the chat has picked (the band's "Remove", or a prompt that took them, empties it)
+  window.onAttach = msg => {
+    if (!msg || msg.sid !== S.view) return
+    P.pins = new Set((msg.list ?? []).map(a => a.id).filter(Number.isFinite))
+    drawPins()
+  }
+  const loadPins = () => {
+    pinsOf = S.view
+    if (!S.view) return
+    fetch(`/attach?sid=${encodeURIComponent(S.view)}`).then(r => r.json()).then(listed => window.onAttach({ sid: S.view, list: listed })).catch(() => {})
   }
 
   // ── what the server tells ──
@@ -716,8 +767,9 @@ void main() {
 
   // each tick of the page (drawNow): the time words, and away when all is calm
   window.drawBlender = () => {
-    // (another chat shown: its list)
+    // (another chat shown: its list, and what it has picked for its next prompt)
     if (listView !== S.view) renderList()
+    if (pinsOf !== S.view) loadPins()
     if (!visible()) return
     drawMeta()
     if (!P.dock && !P.pinned && !P.hover && !working() && Date.now() - P.activity > HIDE_AFTER_MS) hide()
