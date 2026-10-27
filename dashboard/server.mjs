@@ -18,6 +18,8 @@ import { fileURLToPath } from 'node:url'
 import { hueAlarm, hueAsks, hueBuild, hueConfig, hueDone, huePair, hueRooms, pairing, hueTest, setHueOptions } from './hue.mjs'
 import { ensureWebView2, hasWebView2 } from './webview2.mjs'
 import { deploysFor, followDeploys, pokeDeploys } from './deploys.mjs'
+import { blenderMesh, blenderState, initBlender, setBlenderMode, spotBlender } from './blender.mjs'
+import { imageFile, imagesState, initImages, sentImagesIn, watchImageDirs } from './images.mjs'
 
 const PUSHED = /git(?:\.exe)?\s+push|gh(?:\.exe)?\s+pr\s+merge/
 
@@ -196,6 +198,8 @@ const send = (res, msg) => res.write(`data: ${JSON.stringify(msg)}\n\n`)
 const broadcast = msg => {
   for (const res of clients) send(res, msg)
 }
+initImages({ broadcast })
+initBlender({ home: HOME, broadcast })
 
 // ── the pages reload themselves when their files change ──
 // A change to a page or its script (not to this server) is told to every
@@ -331,6 +335,8 @@ const readPrompts = sid => {
     promptsRead.set(sid, mtime)
     // tool output can fill the end of a long chat: read further back when it holds too few
     let tail = readTail(file, PROMPT_TAIL_BYTES)
+    // (an image Claude sent the person shows in the preview window: images.mjs)
+    sentImagesIn(tail.text, sid)
     let found = promptsIn(tail.text)
     if (found.length < PROMPTS_KEPT && !tail.isWhole) {
       tail = readTail(file, PROMPT_TAIL_BYTES * 8)
@@ -660,6 +666,8 @@ const initPayload = () => {
     run: RUN,
     prefs,
     now: Date.now(),
+    blender: blenderState(),
+    images: imagesState(),
     sessions: sessionList(),
     actions: list.map((a, i) => (i < list.length - INIT_ROWS ? lean(a) : a)),
     samples: samples.slice(-INIT_SAMPLES),
@@ -672,11 +680,26 @@ const initPayload = () => {
 // changed to; the newest few of the last two hours, with where it started.
 const workDirs = new Map() // sid -> Map(dir -> when)
 const CD = /(?:\bcd|Set-Location|\bgit(?:\.exe)?\s+-C|--cwd)\s+["']?([A-Za-z]:[\\/][^"'\n;|&<>]+?|\/[^"'\s;|&<>]+)["']?(?=[\s;|&]|$)/g
+const NAMED = /["']?([A-Za-z]:[\\/][^"'\n|;&<>*?]{2,240})["']?/g
 const noteDirs = a => {
   if (!a?.sid) return
   const found = []
   if (typeof a.file === 'string' && /^(?:[A-Za-z]:[\\/]|\/)/.test(a.file)) found.push(a.action === 'searching' ? a.file : path.dirname(a.file))
-  if (a.action === 'running') for (const m of `${a.detail ?? ''}\n${(a.rows ?? []).map(r => r.text).join('\n')}`.matchAll(CD)) found.push(m[1].trim())
+  if (a.action === 'running') {
+    const text = `${a.detail ?? ''}\n${(a.rows ?? []).map(r => r.text).join('\n')}`
+    for (const m of text.matchAll(CD)) found.push(m[1].trim())
+    // the folders of the files a command names (where its output may land)
+    // (unquoted, a path runs on into the arguments: the longest part that exists)
+    for (const m of text.slice(0, 20_000).matchAll(NAMED)) {
+      const words = m[1].split(' ').slice(0, 8)
+      for (let k = words.length; k > 0; k--) {
+        const p = words.slice(0, k).join(' ').replace(/[\\/.,:)]+$/, '')
+        let st = null
+        try { st = fs.statSync(p) } catch { try { if (fs.statSync(path.dirname(p)).isDirectory() && /\.\w{1,5}$/.test(p)) st = 'file' } catch {} }
+        if (st) { found.push(st !== 'file' && st.isDirectory() ? p : path.dirname(p)); break }
+      }
+    }
+  }
   if (found.length === 0) return
   const m = workDirs.get(a.sid) ?? new Map()
   for (const d of found) m.set(d, Math.max(m.get(d) ?? 0, a.startedAt || 0))
@@ -693,6 +716,14 @@ for (const a of actions.values()) noteDirs(a)
 // One new state of one session's feed: new or completed actions, maybe a usage sample.
 const ingest = (sid, feed) => {
   const fresh = []
+  // a command that runs Blender: its live view can be offered (blender.mjs)
+  const cur = feed.current
+  if (cur?.action === 'running' && !cur.isDone) {
+    spotBlender(`${cur.detail ?? ''}\n${(cur.rows ?? []).slice(0, 20).map(r => r.text).join('\n')}`)
+    noteDirs({ ...cur, sid })
+  }
+  // the images made where it works show in the preview window (images.mjs)
+  watchImageDirs(dirsOf(sid, feed.session?.cwd), sid)
   const items = [...(Array.isArray(feed.history) ? feed.history : []), ...(feed.current ? [feed.current] : [])]
   for (const item of items) {
     if (!item?.id || !item.isDone) continue
@@ -1293,8 +1324,31 @@ const server = http.createServer((req, res) => {
     handleSend(req, res).catch(() => res.writeHead(500).end('{}'))
   } else if (url.pathname === '/voice' || url.pathname === '/speak') {
     handleVoice(req, res, url).catch(e => res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: e.message })))
-  } else if (url.pathname === '/extras.js' || url.pathname === '/shared.js' || url.pathname === '/details.js') {
+  } else if (url.pathname === '/extras.js' || url.pathname === '/shared.js' || url.pathname === '/details.js' || url.pathname === '/preview.js') {
     sendFile(res, path.join(HERE, url.pathname.slice(1)), 'text/javascript; charset=utf-8')
+  } else if (url.pathname === '/blender') {
+    // Blender live (blender.mjs): its state; switched on or off by the dashboard page alone
+    if (req.method !== 'POST') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(blenderState())); return }
+    if (!isTrusted(req)) { res.writeHead(403).end('{}'); return }
+    readBody(req, 1000).then(body => {
+      let m = {}
+      try { m = JSON.parse(body) } catch {}
+      const ok = setBlenderMode(m.mode)
+      res.writeHead(ok ? 200 : 400, { 'Content-Type': 'application/json' }).end(JSON.stringify(blenderState()))
+    }, () => res.writeHead(400).end('{}'))
+  } else if (url.pathname === '/blender/mesh') {
+    const file = blenderMesh()
+    if (!file) { res.writeHead(404).end(); return }
+    fs.readFile(file, (error, data) => {
+      if (error) { res.writeHead(404).end(); return }
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' }).end(data)
+    })
+  } else if (url.pathname === '/image') {
+    // only an image the preview window was told about (its id), never any other file
+    const file = imageFile(Number(url.searchParams.get('id')))
+    if (!file) { res.writeHead(404).end(); return }
+    const ext = path.extname(file).slice(1).toLowerCase()
+    sendFile(res, file, ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`)
   } else if (url.pathname === '/custom.css' || url.pathname === '/custom.js') {
     // the person's own touches, kept outside the mod (~/.claude/live-code-custom):
     // an update never overwrites them; none there, an empty file

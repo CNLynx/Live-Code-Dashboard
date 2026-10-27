@@ -9,3 +9,4 @@ node_modules/
 dashboard/icons/*.ico
 streamdeck/*.sdPlugin/*.streamDeckProfile
 live-users/.wrangler/
+__pycache__/

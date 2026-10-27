@@ -88,6 +88,12 @@ Each light keeps its own brightness, lights that are off stay off, and everythin
 
 When a chat works in a GitHub repository whose site is built by Cloudflare (Workers or Pages), Vercel or Netlify, the live view shows the build: the host's mark, *builds … · live* or *preview of a branch*, the time, and a progress bar; then **✓ deployed** or **✗ build failed** with a link to the log. It needs the [GitHub CLI](https://cli.github.com) signed in (`gh auth login`), no key of the host: the host reports each build to GitHub, and the dashboard reads it there. The host reports a build only once it is done, so the bar in between follows how long its builds usually take.
 
+### Preview window: images and Blender, live
+
+A window that floats over the dashboard and comes by itself. Drag it by its head, size it at its corner, and 📌 keeps it open; otherwise it goes again a while after the last change.
+- **Images:** an image written where a chat works (a render, a texture a script painted, a screenshot) or sent to you by Claude builds up in it tile by tile. Earlier ones wait in a strip below.
+- **Blender:** when a chat runs Blender (`blender.exe -b … --python …`), the dashboard offers *Blender live*. Switched on, it puts a small startup script into that Blender's startup scripts. From then on you watch the model turn as Claude builds it, in the dashboard, and each render lands as an image. It writes only to `~/.claude/live-code-blender`. Switched off in Settings → Display, the script is taken away again.
+
 ### Install (one click)
 
 You need **Windows 10/11**, **[Claude Code](https://claude.com/claude-code)** and **[Node.js](https://nodejs.org)**. Open PowerShell and run:
@@ -154,6 +160,8 @@ Everything Live Code does outside of Claude Code itself, in full:
 | Starts the dashboard server, `node dashboard/server.mjs`, listening on `127.0.0.1:4477` only | when a chat starts | your PC only |
 | Opens the dashboard in Microsoft Edge (app window), tile windows through PowerShell + WebView2 | when you open them | your PC only |
 | Reads your chats' transcripts in `~/.claude/projects` to count today's prompts and words | while the dashboard is open | your PC only |
+| Watches the folders a chat works in (with their subfolders) for new images, and reads which files Claude sent you from the transcript, to show them in the preview window | while that chat was active in the last 30 minutes | your PC only |
+| Blender live, only once you switch it on: `live_code_blender.py` in the startup scripts of the Blender a chat runs; Blender then writes its visible meshes and render names to `~/.claude/live-code-blender` | while Blender runs | your PC only |
 | Sends light commands to **your own Philips Hue Bridge** (local network, HTTPS) | only after you pair it, on done / question / stuck / a site build | your bridge |
 | Looks up the latest version number: `api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json` | every 10 minutes while the dashboard runs | GitHub |
 | Live users: a random id of this install (made on your PC, `~/.claude/live-code-install.json`), nothing else; the answer is how many dashboards are open worldwide, shown as "● N online" | every 5 minutes while a dashboard page is open; switch it off in Settings → Display | Live Code's counter (a Cloudflare Worker, `live-users/worker.js`; ids kept in memory for 6 minutes only) |
@@ -250,6 +258,12 @@ Jede Lampe behält ihre Helligkeit, ausgeschaltete bleiben aus, und danach ist a
 
 Arbeitet ein Chat in einem GitHub-Repo, dessen Seite Cloudflare (Workers oder Pages), Vercel oder Netlify baut, zeigt der Live-Bereich den Build: das Zeichen des Anbieters, *builds … · live* oder *preview* eines Branches, die Zeit und einen Fortschrittsbalken; danach **✓ deployed** oder **✗ build failed** mit Link zum Log. Nötig ist nur die angemeldete [GitHub CLI](https://cli.github.com) (`gh auth login`), kein Schlüssel des Anbieters: Der Anbieter meldet jeden Build an GitHub, das Dashboard liest ihn dort. Er meldet ihn erst, wenn er fertig ist; der Balken dazwischen folgt der üblichen Dauer seiner Builds.
 
+### Vorschau-Fenster: Bilder und Blender, live
+
+Ein Fenster, das über dem Dashboard schwebt und von selbst kommt. Du verschiebst es am Kopf und änderst die Grösse an der Ecke; 📌 hält es offen, sonst geht es eine Weile nach der letzten Änderung wieder.
+- **Bilder:** Ein Bild, das dort entsteht, wo ein Chat arbeitet (ein Render, eine von einem Skript gemalte Textur, ein Screenshot), oder das Claude dir sendet, setzt sich darin Kachel für Kachel zusammen. Frühere warten in einer Leiste darunter.
+- **Blender:** Startet ein Chat Blender (`blender.exe -b … --python …`), bietet das Dashboard *Blender live* an. Eingeschaltet legt es ein kleines Startskript in die Startup-Skripte dieses Blenders. Ab dann siehst du im Dashboard, wie sich das Modell dreht, während Claude es baut, und jeder Render kommt als Bild dazu. Geschrieben wird nur nach `~/.claude/live-code-blender`. Ausgeschaltet (Einstellungen → Display) wird das Skript wieder entfernt.
+
 ### Installation (ein Klick)
 
 Du brauchst **Windows 10/11**, **[Claude Code](https://claude.com/claude-code)** und **[Node.js](https://nodejs.org)**. Öffne PowerShell und führe aus:
@@ -286,6 +300,8 @@ Die Änderung erscheint, während Claude noch tippt. Das geht in Claude Code (Te
   - die Hue-Befehle an deine eigene Bridge;
   - alle 10 Minuten ein Blick auf die Versionsnummer dieses Repos;
   - für „● N online“, solange ein Dashboard offen ist, alle 5 Minuten eine zufällige, anonyme ID dieser Installation an den Zähler von Live Code (Cloudflare Worker, `live-users/worker.js`, merkt sich IDs nur 6 Minuten im Speicher). Abschaltbar unter Einstellungen → Display.
+
+  Auf deinem PC bleibt: Das Vorschau-Fenster erkennt neue Bilder in den Arbeitsordnern der Chats, und *Blender live* schreibt nur nach `~/.claude/live-code-blender`.
 - **Tokens:** Die kurzen „Wofür“-Erklärungen schreibt Claude Haiku. Das kostet etwa 1 % dessen, was die Chats selbst kosten.
 - **Deinstallieren:** `claude plugin uninstall live-code@cnlynx`, danach die Verknüpfungen löschen.
 

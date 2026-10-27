@@ -497,6 +497,55 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .idle-moon .moon { fill: #f6e7a6; } .idle-moon .moon-glow { fill: #f6e7a6; opacity: .14; }
 .idle-moon .moon-cut { fill: var(--surface, var(--page)); }
 .idle-ground { fill: color-mix(in srgb, var(--ink) 7%, transparent); }
+/* ── the preview window (preview.js): floats over the page, dragged by its head,
+   sized at its corner; Blender's model turning, images building up tile by tile ── */
+.pv { --pv: #f5792a; position: fixed; z-index: 60; left: 0; top: 0; width: 460px; height: 380px; min-width: 280px; min-height: 220px; max-width: 96vw; max-height: 92vh;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); place-items: stretch; border-radius: 14px; overflow: hidden; resize: both;
+  background: linear-gradient(var(--surface), var(--surface)), var(--page); border: 1px solid var(--ring);
+  box-shadow: 0 18px 50px rgba(0,0,0,.35), 0 0 0 1px color-mix(in srgb, var(--pv) 18%, transparent);
+  opacity: 0; transform: translateY(14px) scale(.96); transform-origin: 100% 100%;
+  transition: opacity .45s cubic-bezier(.2,.8,.2,1), transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .3s; }
+.pv[hidden] { display: none; }
+.pv.shown { opacity: 1; transform: none; }
+.pv.dragging { transition: none; box-shadow: 0 26px 70px rgba(0,0,0,.45), 0 0 0 1px color-mix(in srgb, var(--pv) 40%, transparent); }
+.pv-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; font-size: 12.5px; text-align: left; color: var(--muted); cursor: grab; user-select: none; touch-action: none;
+  border-bottom: 1px solid var(--ring); }
+.pv.dragging .pv-head { cursor: grabbing; }
+.pv-title { color: var(--ink); font-weight: 650; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--pv); }
+.pv.working .pv-dot { animation: pv-pulse 1.6s ease-out infinite; }
+@keyframes pv-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--pv) 60%, transparent); } 100% { box-shadow: 0 0 0 9px transparent; } }
+.pv-tabs { flex: none; display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.pv-tabs button { all: unset; cursor: pointer; padding: 3px 10px; border-radius: 6px; font-size: 12px; color: var(--muted); transition: background .25s, color .25s, box-shadow .25s, opacity .25s; }
+.pv-tabs button.on { background: var(--surface-3); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.pv-tabs button:disabled { opacity: .35; cursor: default; }
+.pv-btn { all: unset; flex: none; cursor: pointer; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; font-size: 12px; color: var(--muted); opacity: .7; transition: background .2s, color .2s, opacity .2s; }
+.pv-btn:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); opacity: 1; }
+#pv-pin { filter: grayscale(1); }
+.pv.pinned #pv-pin { filter: none; opacity: 1; background: color-mix(in srgb, var(--pv) 16%, transparent); }
+.pv-body { position: relative; min-height: 0;
+  background: radial-gradient(120% 90% at 50% 45%, color-mix(in srgb, var(--pv) 6%, transparent), transparent 70%); }
+.pv-gl, .pv-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; pointer-events: none; transition: opacity .55s cubic-bezier(.2,.8,.2,1); }
+.pv-gl { cursor: grab; touch-action: none; }
+.pv-gl:active { cursor: grabbing; }
+.pv.model .pv-gl { opacity: 1; pointer-events: auto; }
+.pv.images .pv-img { opacity: 1; }
+.pv-empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 4px; color: var(--muted); font-size: 13px; pointer-events: none; opacity: 0; transition: opacity .45s; }
+.pv-empty b { color: var(--ink-2); }
+.pv.model.empty .pv-empty { opacity: 1; }
+.pv-foot { display: grid; gap: 6px; padding: 6px 12px 10px; border-top: 1px solid var(--ring); }
+.pv-meta { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 1.3em; }
+.pv-strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; height: 0; opacity: 0; transition: height .4s cubic-bezier(.2,.8,.2,1), opacity .4s; }
+.pv.images .pv-strip.some { height: 46px; opacity: 1; }
+.pv-strip img { flex: none; height: 40px; width: auto; max-width: 90px; object-fit: cover; border-radius: 6px; cursor: pointer; opacity: .5; outline: 2px solid transparent; outline-offset: -2px;
+  transition: opacity .25s, outline-color .25s, transform .35s cubic-bezier(.2,.8,.2,1); }
+.pv-strip img.fresh { transform: scale(.6); opacity: 0; }
+.pv-strip img:hover { opacity: .85; }
+.pv-strip img.on { opacity: 1; outline-color: var(--pv); }
+.dp.bl-offer { --dp: #f5792a; margin: 0 0 10px; }
+.dp.bl-offer[hidden] { display: none; }
+.dp.bl-offer .bl-ic { width: 12px; height: 12px; border-radius: 50%; background: var(--dp); justify-self: center; }
+:root.calm .pv.working .pv-dot { animation: none; }
 .idle-tree .trunk { fill: color-mix(in srgb, #8a5a3b 78%, var(--page)); }
 .idle-tree .crown { fill: color-mix(in srgb, var(--good) 46%, var(--page)); }
 .idle-tree .c2, .idle-tree .c3 { fill: color-mix(in srgb, var(--good) 36%, var(--page)); }
@@ -1207,6 +1256,10 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
         <div class="hint">While Claude thinks longer, the code blurs back and an owl ponders over it.</div>
         <label class="big"><input type="checkbox" id="set-idle-anim"> Idle animation in the live view</label>
         <div class="hint">When nothing happens for a few seconds, the code fades and the owl flies about its tree until Claude works again.</div>
+        <label class="big"><input type="checkbox" id="set-preview"> Preview window for images and Blender</label>
+        <div class="hint">A window that floats over the dashboard and comes by itself: an image made where Claude works, rendered or sent to you builds up in it tile by tile. Drag it by its head, size it at its corner; 📌 keeps it open.</div>
+        <label class="big"><input type="checkbox" id="set-blender"> Blender live: watch the model as Claude builds it</label>
+        <div class="hint">For this, a small script goes into the startup scripts of the Blender Claude uses; it writes only to ~/.claude/live-code-blender, nothing leaves this PC. Off: the script is taken away again.</div>
         <label class="vol">Only after <input type="range" id="set-think-after" min="1" max="10" step="0.5"><span class="num" id="set-think-after-n"></span></label>
         <div class="hint">How long a thought lasts before it shows; shorter ones stay out of the way.</div>
       </section>
@@ -1253,6 +1306,12 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
       </div>
       <div class="compact-bar" id="compact-bar" hidden></div>
       <div class="deploy-bar" id="deploy-bar" hidden></div>
+      <div class="dp bl-offer" id="bl-offer" hidden>
+        <span class="bl-ic"></span>
+        <span>Claude works in <b>Blender</b>. Watch its model and renders live here?</span>
+        <button class="btn" id="bl-offer-on">Turn on</button>
+        <button class="btn" id="bl-offer-no">Not now</button>
+      </div>
       <div class="live-head" id="live-head"><span class="muted">Waiting for Claude to touch a file…</span></div>
       <div class="path" id="live-path"></div>
       <div class="why" id="live-why" hidden></div>
@@ -3089,6 +3148,7 @@ const drawThinking = st => {
 }
 const drawNow = () => {
   drawWhy()
+  window.drawBlender?.()
   const st = statusOf()
   drawThinking(st)
   drawIdle(st)
@@ -3581,6 +3641,10 @@ const connect = () => {
     if (typeof msg.now === 'number') S.skew = msg.now - Date.now()
     if (msg.type === 'init') {
       if (msg.prefs) applyShared(msg.prefs)
+      // (the preview window's script may still be loading: it picks them up then)
+      window.__pvInit = { images: msg.images, blender: msg.blender }
+      if (msg.images) window.onImages?.(msg.images)
+      if (msg.blender) window.onBlender?.(msg.blender)
       // the server restarted: its secret is new, so this page loads afresh
       if (msg.run && msg.run !== document.querySelector('meta[name="lc-run"]')?.content) reloadWhenSafe()
       S.actions = []; S.byId.clear(); S.samples = msg.samples ?? []
@@ -3614,6 +3678,10 @@ const connect = () => {
       window.showVersion?.()
     } else if (msg.type === 'live') {
       window.showLive?.(msg.n)
+    } else if (msg.type === 'blender') {
+      window.onBlender?.(msg.blender)
+    } else if (msg.type === 'image') {
+      window.onImage?.(msg.image)
     } else if (msg.type === 'update') {
       window.onUpdateState?.(msg.update)
     } else if (msg.type === 'dictate' || msg.type === 'dictation') {
@@ -3747,7 +3815,26 @@ connect()
 <button class="ask-pill" id="ask-pill" hidden></button>
 <div class="sheet-wrap" id="sheet-wrap" hidden><div class="sheet" id="sheet"></div></div>
 <script src="/extras.js"></script>
+<!-- the preview window (preview.js): Blender's model as it is built, images as they are made or sent -->
+<div class="pv" id="pv" hidden aria-label="Live preview">
+  <div class="pv-head" id="pv-head">
+    <span class="pv-dot"></span><b class="pv-title" id="pv-title">Preview</b>
+    <span class="pv-tabs"><button data-pv="model" disabled>3D model</button><button data-pv="images" disabled>Images</button></span>
+    <button class="pv-btn" id="pv-pin" title="Keep it open">📌</button>
+    <button class="pv-btn" id="pv-close" title="Close (opens again with the next image or model change)">✕</button>
+  </div>
+  <div class="pv-body">
+    <canvas class="pv-gl" id="pv-gl"></canvas>
+    <canvas class="pv-img" id="pv-img"></canvas>
+    <div class="pv-empty" id="pv-empty"><b>Blender is at work</b><span>the model shows as soon as there is one</span></div>
+  </div>
+  <div class="pv-foot">
+    <span class="pv-meta num" id="pv-meta"></span>
+    <div class="pv-strip" id="pv-strip"></div>
+  </div>
+</div>
 <script src="/details.js"></script>
+<script src="/preview.js"></script>
 <!-- your own touches, in ~/.claude/live-code-custom: kept through updates -->
 <link rel="stylesheet" href="/custom.css">
 <script src="/custom.js"></script>
