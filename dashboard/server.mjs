@@ -19,7 +19,7 @@ import { hueAlarm, hueAsks, hueBuild, hueConfig, hueDone, huePair, hueRooms, pai
 import { ensureWebView2, hasWebView2 } from './webview2.mjs'
 import { deploysFor, followDeploys, pokeDeploys } from './deploys.mjs'
 import { blenderMesh, blenderState, initBlender, setBlenderMode, spotBlender } from './blender.mjs'
-import { imageData, imagesState, initImages, isImage, setDoing, setVisualOn, showImage, visualOn, visualsIn, watchImageDirs } from './images.mjs'
+import { imageData, imagesState, initImages, isImage, keepImages, setDoing, setVisualOn, setVisualResting, showImage, visualAwake, visualOn, visualsIn, watchImageDirs } from './images.mjs'
 
 const PUSHED = /git(?:\.exe)?\s+push|gh(?:\.exe)?\s+pr\s+merge/
 
@@ -200,6 +200,7 @@ const broadcast = msg => {
 }
 // (the prompt a chat works on, for what it makes: the newest the transcript holds)
 initImages({ broadcast, prompt: sid => prompts.get(sid)?.at(-1) ?? null })
+keepImages(HOME)
 initBlender({ home: HOME, broadcast })
 
 // ── the pages reload themselves when their files change ──
@@ -416,6 +417,7 @@ try { for (const f of fs.readdirSync(ATTACH_DIR)) { const p = path.join(ATTACH_D
 // somewhere, files sent to the person. The browser's screenshots land in a
 // folder beside it (<sid>/tool-results), which is watched.
 const visualsRead = new Map() // sid -> transcript size read
+const FIRST_READ = 2 * 1024 * 1024
 // switched off in the dashboard (⏸ or its settings), kept over restarts
 const VISUAL_CFG = path.join(HOME, 'live-code-visual.json')
 try { if (JSON.parse(fs.readFileSync(VISUAL_CFG, 'utf8')).on === false) setVisualOn(false) } catch {}
@@ -426,8 +428,14 @@ const switchVisual = value => {
   if (visualOn()) for (const s of sessions.values()) { const file = transcriptOf(s.id); try { if (file) visualsRead.set(s.id, fs.statSync(file).size) } catch {} }
   broadcast({ type: 'visual', on: visualOn() })
 }
+// No page open for half a minute: it rests (nothing read or watched). A page
+// coming back wakes it, and what the chats did meanwhile (their last ten
+// minutes) is read once more: what was shown already is not shown twice.
+const REST_AFTER_MS = 30_000
+const wakeVisual = () => { const was = visualAwake(); setVisualResting(false); if (!was && visualOn()) visualsRead.clear() }
+setInterval(() => { if (clients.size === 0 && Date.now() - lastClientAt > REST_AFTER_MS && visualAwake()) setVisualResting(true) }, 5000).unref()
 setInterval(() => {
-  if (!visualOn()) return
+  if (!visualAwake()) return
   for (const s of sessions.values()) {
     if (Date.now() - s.mtime > 10 * 60_000) continue
     const file = transcriptOf(s.id)
@@ -435,10 +443,11 @@ setInterval(() => {
     try {
       const size = fs.statSync(file).size
       if (visualsRead.get(s.id) === size) continue
-      const was = visualsRead.get(s.id) ?? 0
+      const was = visualsRead.get(s.id)
       visualsRead.set(s.id, size)
-      // (only what is new since last time, a little more for a line cut in two)
-      visualsIn(readTail(file, Math.min(size, Math.max(64 * 1024, size - was + 4096))).text, s.id)
+      // (only what is new since last time, a little more for a line cut in two;
+      // the first time its end alone: what is older than ten minutes is not shown)
+      visualsIn(readTail(file, was === undefined ? FIRST_READ : Math.min(size, Math.max(64 * 1024, size - was + 4096))).text, s.id)
       watchImageDirs([path.join(path.dirname(file), s.id, 'tool-results')], s.id, 'browser')
     } catch {}
   }
@@ -1598,6 +1607,7 @@ const server = http.createServer((req, res) => {
     res.write('retry: 2000\n\n')
     send(res, initPayload())
     clients.add(res)
+    wakeVisual()
     // the first page open after a while: counted (and told the count) at once
     if (Date.now() - live.at > 5 * 60_000) void pingLive()
     // a window that answers questions (the dashboard unless switched off, the Stream Deck)

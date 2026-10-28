@@ -24,6 +24,7 @@ const MAX_BYTES = 40 * 1024 * 1024
 const KEEP_BYTES = 8 * 1024 * 1024 // an image up to this size is kept as it was (for a before/after)
 const KEPT_TOTAL = 160 * 1024 * 1024
 const KEEP = 80
+const HISTORY_MS = 60 * 60_000 // what the pages are given, and what a restart keeps
 const WATCH_FOR_MS = 30 * 60_000 // a folder no chat worked in for this long is let go
 const SETTLE_MS = 700 // a file still being written: looked at once it is still
 const BURST = 8 // at most this many made in 10 s (an extraction of thousands is no show)
@@ -38,20 +39,34 @@ let burst = []
 
 // Switched off (the dashboard's ⏸, or its settings): nothing watched or read,
 // the folders let go and the kept bytes freed, until it is on again.
-let on = true
-export const visualOn = () => on
-export const setVisualOn = value => {
-  on = !!value
-  if (on) return
+// Resting (no dashboard open, server.mjs): nothing watched or read either, the
+// list and its bytes kept for when a page comes.
+let switchedOn = true, resting = false, on = true
+export const visualOn = () => switchedOn
+export const visualAwake = () => on
+const letGo = () => {
   for (const x of watchers.values()) { try { x.watcher.close() } catch {} }
   watchers.clear()
   for (const t of pending.values()) clearTimeout(t)
   pending.clear()
-  for (const s of shown) s.data = null
+}
+export const setVisualOn = value => {
+  switchedOn = !!value
+  on = switchedOn && !resting
+  if (switchedOn) return
+  letGo()
+  // (an earlier version shown as a "before" keeps its bytes: its file is the after now)
+  const befores = new Set(shown.map(s => s.prevId).filter(Boolean))
+  for (const s of shown) if (!befores.has(s.id)) s.data = null
+}
+export const setVisualResting = value => {
+  resting = !!value
+  on = switchedOn && !resting
+  if (!on) letGo()
 }
 
 const out = item => { const { file, data, key, outFile, ...rest } = item; return rest }
-const recent = () => shown.filter(s => Date.now() - s.at < 20 * 60_000).map(out)
+const recent = () => shown.filter(s => Date.now() - s.at < HISTORY_MS).map(out)
 export const imagesState = () => recent()
 // an image as it was when told about (its kept bytes), else its file
 export const imageData = id => { const s = shown.find(x => x.id === id && x.img); return s ? { data: s.data ?? null, file: s.file } : null }
@@ -62,8 +77,44 @@ const add = item => {
   let total = 0
   for (let i = shown.length - 1; i >= 0; i--) { const s = shown[i]; if (!s.data) continue; total += s.data.length; if (total > KEPT_TOTAL) s.data = null }
   tell(out(item))
+  keepSoon()
 }
-const again = (item, patch) => { Object.assign(item, patch); tell({ ...out(item), again: true }) }
+const again = (item, patch) => { Object.assign(item, patch); tell({ ...out(item), again: true }); keepSoon() }
+
+// ── kept over a restart (the server swaps itself on each update) ──
+// The list of the last hour as JSON; of the kept bytes only an earlier version
+// another item shows as its "before" (the others are their files still).
+let keepFile = null, keepDir = null, keepDue = null
+const keepSoon = () => { if (keepFile && !keepDue) keepDue = setTimeout(keepNow, 2000) }
+const keepNow = () => {
+  keepDue = null
+  try {
+    const list = shown.filter(s => Date.now() - s.at < HISTORY_MS)
+    const befores = new Set(list.map(s => s.prevId).filter(Boolean))
+    fs.mkdirSync(keepDir, { recursive: true })
+    for (const s of list) if (befores.has(s.id) && s.data) { const f = path.join(keepDir, `${s.id}.bin`); if (!fs.existsSync(f)) fs.writeFileSync(f, s.data) }
+    for (const f of fs.readdirSync(keepDir)) if (!list.some(s => `${s.id}.bin` === f && befores.has(s.id))) fs.rmSync(path.join(keepDir, f), { force: true })
+    const items = list.map(({ data, ...rest }) => rest)
+    fs.writeFileSync(`${keepFile}.tmp`, JSON.stringify({ nextId, items }))
+    fs.renameSync(`${keepFile}.tmp`, keepFile)
+  } catch {}
+}
+process.on('exit', () => { if (keepDue) { clearTimeout(keepDue); keepNow() } })
+export const keepImages = home => {
+  keepFile = path.join(home, 'live-code-visual-history.json')
+  keepDir = path.join(home, 'live-code-visual-before')
+  let saved = null
+  try { saved = JSON.parse(fs.readFileSync(keepFile, 'utf8')) } catch { return }
+  for (const s of Array.isArray(saved?.items) ? saved.items : []) {
+    if (!s || !Number.isFinite(s.id) || Date.now() - s.at > HISTORY_MS) continue
+    // (a command in the background is no more followed: its state as it was)
+    if (s.how === 'bg' && s.status === 'running') s.status = 'unknown'
+    try { s.data = fs.readFileSync(path.join(keepDir, `${s.id}.bin`)) } catch {}
+    shown.push(s)
+    if (s.key) eventsSeen.set(s.key, s)
+  }
+  nextId = Math.max(nextId, Number(saved?.nextId) || 0, ...shown.map(s => s.id + 1))
+}
 
 // ── what it is for, and which prompt ──
 // Per chat: the prompt it works on and the last thing it said (from the
@@ -89,12 +140,17 @@ const eventsSeen = new Map() // key -> item
 export const noteVisual = (key, how, name, sid, extra = {}) => {
   if (!on || !key || eventsSeen.has(key) || typeof name !== 'string' || !name.trim()) return null
   const at = extra.at ?? Date.now()
-  if (Date.now() - at > 15 * 60_000) { eventsSeen.set(key, null); return null }
+  if (Date.now() - at > 15 * 60_000) return null
   const item = { id: nextId++, key, file: null, name: name.trim().slice(0, 200), url: '', how, sid, img: false, ...contextOf(sid, how), ...extra, at }
   eventsSeen.set(key, item)
   add(item)
   return item
 }
+// (what is too old to come again let go, but a command still running)
+setInterval(() => {
+  for (const [k, item] of eventsSeen) if (Date.now() - item.at > 20 * 60_000 && !(item.how === 'bg' && item.status === 'running' && Date.now() - item.at < 60 * 60_000)) eventsSeen.delete(k)
+  for (const [k, bg] of pendingBg) if (Date.now() - bg.at > 60 * 60_000) pendingBg.delete(k)
+}, 60_000).unref()
 export const updateVisual = (key, patch) => {
   const item = eventsSeen.get(key)
   if (item && Object.entries(patch).some(([k, v]) => item[k] !== v)) again(item, patch)
@@ -258,7 +314,7 @@ const toolUse = (c, entry, sid, at) => {
   else if (c.name === 'WebFetch' && typeof input.url === 'string') noteVisual(c.id, 'web', host(input.url), sid, { at, url: input.url })
   else if (m && m[1] === 'browser_batch' && Array.isArray(input.actions)) input.actions.forEach((s, i) => browserStep(`${c.id}:${i}`, s?.name ?? '', s?.input ?? {}, sid, at))
   else if (m) browserStep(c.id, m[1], input, sid, at)
-  else if (input.run_in_background === true) pendingBg.set(c.id, { name: input.description || clip(input.command, 70) || c.name, command: clip(input.command, 300) })
+  else if (input.run_in_background === true) pendingBg.set(c.id, { name: input.description || clip(input.command, 70) || c.name, command: clip(input.command, 300), at: Date.now() })
 }
 const toolResult = (c, entry, sid, at) => {
   // a command sent to the background: from now on its state and output

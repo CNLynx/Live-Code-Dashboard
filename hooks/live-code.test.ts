@@ -198,7 +198,8 @@ test('images picked in the dashboard go with the next prompt, then are gone', as
     return { value: undefined }
   }) as never)
   const seen: (readonly string[] | undefined)[] = []
-  on('prompt.submit', ((_: unknown, e: { text: string; context?: readonly string[] }) => { seen.push(e.context); return { text: e.text } }) as never)
+  const sentText: string[] = []
+  on('prompt.submit', ((_: unknown, e: { text: string; context?: readonly string[] }) => { seen.push(e.context); sentText.push(e.text); return { text: e.text } }) as never)
   // the engine's own rows: empty
   for (const component of ['AbovePrompt', 'UserMessage'] as const) {
     on('ui.render', { component }, (($: { ui: { resolve: (e: unknown) => { Text: (p: object) => unknown } } }, e: unknown) =>
@@ -230,16 +231,20 @@ test('images picked in the dashboard go with the next prompt, then are gone', as
   // in the transcript, under the prompt: what went with it
   const row = (text: string, surface: 'terminal' | 'desktop') =>
     $.ui.mount({ plugin: 'live-code', component: 'UserMessage', requestId: 'm1', surface, props: { text, origin: { kind: 'composer' }, isExpanded: true } as never, viewport: { columns: 100, rows: 40 } as never })
-  const term = await row('what is wrong with the form?', 'terminal')
+  // (the prompt carries a mark of its own, so its row alone draws them)
+  expect(sentText[0]).toMatch(/^what is wrong with the form\?\n\n\[📎 2 images from Live Code · [0-9a-z]+\]$/)
+  const term = await row(sentText[0], 'terminal')
   expect(await term.find({ type: 'Text', text: /2 images/ })).toBeDefined()
   await term.unmount()
-  const desk = await row('what is wrong with the form?', 'desktop')
+  const desk = await row(sentText[0], 'desktop')
   expect(await desk.find({ type: 'Text', text: /form\.png/ })).toBeDefined()
   await desk.unmount()
-  // taken along once: the next prompt goes without them, and its row draws as ever
-  await $.prompt.submit({ text: 'and now?' } as never)
+  // taken along once: the next prompt goes without them, and its row draws as ever,
+  // even with the very same words
+  await $.prompt.submit({ text: 'what is wrong with the form?' } as never)
   expect(seen[1]?.join('\n') ?? '').not.toContain('form.png')
-  const plain = await row('and now?', 'terminal')
+  expect(sentText[1]).toBe('what is wrong with the form?')
+  const plain = await row(sentText[1], 'terminal')
   expect(await plain.find({ type: 'Text', text: /images/ })).toBeUndefined()
   await plain.unmount()
 })

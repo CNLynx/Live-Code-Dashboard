@@ -413,6 +413,7 @@ const clearAttached = async ($: Engine) => {
 // the prompts that took images along: under each, in the transcript, what went with it
 const sentPins = atom({ plugin: 'live-code', key: 'sentPins' } as const, [] as SentPins[])
 const pinKey = (text: string) => text.trim().slice(0, 400)
+const PIN_MARK = /\s*\[📎 \d+ images? from Live Code · ([0-9a-z]+)\]\s*$/
 // one picture under the prompt: the thumbnail the dashboard made, in an SVG (the desktop draws no bitmap of its own)
 const thumbSvg = (thumb: string, w: number, h: number) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><clipPath id="r"><rect width="${w}" height="${h}" rx="8"/></clipPath><image href="${thumb}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#r)"/><rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="8" fill="none" stroke="#f5792a" stroke-opacity=".55"/></svg>`
@@ -1508,8 +1509,10 @@ export const register: Register = on => {
       await clearAttached($)
       // (the transcript draws them under this prompt: ui.render UserMessage)
       const t = await clockNow($)
-      await update($, sentPins, was => [...was, { text: pinKey(e.text), at: t, items: list.map(a => ({ name: a.name, ...(a.thumb ? { thumb: a.thumb } : {}) })) }].slice(-12))
-      return next({ ...e, context: [...(e.context ?? []), attachedContext(list)] })
+      // (a mark at the prompt's end: the same words sent twice are still two rows)
+      const tag = t.toString(36)
+      await update($, sentPins, was => [...was, { text: pinKey(e.text), at: t, tag, items: list.map(a => ({ name: a.name, ...(a.thumb ? { thumb: a.thumb } : {}) })) }].slice(-12))
+      return next({ ...e, text: `${e.text}\n\n[📎 ${plural(list.length, 'image')} from Live Code · ${tag}]`, context: [...(e.context ?? []), attachedContext(list)] })
     }
 
     return next(e)
@@ -2506,9 +2509,12 @@ export const register: Register = on => {
   // from the dashboard: small pictures on the desktop, their names everywhere.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     const sent = await read($, sentPins)
-    const hit = sent.length > 0 ? sent.findLast(s => s.text === pinKey(e.props.text)) : undefined
+    if (sent.length === 0) return next(e)
+    // the row's own mark (drawn without it), else, sent before marks, its words
+    const mark = PIN_MARK.exec(e.props.text)
+    const hit = mark ? sent.find(s => s.tag === mark[1]) : sent.findLast(s => s.tag === undefined && s.text === pinKey(e.props.text))
     if (hit === undefined) return next(e)
-    const own = await next(e)
+    const own = await next(mark ? { ...e, props: { ...e.props, text: e.props.text.slice(0, mark.index) } } : e)
     const names = hit.items.map(i => i.name).join(', ')
     if (e.surface === 'terminal') {
       const { Box, Text } = $.ui.resolve(e)

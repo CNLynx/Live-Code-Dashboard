@@ -65,8 +65,9 @@
   pv.addEventListener('pointerenter', () => { P.hover = true })
   pv.addEventListener('pointerleave', () => { P.hover = false; P.activity = Math.max(P.activity, Date.now() - HIDE_AFTER_MS + 8000) })
 
-  const show = () => {
-    if (P.dock || P.paused || store.get('lc.preview') === 'off' || P.open) return
+  // (asked for by the person, ⧉: it comes even paused or switched off, with its ▶)
+  const show = (asked = false) => {
+    if (P.dock || P.open || (!asked && (P.paused || store.get('lc.preview') === 'off'))) return
     P.open = true
     box = clampBox(boxIsOwn && box ? box : defaultBox())
     place()
@@ -103,7 +104,7 @@
     P.dock = dockIt
     store.set('lc.pvMode', dockIt ? 'dock' : 'float')
     settle()
-    if (!dockIt) { P.activity = Date.now(); show() }
+    if (!dockIt) { P.activity = Date.now(); show(true) }
   }
   $('#pv-pop').addEventListener('click', () => setMode(!P.dock))
   $('#pv-dock-here')?.addEventListener('click', () => setMode(true))
@@ -400,7 +401,7 @@ void main() {
   }
   // the fitted place, zoomed and moved as the person likes it
   const viewed = (r, W, H) => { const v = IMG.view, cx = W / 2, cy = H / 2; return { x: cx + (r.x - cx) * v.z + v.px, y: cy + (r.y - cy) * v.z + v.py, w: r.w * v.z, h: r.h * v.z } }
-  const BUILD_MS = 1650, SHINE_MS = 700, SPLIT_MS = 900
+  const BUILD_MS = 1650, SHINE_MS = 700, SPLIT_MS = 900, DIFF_MS = 1600
   let lastRect = null
   const drawImg = t => {
     const dpr = Math.min(2, devicePixelRatio || 1)
@@ -453,8 +454,18 @@ void main() {
       imx.fillStyle = g; imx.fillRect(r.x, r.y, r.w, r.h)
       imx.globalCompositeOperation = 'source-over'
     }
+    // what changed lights up twice, softly, before the line comes
+    if (IMG.diff && e >= built && e < built + DIFF_MS) {
+      busy = true
+      const p = (e - built) / DIFF_MS
+      imx.globalAlpha = 0.75 * Math.sin(p * Math.PI * 4 - Math.PI / 2) * 0.5 + 0.375
+      imx.globalCompositeOperation = 'lighter'
+      imx.imageSmoothingEnabled = true
+      imx.drawImage(IMG.diff, r.x, r.y, r.w, r.h)
+      imx.globalCompositeOperation = 'source-over'
+    }
     // before | after: the earlier version left of the line, the line glides in once
-    if (IMG.before && e >= built) {
+    if (IMG.before && e >= built + (IMG.diff ? DIFF_MS : 0)) {
       if (!IMG.splitAt) IMG.splitAt = t
       const p = Math.min(1, (t - IMG.splitAt) / SPLIT_MS)
       if (IMG.split > 0.999 || p < 1) { IMG.split = 1 - 0.5 * ease(p); busy = busy || p < 1 }
@@ -477,16 +488,46 @@ void main() {
     return busy || (IMG.prev && e < 800)
   }
   // the ring where a click landed, over the picture as it is zoomed and moved
+  // A pointer that glides from the last step to this one, presses, and the ring
+  // spreads where it landed; what was typed comes letter by letter.
+  const cursorEl = Object.assign(document.createElement('div'), { className: 'pv-cursor' })
+  cursorEl.innerHTML = '<svg viewBox="0 0 20 24" width="20" height="24"><path d="M2 1.5v18.2l4.6-4.3 3 7 3.2-1.4-3-6.8h6.3z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>'
+  imc.parentElement.append(cursorEl)
+  let cursorFor = null, glideDue = 0, hitDue = 0, typeDue = 0
+  const typeCaption = text => {
+    clearInterval(typeDue)
+    if (!text || calm() || !text.startsWith('⌨ ')) { setText(capEl, text ?? ''); return }
+    let n = 2
+    setText(capEl, '⌨ ')
+    typeDue = setInterval(() => { n += Math.max(1, Math.round(text.length / 40)); setText(capEl, text.slice(0, n)); if (n >= text.length) clearInterval(typeDue) }, 45)
+  }
   const placeMark = () => {
     const m = IMG.mark
     const on = !!(m && lastRect && IMG.item?.id === m.shotId && Number.isFinite(m.x) && P.tab === 'images')
-    markEl.classList.toggle('on', on)
-    capEl.classList.toggle('on', !!(m && IMG.item?.id === m.shotId && m.text && P.tab === 'images'))
-    if (m?.text) setText(capEl, m.text)
-    if (!on) return
+    const capOn = !!(m && IMG.item?.id === m.shotId && m.text && P.tab === 'images')
+    if (capOn && capEl.dataset.for !== String(m.id)) { capEl.dataset.for = String(m.id); typeCaption(m.text) }
+    capEl.classList.toggle('on', capOn)
+    if (!on) { markEl.classList.remove('on'); cursorEl.classList.remove('on'); cursorFor = null; return }
     const r = lastRect
-    markEl.style.transform = `translate(${(r.x + m.x * r.w) / r.dpr}px, ${(r.y + m.y * r.h) / r.dpr}px)`
+    const at = `translate(${(r.x + m.x * r.w) / r.dpr}px, ${(r.y + m.y * r.h) / r.dpr}px)`
+    markEl.style.transform = at
     markEl.dataset.kind = m.kind
+    if (cursorFor !== m.id) {
+      // a new step: from where the pointer was (or, the first, straight there)
+      const from = cursorEl.classList.contains('on') && !calm()
+      cursorFor = m.id
+      clearTimeout(glideDue); clearTimeout(hitDue)
+      cursorEl.classList.toggle('glide', from)
+      markEl.classList.remove('on', 'hit')
+      hitDue = setTimeout(() => {
+        markEl.classList.add('on', 'hit')
+        cursorEl.classList.add('press')
+        setTimeout(() => cursorEl.classList.remove('press'), 160)
+      }, from ? 640 : 120)
+      glideDue = setTimeout(() => cursorEl.classList.remove('glide'), 700)
+    }
+    cursorEl.style.transform = at
+    cursorEl.classList.add('on')
   }
   const runImg = () => {
     cancelAnimationFrame(IMG.raf)
@@ -495,10 +536,35 @@ void main() {
   }
   const redraw = () => { if (!IMG.raf) drawImg(performance.now()) }
   const loadImage = src => new Promise(resolve => { const im = new Image(); im.decoding = 'async'; im.onload = () => resolve(im); im.onerror = () => resolve(null); im.src = src })
+  // What changed from the earlier version: a small mask of the places that differ
+  // (none when nothing or nearly everything did: a glow over all says nothing)
+  const diffOf = (im, before) => {
+    try {
+      const w = Math.min(220, im.naturalWidth), h = Math.max(1, Math.round(w * im.naturalHeight / im.naturalWidth))
+      const px = src => { const c = Object.assign(document.createElement('canvas'), { width: w, height: h }); const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(src, 0, 0, w, h); return x.getImageData(0, 0, w, h).data }
+      const a = px(im), b = px(before)
+      const mask = new ImageData(w, h)
+      let changed = 0
+      for (let i = 0; i < a.length; i += 4) {
+        if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) < 48) continue
+        changed++
+        mask.data[i] = 255; mask.data[i + 1] = 150; mask.data[i + 2] = 60; mask.data[i + 3] = 255
+      }
+      const share = changed / (w * h)
+      if (share < 0.0005 || share > 0.6) return null
+      const c = Object.assign(document.createElement('canvas'), { width: w, height: h })
+      // (a little wider than the changed pixels, so a thin change still shows)
+      const x = c.getContext('2d')
+      x.putImageData(mask, 0, 0)
+      x.filter = 'blur(1.5px)'; x.globalCompositeOperation = 'lighter'; x.drawImage(c, 0, 0)
+      return c
+    } catch { return null }
+  }
   const showImg = async (item, animate) => {
     const [im, before] = await Promise.all([loadImage(`/image?id=${item.id}`), item.prevId ? loadImage(`/image?id=${item.prevId}`) : null])
     if (!im || P.cur !== item.id) return
     IMG.prev = IMG.cur; IMG.cur = im; IMG.item = item; IMG.before = before
+    IMG.diff = before && !calm() ? diffOf(im, before) : null
     IMG.split = 1; IMG.splitAt = 0; IMG.view = { z: 1, px: 0, py: 0 }
     IMG.start = performance.now(); IMG.anim = animate && !calm(); IMG.jitter = []
     runImg(); drawMeta()
@@ -607,6 +673,7 @@ void main() {
   }
   const onRow = item => {
     if (!item) return
+    stopReplay()
     P.userTabAt = Date.now()
     if (item.img) { setTab('images', true); pick(item, true) }
     else if (STEP.has(item.how) && item.shotId) showStep(item, false)
@@ -615,7 +682,8 @@ void main() {
     else if (item.how === 'search') open(`https://www.bing.com/search?q=${encodeURIComponent(item.name)}`, '_blank', 'noopener')
   }
   // a step in the browser: its shot above, with where it landed
-  const showStep = (item, animate) => {
+  const showStep = (item, animate, replaying = false) => {
+    if (!replaying) stopReplay()
     const shot = P.images.find(x => x.id === item.shotId)
     if (!shot) return
     setTab('images', !animate)
@@ -628,12 +696,18 @@ void main() {
   const renderList = (fresh = new Set()) => {
     listView = S.view
     const items = P.items.filter(shownHere).slice().sort((a, b) => b.at - a.at)
-    const want = []
-    let lastPrompt = undefined
+    // one group per prompt (of its chat), the one with the newest item first:
+    // two chats at work at once interleave in time, not in the list
+    const groups = new Map()
     for (const it of items) {
-      const p = it.prompt?.at ?? 0
-      if (p !== lastPrompt) { want.push({ head: true, key: `h${p}`, text: it.prompt?.text ?? '' }); lastPrompt = p }
-      want.push({ key: String(it.id), item: it })
+      const g = `h${it.sid ?? ''}:${it.prompt?.at ?? 0}`
+      if (!groups.has(g)) groups.set(g, { text: it.prompt?.text ?? '', items: [] })
+      groups.get(g).items.push(it)
+    }
+    const want = []
+    for (const [key, g] of groups) {
+      want.push({ head: true, key, text: g.text, steps: g.items.filter(it => STEP.has(it.how) && it.shotId).reverse() })
+      for (const it of g.items) want.push({ key: String(it.id), item: it })
     }
     const have = new Map([...list.children].map(li => [li.dataset.id ?? li.dataset.head, li]))
     for (const li of have.values()) if (!want.some(w => w.key === (li.dataset.id ?? li.dataset.head))) { li.remove(); have.delete(li.dataset.id ?? li.dataset.head) }
@@ -644,14 +718,40 @@ void main() {
       if (li) { if (!w.head) fillRow(li, w.item) }
       else if (w.head) {
         li = document.createElement('li'); li.className = 'pv-group'; li.dataset.head = w.key
-        li.textContent = w.text ? `› ${w.text}` : '› earlier'
+        li.innerHTML = '<span class="t"></span><button class="pv-play" title="Play the browser steps of this prompt again">▶ replay</button>'
+        li.querySelector('.t').textContent = w.text ? `› ${w.text}` : '› earlier'
+        li.querySelector('.pv-play').addEventListener('click', e => { e.stopPropagation(); replaySteps(li.__steps ?? [], li) })
       } else li = rowOf(w.item)
+      if (w.head) { li.__steps = w.steps; li.classList.toggle('steps', w.steps.length > 1) }
       if (li === ref) ref = ref.nextElementSibling
       else list.insertBefore(li, ref)
       // (what just happened folds in; what was there already is simply there)
       if (isNew && (fresh.has(w.key) || (w.head && fresh.size))) { li.hidden = true; reveal(li, true) }
     }
   }
+  // The browser steps of one prompt played again, one after another: the pointer
+  // glides from click to click over the shots. Any other pick stops it.
+  let replay = null
+  const playLabel = (head, playing) => setText(head.querySelector('.pv-play'), playing ? '■ stop' : '▶ replay')
+  const stopReplay = () => { if (!replay) return; clearTimeout(replay.due); replay.head.classList.remove('playing'); playLabel(replay.head, false); replay = null }
+  const replaySteps = (steps, head) => {
+    const again = replay?.head === head
+    stopReplay()
+    if (again || steps.length === 0) return
+    replay = { head, i: 0, due: 0 }
+    head.classList.add('playing')
+    playLabel(head, true)
+    const next = () => {
+      if (!replay || replay.head !== head) return
+      const item = steps[replay.i++]
+      if (!item) { stopReplay(); return }
+      showStep(item, false, true)
+      list.querySelector(`[data-id="${item.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: calm() ? 'auto' : 'smooth' })
+      replay.due = setTimeout(next, item.how === 'type' ? 1900 : 1400)
+    }
+    next()
+  }
+
   // one row for each Blender run, kept up to date (its file, parts, step)
   const blenderRow = i => {
     const id = `blender-${i.pid}`
@@ -687,12 +787,27 @@ void main() {
     thumbs.set(id, url)
     return url
   }
+  // One send at a time, the newest choice last: quick clicks end as the last one
+  // left them (an answer overtaken by a newer choice is not drawn).
+  let pinsSending = false, pinsWanted = null, pinsSeq = 0
   const sendPins = async ids => {
-    const made = {}
-    for (const id of ids) { const t = await thumbOf(id).catch(() => null); if (t) made[id] = t }
-    return fetch('/attach', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ sid: S.view, ids, thumbs: made }) })
-      .then(r => r.json()).then(listed => window.onAttach({ sid: S.view, list: listed })).catch(() => {})
+    pinsWanted = { ids, sid: S.view, seq: ++pinsSeq }
+    if (pinsSending) return
+    pinsSending = true
+    while (pinsWanted) {
+      const want = pinsWanted
+      pinsWanted = null
+      const made = {}
+      for (const id of want.ids) { const t = await thumbOf(id).catch(() => null); if (t) made[id] = t }
+      const listed = await fetch('/attach', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ sid: want.sid, ids: want.ids, thumbs: made }) })
+        .then(r => r.json()).catch(() => null)
+      if (listed && !pinsWanted && want.seq === pinsSeq && want.sid === S.view) applyPins(listed)
+    }
+    pinsSending = false
+    // (the server's word on an earlier choice can still be on its way)
+    pinsQuietUntil = Date.now() + 800
   }
+  let pinsQuietUntil = 0
   const togglePin = item => {
     if (!item?.img || !S.view) return
     const ids = new Set(P.pins)
@@ -715,10 +830,11 @@ void main() {
   let pinsOf = null
   // what the chat has picked (the band's "Remove", or a prompt that took them, empties it)
   window.onAttach = msg => {
-    if (!msg || msg.sid !== S.view) return
-    P.pins = new Set((msg.list ?? []).map(a => a.id).filter(Number.isFinite))
-    drawPins()
+    // (told while a choice of the person's is still on its way: that one wins)
+    if (!msg || msg.sid !== S.view || pinsSending || Date.now() < pinsQuietUntil) return
+    applyPins(msg.list)
   }
+  const applyPins = listed => { P.pins = new Set((listed ?? []).map(a => a.id).filter(Number.isFinite)); drawPins() }
   const loadPins = () => {
     pinsOf = S.view
     if (!S.view) return

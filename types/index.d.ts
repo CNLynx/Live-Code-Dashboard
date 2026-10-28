@@ -168,7 +168,8 @@ export type Plan = {
 // small JPEG (data URL) the dashboard made, drawn under the prompt once sent.
 export type Attached = { path: string; name: string; thumb?: string }
 // A prompt that took images along, to draw them under it in the transcript.
-export type SentPins = { text: string; at: number; items: { name: string; thumb?: string }[] }
+// `tag`: the mark the prompt carries at its end, so that only its own row draws them
+export type SentPins = { text: string; at: number; tag?: string; items: { name: string; thumb?: string }[] }
 
 // The tab the pane's bottom panel shows.
 export type PanelTab = 'recent' | 'files' | 'turns' | 'agents'

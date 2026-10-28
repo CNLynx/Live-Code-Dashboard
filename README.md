@@ -99,9 +99,11 @@ The **Visual** card sits beside the live view, below *Current turn*; the live fe
 - commands running in the background, with their newest output lines and then ✓ or ✗;
 - Blender runs.
 
-The list is grouped under the prompt it was for, and each entry says in a few words what it is for. Images zoom with the wheel and move by dragging; a double click fits them again.
+The list is grouped under the prompt it was for, and each entry says in a few words what it is for. Images zoom with the wheel and move by dragging; a double click fits them again. What changed in a new version lights up briefly before the *before | after* line comes. A pointer glides from one browser step to the next, and **▶ replay** on a prompt plays its browser steps again. The list of the last hour survives a restart of the dashboard.
 
-**Images into your next prompt:** click an image's 📎, in the list or above for the one shown. Pick as many as you like, and a second click takes one out again. The band above Claude's prompt shows them (📎 2 images, ✕ Remove), and your next prompt takes them along: Claude is told where they are and looks at each, as if you had dragged them into the chat.
+**Pause:** ⏸ on the card (or *Visual* in the settings) pauses it: nothing is read or watched for it until ▶. With no dashboard open, it rests by itself.
+
+**Images into your next prompt:** click an image's 📎, in the list or above for the one shown. Pick as many as you like, and a second click takes one out again. The band above Claude's prompt shows them (📎 2 images, ✕ Remove), and your next prompt takes them along: Claude is told where they are and looks at each, as if you had dragged them into the chat. Under your prompt in Claude they show as small pictures (on the desktop) or by name; the prompt ends with a small mark (`[📎 2 images from Live Code · …]`), so that the same words sent twice still show only their own images.
 
 Pop it out with ⧉ and it becomes a window that floats over the dashboard and comes by itself. Drag it by its head and size it at its corner. 📌 keeps it open, and ⧉ puts it back.
 - **Images:** an image written where a chat works (a render, a texture a script painted, a screenshot), one sent to you or looked at, or a browser shot builds up on the stage tile by tile.
@@ -173,7 +175,7 @@ Everything Live Code does outside of Claude Code itself, in full:
 | Starts the dashboard server, `node dashboard/server.mjs`, listening on `127.0.0.1:4477` only | when a chat starts | your PC only |
 | Opens the dashboard in Microsoft Edge (app window), tile windows through PowerShell + WebView2 | when you open them | your PC only |
 | Reads your chats' transcripts in `~/.claude/projects` to count today's prompts and words | while the dashboard is open | your PC only |
-| Watches the folders a chat works in (with their subfolders) and its browser screenshots (`~/.claude/projects/…/<chat>/tool-results`) for new images, and reads its web searches, pages and the files it sent you from the transcript, for the Visual card | while that chat was active in the last 10–30 minutes | your PC only |
+| Watches the folders a chat works in (with their subfolders) and its browser screenshots (`~/.claude/projects/…/<chat>/tool-results`) for new images, and reads its web searches, pages and the files it sent you from the transcript, for the Visual card (its list of the last hour kept in `~/.claude/live-code-visual-history.json`, earlier versions of images in `~/.claude/live-code-visual-before`) | while that chat was active in the last 10–30 minutes and a dashboard is open, unless paused | your PC only |
 | Blender live, only once you switch it on: `live_code_blender.py` in the startup scripts of the Blender a chat runs; Blender then writes its visible meshes and render names to `~/.claude/live-code-blender` | while Blender runs | your PC only |
 | Sends light commands to **your own Philips Hue Bridge** (local network, HTTPS) | only after you pair it, on done / question / stuck / a site build | your bridge |
 | Looks up the latest version number: `api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json` | every 10 minutes while the dashboard runs | GitHub |
@@ -282,9 +284,11 @@ Die Karte **Visual** sitzt neben der Live-Ansicht, unter *Current turn*; der Liv
 - Befehle im Hintergrund, mit ihren neusten Ausgabezeilen und danach ✓ oder ✗;
 - Blender-Läufe.
 
-Die Liste ist nach dem Prompt gegliedert, zu dem etwas gehört, und jeder Eintrag sagt in wenigen Worten, wozu er dient. Bilder zoomst du mit dem Mausrad und verschiebst sie durch Ziehen; ein Doppelklick setzt sie zurück.
+Die Liste ist nach dem Prompt gegliedert, zu dem etwas gehört, und jeder Eintrag sagt in wenigen Worten, wozu er dient. Bilder zoomst du mit dem Mausrad und verschiebst sie durch Ziehen; ein Doppelklick setzt sie zurück. Was sich in einer neuen Version geändert hat, leuchtet kurz auf, bevor die *before | after*-Linie kommt. Ein Mauszeiger gleitet von einem Browser-Schritt zum nächsten, und **▶ replay** bei einem Prompt spielt seine Browser-Schritte noch einmal ab. Die Liste der letzten Stunde übersteht einen Neustart des Dashboards.
 
-**Bilder in den nächsten Prompt:** Klick auf das 📎 eines Bildes, in der Liste oder oben beim angezeigten. Du kannst beliebig viele wählen, ein zweiter Klick nimmt eines wieder heraus. Das Band über Claudes Eingabe zeigt sie (📎 2 images, ✕ Remove), und dein nächster Prompt nimmt sie mit: Claude erfährt, wo sie liegen, und schaut sich jedes an, als hättest du sie in den Chat gezogen.
+**Pause:** ⏸ auf der Karte (oder *Visual* in den Einstellungen) pausiert sie: Nichts wird dafür gelesen oder beobachtet bis ▶. Ist kein Dashboard offen, ruht sie von selbst.
+
+**Bilder in den nächsten Prompt:** Klick auf das 📎 eines Bildes, in der Liste oder oben beim angezeigten. Du kannst beliebig viele wählen, ein zweiter Klick nimmt eines wieder heraus. Das Band über Claudes Eingabe zeigt sie (📎 2 images, ✕ Remove), und dein nächster Prompt nimmt sie mit: Claude erfährt, wo sie liegen, und schaut sich jedes an, als hättest du sie in den Chat gezogen. Unter deinem Prompt in Claude erscheinen sie als kleine Bilder (in der Desktop-App) oder mit Namen; der Prompt endet mit einer kleinen Marke (`[📎 2 images from Live Code · …]`), damit dieselben Worte zweimal gesendet trotzdem nur ihre eigenen Bilder zeigen.
 
 Mit ⧉ löst du sie heraus. Dann wird sie zu einem Fenster, das über dem Dashboard schwebt und von selbst kommt. Du verschiebst es am Kopf und änderst die Grösse an der Ecke. 📌 hält es offen, ⧉ setzt es zurück.
 - **Bilder:** Ein Bild, das dort entsteht, wo ein Chat arbeitet (ein Render, eine von einem Skript gemalte Textur, ein Screenshot), ein gesendetes oder angeschautes Bild oder ein Browser-Screenshot setzt sich auf der Bühne Kachel für Kachel zusammen.
