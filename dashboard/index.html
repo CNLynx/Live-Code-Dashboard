@@ -569,6 +569,17 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .pv-none { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 4px; padding: 16px; color: var(--muted); font-size: 12.5px; line-height: 1.5; pointer-events: none; opacity: 0; transition: opacity .45s; }
 .pv-none b { color: var(--ink-2); font-size: 13px; }
 .pv.nothing .pv-none { opacity: 1; }
+/* paused (⏸, or off in the settings): what was there fades back, ▶ brings it again */
+.pv-paused { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; gap: 6px; padding: 16px; color: var(--muted); font-size: 12.5px;
+  opacity: 0; pointer-events: none; transition: opacity .45s cubic-bezier(.2,.8,.2,1); }
+.pv-paused b { color: var(--ink-2); font-size: 13px; }
+.pv-paused .btn { margin-top: 4px; }
+.pv.paused .pv-paused { opacity: 1; pointer-events: auto; }
+.pv .pv-gl, .pv .pv-img, .pv .pv-list, .pv .pv-meta, .pv .pv-pins { transition: opacity .55s cubic-bezier(.2,.8,.2,1), filter .55s; }
+.pv.paused .pv-gl, .pv.paused .pv-img, .pv.paused .pv-none, .pv.paused .pv-empty, .pv.paused .pv-mark, .pv.paused .pv-cap { opacity: 0 !important; pointer-events: none !important; }
+.pv.paused .pv-list, .pv.paused .pv-meta, .pv.paused .pv-pins, .pv.paused .pv-tabs { opacity: .35; filter: grayscale(1); pointer-events: none; }
+.pv.paused .pv-dot { background: var(--muted); animation: none; }
+.pv.paused #pv-pause { color: var(--pv); opacity: 1; }
 .pv-list { list-style: none; margin: 0; padding: 0; overflow: auto; min-height: 0; display: grid; align-content: start; gap: 2px; scrollbar-width: thin; }
 .pv-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 0 8px; padding: 2px 6px; border-radius: 7px; font-size: 12px; cursor: pointer; transition: background .2s; }
 .pv-row:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
@@ -1336,6 +1347,8 @@ html:not(.tile-mode) .tiles > .tile { flex: 1 1 calc((100% - (var(--cols, 6) - 1
         <div class="hint">While Claude thinks longer, the code blurs back and an owl ponders over it.</div>
         <label class="big"><input type="checkbox" id="set-idle-anim"> Idle animation in the live view</label>
         <div class="hint">When nothing happens for a few seconds, the code fades and the owl flies about its tree until Claude works again.</div>
+        <label class="big"><input type="checkbox" id="set-visual"> Visual: watch what Claude sees and makes</label>
+        <div class="hint">Off (or ⏸ on the card): no transcript is read for it, no folder watched, no image kept, until it is on again; the card waits with ▶.</div>
         <label class="big"><input type="checkbox" id="set-preview"> Visual popped out (⧉): it comes by itself</label>
         <div class="hint">The Visual card sits beside the live view. Popped out with ⧉, it floats over the dashboard and comes by itself when an image or a model changes; drag it by its head, size it at its corner, 📌 keeps it open, ⧉ puts it back.</div>
         <label class="big"><input type="checkbox" id="set-blender"> Blender live: watch the model as Claude builds it</label>
@@ -1852,6 +1865,8 @@ document.documentElement.classList.toggle('calm', reduceMotion)
 const applyMotion = () => { reduceMotion = calmNow(); document.documentElement.classList.toggle('calm', reduceMotion) }
 const OUT = [{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: 'translateY(-10px)', filter: 'blur(2px)' }]
 const IN = [{ opacity: 0, transform: 'translateY(12px)', filter: 'blur(2px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }]
+const OUT_CODE = [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-8px)' }]
+const IN_CODE = [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }]
 const GLIDE = 'cubic-bezier(.2,.8,.2,1)'
 // Nothing pops in or out: reveal(el, show) fades a block in place and folds the
 // space it takes open or shut ('fold'), or lets an overlay or menu grow from where
@@ -1978,14 +1993,16 @@ const start = (f, settled = false) => {
     $('.live').style.setProperty('--action', kindVar(ACTION_KIND[f.action] ?? 'other'))
   }
   const hasStage = R.item !== null && R.els.length > 0
-  if (reduceMotion || !hasStage) { show(); return }
+  if (reduceMotion || !hasStage) { show(); R.shownAt = performance.now(); return }
   R.switching = true
+  // (the code itself only fades and slides: a blur over hundreds of lines stutters)
   const parts = [codeBox, $('#live-head'), $('#live-path')]
-  const outs = parts.map(el => el.animate(OUT, { duration: 170, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }))
+  const outs = parts.map((el, i) => el.animate(i === 0 ? OUT_CODE : OUT, { duration: 170, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' }))
   outs[0].onfinish = () => {
     show()
+    R.shownAt = performance.now()
     // in, and nothing held after: a held "blur(0)" would beat the thinking blur
-    parts.forEach((el, i) => el.animate(IN, { duration: 260, delay: i * 30, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' }))
+    parts.forEach((el, i) => el.animate(i === 0 ? IN_CODE : IN, { duration: 260, delay: i * 30, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' }))
     for (const a of outs) a.cancel()
     R.switching = false
   }
@@ -1996,7 +2013,7 @@ const build = () => {
   R.drawnDone = null // fresh lines: drawn again, even for the same action
   const rows = R.item.rows ?? []
   if (rows.length === 0) {
-    codeBox.innerHTML = `<div class="empty">${R.item.action === 'searching' ? 'Searching…' : 'Nothing to show for this action'}</div>`
+    codeBox.innerHTML = `<div class="empty">${R.item.action === 'searching' ? 'Searching…' : R.item.action === 'reading' && /\.(png|jpe?g|gif|webp|bmp)$/i.test(R.item.file ?? '') ? 'An image: it shows in the Visual card' : 'Nothing to show for this action'}</div>`
     R.els = []; R.keys = []; return
   }
   codeBox.classList.add('instant')
@@ -2090,22 +2107,34 @@ const glide = () => {
 codeBox.addEventListener('wheel', () => { R.userScrollAt = Date.now() }, { passive: true })
 codeBox.addEventListener('pointerdown', () => { R.userScrollAt = Date.now() })
 
+// A burst of reads (several files at once, or one quickly after another): of
+// each run waiting in a row only the newest is played, the others pass by (they
+// are in the live feed all the same); a flicker of files would show none of them.
+const MIN_STAGE_MS = 900
+const thinReads = () => {
+  if (R.film || R.queue.length <= 2) return
+  const keep = R.queue.filter((f, i) => !(f.action === 'reading' && R.queue[i + 1]?.action === 'reading'))
+  if (keep.length !== R.queue.length) { R.passed = (R.passed ?? 0) + R.queue.length - keep.length; R.passedAt = Date.now(); R.queue = keep }
+}
+
 let lastFrame = performance.now()
 const frame = t => {
   const dt = Math.min(100, t - lastFrame)
   lastFrame = t
   if (R.switching) { requestAnimationFrame(frame); return }
+  thinReads()
   if (!R.item && R.queue.length > 0) start(R.queue.shift())
   if (R.item && !R.paused && Number.isFinite(R.elapsed)) {
-    // a film plays every step at its own pace; live, a backlog hurries
-    const hurry = R.film ? 1 : R.queue.length > 6 ? 4 : R.queue.length > 2 ? 2 : 1
+    // a film plays every step at its own pace; live, a backlog hurries (a read's sweep a little only)
+    const hurry = R.film ? 1 : R.queue.length > 6 ? (R.item.action === 'reading' ? 2 : 4) : R.queue.length > 2 ? 2 : 1
     R.elapsed += dt * R.speed * hurry
   }
   if (R.item) {
     const isDone = R.elapsed >= R.plan.ms
     if (isDone && R.queue.length > 0 && !R.paused) {
       if (R.doneAt === 0) R.doneAt = t
-      if (t - R.doneAt >= (R.film ? 900 / R.speed : R.queue.length > 2 ? 200 : 1100)) start(R.queue.shift())
+      // each one on the stage a moment at least, however fast they come
+      if (t - R.doneAt >= (R.film ? 900 / R.speed : R.queue.length > 2 ? 350 : 1100) && (R.film || t - (R.shownAt ?? 0) >= MIN_STAGE_MS)) start(R.queue.shift())
     }
     // typed out (or shown settled): drawn once more, then left alone until it changes
     const finished = !Number.isFinite(R.elapsed) || R.elapsed >= R.plan.ms
@@ -2119,7 +2148,8 @@ const frame = t => {
     setStyle($('#progress'), 'width', (frac * 100).toFixed(1) + '%')
     const stillRunning = R.item.action === 'running' && S.snap?.current?.id === R.item.id && !S.snap.current.isDone
     setText($('#live-pct'), stillRunning ? 'running…' : R.item.action === 'reading' ? (frac < 1 ? 'scanning ' + Math.round(frac * 100) + '%' : 'read') : frac < 1 ? 'typing ' + Math.round(frac * 100) + '%' : 'done')
-    setText($('#queue'), R.queue.length > 0 ? `+${R.queue.length} queued` : '')
+    if (R.passed && Date.now() - R.passedAt > 4000) R.passed = 0
+    setText($('#queue'), [R.queue.length > 0 ? `+${R.queue.length} queued` : '', R.passed ? `${R.passed} quick read${R.passed === 1 ? '' : 's'} passed by` : ''].filter(Boolean).join(' · '))
   }
   requestAnimationFrame(frame)
 }
@@ -3732,7 +3762,8 @@ const connect = () => {
     if (msg.type === 'init') {
       if (msg.prefs) applyShared(msg.prefs)
       // (the preview window's script may still be loading: it picks them up then)
-      window.__pvInit = { images: msg.images, blender: msg.blender }
+      window.__pvInit = { images: msg.images, blender: msg.blender, visual: msg.visual }
+      if (typeof msg.visual === 'boolean') window.onVisual?.(msg.visual)
       if (msg.images) window.onImages?.(msg.images)
       if (msg.blender) window.onBlender?.(msg.blender)
       // the server restarted: its secret is new, so this page loads afresh
@@ -3772,6 +3803,8 @@ const connect = () => {
       window.onBlender?.(msg.blender)
     } else if (msg.type === 'image') {
       window.onImage?.(msg.image)
+    } else if (msg.type === 'visual') {
+      window.onVisual?.(msg.on)
     } else if (msg.type === 'attach') {
       window.onAttach?.(msg)
     } else if (msg.type === 'update') {
@@ -3912,6 +3945,7 @@ connect()
   <div class="pv-head" id="pv-head">
     <span class="pv-dot"></span><b class="pv-title" id="pv-title">Preview</b>
     <span class="pv-tabs"><button data-pv="model" disabled>3D model</button><button data-pv="images" disabled>Images</button></span>
+    <button class="pv-btn" id="pv-pause" title="Pause Visual (saves resources)">⏸</button>
     <button class="pv-btn" id="pv-pop" title="In a window of its own / back into the dashboard">⧉</button>
     <button class="pv-btn pv-float-only" id="pv-pin" title="Keep it open">📌</button>
     <button class="pv-btn pv-float-only" id="pv-close" title="Close (opens again with the next image or model change)">✕</button>
@@ -3921,6 +3955,7 @@ connect()
     <canvas class="pv-img" id="pv-img"></canvas>
     <div class="pv-empty" id="pv-empty"><b>Blender is at work</b><span>the model shows as soon as there is one</span></div>
     <div class="pv-none"><b>Nothing to see yet</b><span>Images Claude makes, looks at or sends you, browser shots, web searches and Blender models show here as they happen.</span></div>
+    <div class="pv-paused"><b>Visual is paused</b><span>Nothing is read or watched for it now.</span><button class="btn" id="pv-resume">▶ Resume</button></div>
   </div>
   <div class="pv-foot">
     <span class="pv-meta num" id="pv-meta"></span>

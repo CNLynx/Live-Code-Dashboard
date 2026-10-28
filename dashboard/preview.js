@@ -14,10 +14,11 @@
   const tabs = [...pv.querySelectorAll('[data-pv]')]
   const HIDE_AFTER_MS = 45_000
   const calm = () => document.documentElement.classList.contains('calm')
-  const P = { blender: null, images: [], items: [], cur: null, tab: '', pinned: store.get('lc.pvPin') === 'on', activity: 0, imageAt: 0, userTabAt: 0, hover: false, open: false, meshAt: 0, hasMesh: false, dock: store.get('lc.pvMode') !== 'float' }
+  const P = { blender: null, images: [], items: [], cur: null, tab: '', pinned: store.get('lc.pvPin') === 'on', activity: 0, imageAt: 0, userTabAt: 0, hover: false, open: false, meshAt: 0, hasMesh: false, paused: false, dock: store.get('lc.pvMode') !== 'float' }
   pv.classList.toggle('pinned', P.pinned)
   // on screen now: docked always, floating while open
-  const visible = () => P.dock || P.open
+  // (paused, ⏸ or the settings: nothing drawn, nothing fetched; the server watches nothing either)
+  const visible = () => !P.paused && (P.dock || P.open)
 
   // ── where it sits ──
   const BOX_KEY = 'lc.pvBox'
@@ -65,7 +66,7 @@
   pv.addEventListener('pointerleave', () => { P.hover = false; P.activity = Math.max(P.activity, Date.now() - HIDE_AFTER_MS + 8000) })
 
   const show = () => {
-    if (P.dock || store.get('lc.preview') === 'off' || P.open) return
+    if (P.dock || P.paused || store.get('lc.preview') === 'off' || P.open) return
     P.open = true
     box = clampBox(boxIsOwn && box ? box : defaultBox())
     place()
@@ -771,7 +772,7 @@ void main() {
     reveal($('#bl-offer'), !!state?.spotted && !state.mode)
     const i = info()
     if (i && Date.now() - i.at < 15 * 60_000) blenderRow(i)
-    if (i && (!was || i.meshAt !== was.meshAt || i.seq !== was.seq)) {
+    if (i && !P.paused && (!was || i.meshAt !== was.meshAt || i.seq !== was.seq)) {
       const fresh = Date.now() - i.at < 20_000
       void loadMesh(fresh && !!was)
       if (fresh && was) {
@@ -795,9 +796,34 @@ void main() {
     if (!P.dock && !P.pinned && !P.hover && !working() && Date.now() - P.activity > HIDE_AFTER_MS) hide()
   }
   bindCheck('#set-preview', 'lc.preview', 'on', () => { if (store.get('lc.preview') === 'off') hide() })
+
+  // ── paused or on: the server's switch (/visual), the same for every dashboard ──
+  const pauseBtn = $('#pv-pause'), visualBox = $('#set-visual')
+  const switchTo = on => {
+    window.onVisual(on)
+    fetch('/visual', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ on }) }).catch(() => {})
+  }
+  window.onVisual = on => {
+    const paused = !on
+    if (visualBox) visualBox.checked = on
+    if (P.paused === paused) return
+    P.paused = paused
+    pv.classList.toggle('paused', paused)
+    pauseBtn.textContent = paused ? '▶' : '⏸'
+    pauseBtn.title = paused ? 'Resume Visual' : 'Pause Visual (saves resources)'
+    if (paused) { cancelAnimationFrame(glRaf); glRaf = 0; hide(); return }
+    // on again: the model as it is now, and the stage drawn anew
+    if (info()) void loadMesh(false)
+    loopGl()
+    if (P.tab === 'images') requestAnimationFrame(() => drawImg(performance.now()))
+  }
+  pauseBtn.addEventListener('click', () => switchTo(P.paused))
+  $('#pv-resume').addEventListener('click', () => switchTo(true))
+  visualBox?.addEventListener('change', () => switchTo(visualBox.checked))
   settle()
   drawMeta()
   // what the page was told before this script ran
+  if (typeof window.__pvInit?.visual === 'boolean') window.onVisual(window.__pvInit.visual)
   if (window.__pvInit?.images) window.onImages(window.__pvInit.images)
   if (window.__pvInit?.blender) window.onBlender(window.__pvInit.blender)
 })()

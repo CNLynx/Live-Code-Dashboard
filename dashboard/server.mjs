@@ -19,7 +19,7 @@ import { hueAlarm, hueAsks, hueBuild, hueConfig, hueDone, huePair, hueRooms, pai
 import { ensureWebView2, hasWebView2 } from './webview2.mjs'
 import { deploysFor, followDeploys, pokeDeploys } from './deploys.mjs'
 import { blenderMesh, blenderState, initBlender, setBlenderMode, spotBlender } from './blender.mjs'
-import { imageData, imagesState, initImages, isImage, setDoing, showImage, visualsIn, watchImageDirs } from './images.mjs'
+import { imageData, imagesState, initImages, isImage, setDoing, setVisualOn, showImage, visualOn, visualsIn, watchImageDirs } from './images.mjs'
 
 const PUSHED = /git(?:\.exe)?\s+push|gh(?:\.exe)?\s+pr\s+merge/
 
@@ -416,7 +416,18 @@ try { for (const f of fs.readdirSync(ATTACH_DIR)) { const p = path.join(ATTACH_D
 // somewhere, files sent to the person. The browser's screenshots land in a
 // folder beside it (<sid>/tool-results), which is watched.
 const visualsRead = new Map() // sid -> transcript size read
+// switched off in the dashboard (⏸ or its settings), kept over restarts
+const VISUAL_CFG = path.join(HOME, 'live-code-visual.json')
+try { if (JSON.parse(fs.readFileSync(VISUAL_CFG, 'utf8')).on === false) setVisualOn(false) } catch {}
+const switchVisual = value => {
+  setVisualOn(value)
+  try { fs.writeFileSync(VISUAL_CFG, `${JSON.stringify({ on: visualOn() })}\n`) } catch {}
+  // (on again: from where the transcripts are now, not all that came meanwhile)
+  if (visualOn()) for (const s of sessions.values()) { const file = transcriptOf(s.id); try { if (file) visualsRead.set(s.id, fs.statSync(file).size) } catch {} }
+  broadcast({ type: 'visual', on: visualOn() })
+}
 setInterval(() => {
+  if (!visualOn()) return
   for (const s of sessions.values()) {
     if (Date.now() - s.mtime > 10 * 60_000) continue
     const file = transcriptOf(s.id)
@@ -737,6 +748,7 @@ const initPayload = () => {
     now: Date.now(),
     blender: blenderState(),
     images: imagesState(),
+    visual: visualOn(),
     sessions: sessionList(),
     actions: list.map((a, i) => (i < list.length - INIT_ROWS ? lean(a) : a)),
     samples: samples.slice(-INIT_SAMPLES),
@@ -1409,6 +1421,17 @@ const server = http.createServer((req, res) => {
       try { m = JSON.parse(body) } catch {}
       const ok = setBlenderMode(m.mode)
       res.writeHead(ok ? 200 : 400, { 'Content-Type': 'application/json' }).end(JSON.stringify(blenderState()))
+    }, () => res.writeHead(400).end('{}'))
+  } else if (url.pathname === '/visual') {
+    // the Visual card on or paused: GET its state, POST { on } from the dashboard page alone
+    if (req.method !== 'POST') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ on: visualOn() })); return }
+    if (!isTrusted(req)) { res.writeHead(403).end('{}'); return }
+    readBody(req, 200).then(body => {
+      let m = {}
+      try { m = JSON.parse(body) } catch {}
+      if (typeof m.on !== 'boolean') { res.writeHead(400).end('{}'); return }
+      switchVisual(m.on)
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ on: visualOn() }))
     }, () => res.writeHead(400).end('{}'))
   } else if (url.pathname === '/blender/mesh') {
     const file = blenderMesh()

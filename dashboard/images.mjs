@@ -36,6 +36,20 @@ const watchers = new Map() // dir -> { watcher, at, sid, how }
 const pending = new Map() // file -> timer
 let burst = []
 
+// Switched off (the dashboard's ⏸, or its settings): nothing watched or read,
+// the folders let go and the kept bytes freed, until it is on again.
+let on = true
+export const visualOn = () => on
+export const setVisualOn = value => {
+  on = !!value
+  if (on) return
+  for (const x of watchers.values()) { try { x.watcher.close() } catch {} }
+  watchers.clear()
+  for (const t of pending.values()) clearTimeout(t)
+  pending.clear()
+  for (const s of shown) s.data = null
+}
+
 const out = item => { const { file, data, key, outFile, ...rest } = item; return rest }
 const recent = () => shown.filter(s => Date.now() - s.at < 20 * 60_000).map(out)
 export const imagesState = () => recent()
@@ -73,7 +87,7 @@ const contextOf = (sid, kind) => {
 // Something seen without a picture of its own. Each one once (its key).
 const eventsSeen = new Map() // key -> item
 export const noteVisual = (key, how, name, sid, extra = {}) => {
-  if (!key || eventsSeen.has(key) || typeof name !== 'string' || !name.trim()) return null
+  if (!on || !key || eventsSeen.has(key) || typeof name !== 'string' || !name.trim()) return null
   const at = extra.at ?? Date.now()
   if (Date.now() - at > 15 * 60_000) { eventsSeen.set(key, null); return null }
   const item = { id: nextId++, key, file: null, name: name.trim().slice(0, 200), url: '', how, sid, img: false, ...contextOf(sid, how), ...extra, at }
@@ -89,7 +103,7 @@ export const updateVisual = (key, patch) => {
 // One image to show. The same file, unchanged, only once; changed, the earlier
 // one stays (with its bytes, if kept) as the "before" of the new one.
 export const showImage = (file, how, sid = null, extra = {}) => {
-  if (typeof file !== 'string' || !IMAGE.test(file)) return null
+  if (!on || typeof file !== 'string' || !IMAGE.test(file)) return null
   let st
   try { st = fs.statSync(file) } catch { return null }
   if (!st.isFile() || st.size === 0 || st.size > MAX_BYTES) return null
@@ -145,6 +159,7 @@ const covered = dir => {
 // The folders the active chats work in now (server.mjs dirsOf): each watched
 // with its subfolders, unless a folder above it already is.
 export const watchImageDirs = (dirs, sid, how = 'made') => {
+  if (!on) return
   for (const raw of dirs) {
     if (typeof raw !== 'string' || !path.isAbsolute(raw)) continue
     const dir = path.resolve(raw)
@@ -194,6 +209,7 @@ const tailLines = (file, n) => {
   } catch { return null }
 }
 setInterval(() => {
+  if (!on) return
   for (const item of eventsSeen.values()) {
     if (!item || item.how !== 'bg' || item.status !== 'running' || !item.outFile) continue
     const lines = tailLines(item.outFile, 3)
@@ -263,6 +279,7 @@ const toolResult = (c, entry, sid, at) => {
 }
 const NOTE = /<task-notification>[\s\S]*?<tool-use-id>([^<]+)<\/tool-use-id>[\s\S]*?<status>([^<]+)<\/status>(?:[\s\S]*?<summary>([^<]*)<\/summary>)?/g
 export const visualsIn = (text, sid) => {
+  if (!on) return
   for (let line of text.split('\n')) {
     if (line.length < 20) continue
     // (a writer that spells < and > as < and >)
