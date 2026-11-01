@@ -17,17 +17,32 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; color: var(--ink); font: 14px/1.45 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-  background: radial-gradient(900px 520px at 8% -6%, rgba(110,90,255,.20), transparent 70%), radial-gradient(900px 560px at 96% 4%, rgba(40,190,180,.12), transparent 70%), radial-gradient(1000px 600px at 60% 110%, rgba(230,90,160,.10), transparent 70%), var(--page); background-attachment: fixed; }
-header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 12px 20px; background: rgba(10,11,17,.75); backdrop-filter: blur(14px); border-bottom: 1px solid var(--grid); }
+  background: var(--page); }
+/* the glow lives on its own fixed layer: no repaint of the whole page while it scrolls or tiles change */
+body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; will-change: transform;
+  background: radial-gradient(900px 520px at 8% -6%, rgba(110,90,255,.20), transparent 70%), radial-gradient(900px 560px at 96% 4%, rgba(40,190,180,.12), transparent 70%), radial-gradient(1000px 600px at 60% 110%, rgba(230,90,160,.10), transparent 70%); }
+header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; padding: 12px 20px; background: rgba(10,11,17,.94); border-bottom: 1px solid var(--grid); }
 header b { font-size: 16px; }
 header .sub { color: var(--muted); }
 header .grow { flex: 1; }
+header .cost { font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink); padding: 3px 10px; border-radius: 999px; background: var(--surface-2); transition: opacity .3s ease; }
+header .cost:empty { opacity: 0; padding: 0; }
+header .cost span { color: var(--muted); font-weight: 400; }
+header .limits { display: flex; gap: 14px; align-items: center; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+header .lim { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+header .lim b { font-size: 12.5px; color: var(--ink); }
+header .lim .m { width: 64px; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+header .lim .m i { display: block; height: 100%; border-radius: 3px; transition: width .6s cubic-bezier(.2,.8,.2,1), background-color .4s ease; }
+header { flex-wrap: wrap; row-gap: 8px; }
+header > * { white-space: nowrap; flex: none; }
+header > .grow { flex: 1; }
+@media (max-width: 1100px) { header .lim .r { display: none; } }
 header a, header button { color: var(--ink); text-decoration: none; border: 1px solid var(--ring); background: var(--surface-2); border-radius: 9px; padding: 5px 12px; font: inherit; cursor: pointer; }
 header button.on { background: var(--surface-3); font-weight: 650; }
 main { display: grid; gap: 14px; padding: 16px 20px 24px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); }
 .tile { position: relative; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; height: 440px; border-radius: 14px; overflow: hidden; cursor: pointer;
   border: 1px solid transparent; background: linear-gradient(rgba(16,17,26,.92), rgba(16,17,26,.92)) padding-box, linear-gradient(135deg, color-mix(in srgb, var(--action, var(--s1)) 65%, transparent), rgba(94,214,192,.16) 45%, rgba(242,155,192,.28)) border-box;
-  transition: transform .2s, box-shadow .3s, opacity .45s ease; animation: tile-in .45s cubic-bezier(.2,.8,.2,1) backwards; }
+  contain: layout paint; transition: transform .2s, box-shadow .3s, opacity .45s ease; animation: tile-in .45s cubic-bezier(.2,.8,.2,1) backwards; }
 @keyframes tile-in { from { opacity: 0; transform: translateY(10px) scale(.985); } }
 .tile.leaving { opacity: 0 !important; transform: scale(.97); pointer-events: none; transition: opacity .45s ease, transform .45s ease; }
 .tile:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(0,0,0,.4); }
@@ -77,7 +92,7 @@ try { const p = localStorage.getItem('lc.motion') || 'system'; if (p === 'off' |
 </head>
 <body>
 <header>
-  <b>▦ Live Code Wall</b><span class="sub" id="sub">connecting…</span>
+  <b>▦ Live Code Wall</b><span class="sub" id="sub">connecting…</span><span class="cost" id="cost" title="Total cost of the chats working right now"></span><span class="limits" id="limits"></span>
   <span class="grow"></span>
   <button data-show="active" class="on" title="Working chats; idle ones fade out after a minute">Working</button><button data-show="all">All chats</button>
   <a href="/" title="The full dashboard">← Dashboard</a>
@@ -124,7 +139,14 @@ const draw = () => {
     .sort((a, b) => (isBusy(b[1]) - isBusy(a[1])) || (b[1]?.session?.updatedAt ?? 0) - (a[1]?.session?.updatedAt ?? 0))
   const wall = $('#wall')
   const busy = list.filter(([, s]) => isBusy(s)).length
-  $('#sub').textContent = `${list.length} chats · ${busy} working`
+  setText($('#sub'), `${list.length} chats · ${busy} working`)
+  // what the chats working right now have cost so far, all together
+  const running = [...sessions.values()].filter(isBusy)
+  const usd = running.reduce((sum, s) => sum + (s?.usage?.usd ?? 0), 0)
+  const costHtml = running.length ? `$${usd.toFixed(2)} <span>for ${running.length} running</span>` : ''
+  const costEl = $('#cost')
+  if (costEl.dataset.v !== costHtml) { costEl.dataset.v = costHtml; costEl.innerHTML = costHtml }
+  drawLimits()
   // tiles that left the wall fade out first, then go
   const ids = new Set(list.map(([id]) => id))
   for (const [id, t] of tiles) if (!ids.has(id) && !t.leaving) {
@@ -142,11 +164,19 @@ const draw = () => {
     if (!t) {
       const el = document.createElement('section')
       el.className = 'tile'
-      el.onclick = e => { if (e.target.closest('button')) return; location.href = `/?session=${encodeURIComponent(id)}` }
-      t = { el, actionId: '', key: '' }
+      el.innerHTML = '<div class="th"><span class="dot"></span><b></b><span class="st"></span></div><div class="pr"></div><div class="cv"><div class="ah"></div><div class="code"></div></div><div class="tf"></div>'
+      el.onclick = e => {
+        if (e.target.closest('[data-stop]')) { stopChat(id); return }
+        if (e.target.closest('button')) return
+        location.href = `/?session=${encodeURIComponent(id)}`
+      }
+      const q = s => el.querySelector(s)
+      t = { el, dot: q('.dot'), name: q('.th b'), st: q('.st'), pr: q('.pr'), ah: q('.ah'), code: q('.code'), tf: q('.tf'), parts: {}, actionId: '' }
       tiles.set(id, t)
     }
-    if (wall.children[index] !== t.el) wall.insertBefore(t.el, wall.children[index] ?? null)
+    // keep the order without touching tiles already in place
+    const at = wall.children[index]
+    if (at !== t.el) wall.insertBefore(t.el, at ?? null)
     const live = isLive(snap)
     const busyNow = isBusy(snap)
     const th = snap?.thinking ?? {}
@@ -165,26 +195,64 @@ const draw = () => {
     const notes = snap?.session?.notes?.list ?? []
     const say = notes.at(-1)?.text?.replace(/[*`#]/g, '').replace(/\s+/g, ' ')
     const pct = snap?.usage?.percent
-    const head = `<div class="th"><span class="dot${busyNow ? ' live' : ''}" style="background:${busyNow ? color : 'var(--muted)'}"></span><b>${esc(nameOf(id, snap))}</b><span class="st">${esc(state)}</span></div>` +
-      `<div class="pr">${esc(snap?.prompt ?? '')}</div>`
-    const actHead = a ? `<div class="ah"><span class="chip">${esc(ACTION[a.action]?.[0] ?? a.action)}</span><span class="w">${esc(where(a))}</span><span class="t">${a.stats?.add ? `<span style="color:var(--add)">+${a.stats.add}</span> ` : ''}${a.stats?.del ? `<span style="color:var(--del)">−${a.stats.del}</span>` : ''}</span></div>` : '<div class="ah"><span class="w" style="color:var(--muted)">No action yet</span></div>'
-    const foot = `<div class="tf">${say ? `<div class="say">${esc(say)}</div>` : ''}<div class="meta">${pct != null ? `<span>ctx</span><span class="bar"><i style="width:${pct}%"></i></span><span>${pct}%</span>` : ''}${snap?.usage?.usd != null ? `<span>$${snap.usage.usd.toFixed(2)}</span>` : ''}${snap?.turnNo ? `<span>turn ${snap.turnNo}</span>` : ''}<span class="grow"></span>${busyNow && snap?.session?.canStop ? `<button data-stop="${esc(id)}">■ Stop</button>` : ''}</div></div>`
+    // each part is written only when it really changed: the clock ticks touch one text node,
+    // the code view is rebuilt only when its action moves on
+    t.names = nameOf(id, snap)
+    setPart(t, 'dot', busyNow ? `live|${color}` : 'idle', () => { t.dot.classList.toggle('live', busyNow); t.dot.style.background = busyNow ? color : 'var(--muted)' })
+    setPart(t, 'name', t.names, () => { t.name.textContent = t.names })
+    setPart(t, 'st', state, () => { t.st.textContent = state })
+    setPart(t, 'pr', snap?.prompt ?? '', () => { t.pr.textContent = snap?.prompt ?? '' })
+    const actHead = a ? `<span class="chip">${esc(ACTION[a.action]?.[0] ?? a.action)}</span><span class="w">${esc(where(a))}</span><span class="t">${a.stats?.add ? `<span style="color:var(--add)">+${a.stats.add}</span> ` : ''}${a.stats?.del ? `<span style="color:var(--del)">−${a.stats.del}</span>` : ''}</span>` : '<span class="w" style="color:var(--muted)">No action yet</span>'
+    setPart(t, 'ah', actHead, () => { t.ah.innerHTML = actHead })
+    const foot = `${say ? `<div class="say">${esc(say)}</div>` : ''}<div class="meta">${pct != null ? `<span>ctx</span><span class="bar"><i style="width:${pct}%"></i></span><span>${pct}%</span>` : ''}${snap?.usage?.usd != null ? `<span>$${snap.usage.usd.toFixed(2)}</span>` : ''}${snap?.turnNo ? `<span>turn ${snap.turnNo}</span>` : ''}<span class="grow"></span>${busyNow && snap?.session?.canStop ? '<button data-stop>■ Stop</button>' : ''}</div>`
+    setPart(t, 'tf', foot, () => { t.tf.innerHTML = foot })
     const actionKey = a ? `${a.id}|${a.rows?.length ?? 0}|${a.isDone}` : ''
-    const key = head + actHead + foot + actionKey
-    if (key === t.key) return
-    const fresh = a && a.id !== t.actionId
-    t.key = key
-    t.actionId = a?.id ?? ''
-    t.el.innerHTML = head + `<div class="cv">${actHead}<div class="code">${rowsHtml(a, fresh)}</div></div>` + foot
-    const code = t.el.querySelector('.code')
-    code.scrollTop = code.scrollHeight
-    for (const b of t.el.querySelectorAll('[data-stop]')) b.onclick = async e => {
-      e.stopPropagation()
-      if (!confirm(`Stop “${nameOf(id, snap)}”?`)) return
-      await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ sid: id, kind: 'stop' }) })
-    }
+    setPart(t, 'code', actionKey, () => {
+      const fresh = a && a.id !== t.actionId
+      t.actionId = a?.id ?? ''
+      t.code.innerHTML = rowsHtml(a, fresh)
+      t.code.scrollTop = t.code.scrollHeight
+    })
   })
 }
+// the usage limits are the account's: the chat that heard of them last knows best
+const LIMIT_NAME = { five_hour: '5H', seven_day: '7D', seven_day_opus: '7D Opus', seven_day_sonnet: '7D Sonnet' }
+const limitColor = p => p >= 90 ? 'var(--del)' : p >= 70 ? 'var(--s4)' : 'var(--good)'
+const until = t => { const m = Math.max(0, Math.round((Date.parse(t) - Date.now()) / 60e3)); if (!Number.isFinite(m)) return '…'; return m < 60 ? `${m}m` : m < 1440 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${Math.floor(m / 1440)}d ${Math.floor(m % 1440 / 60)}h` }
+const drawLimits = () => {
+  const snap = [...sessions.values()].filter(s => s?.usage?.limits?.length).sort((a, b) => (b.session?.updatedAt ?? 0) - (a.session?.updatedAt ?? 0))[0]
+  const box = $('#limits')
+  const limits = snap?.usage?.limits ?? []
+  const shape = limits.map(l => l.kind).join()
+  if (box.dataset.shape !== shape) {
+    box.dataset.shape = shape
+    box.innerHTML = limits.map(l => `<span class="lim" data-k="${esc(l.kind)}"><b>${esc(LIMIT_NAME[l.kind] ?? String(l.kind).replace(/_/g, ' '))}</b><span class="m" role="meter" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(LIMIT_NAME[l.kind] ?? l.kind)} limit"><i></i></span><span class="p"></span><span class="r"></span></span>`).join('')
+  }
+  for (const l of limits) {
+    const el = box.querySelector(`[data-k="${CSS.escape(l.kind)}"]`)
+    if (!el) continue
+    const p = Math.round(l.percent ?? 0)
+    const bar = el.querySelector('i')
+    const w = `${Math.min(100, Math.max(0, p))}%`
+    if (bar.style.width !== w) { bar.style.width = w; bar.style.backgroundColor = limitColor(p); el.querySelector('.m').setAttribute('aria-valuenow', p) }
+    setText(el.querySelector('.p'), `${p}%`)
+    setText(el.querySelector('.r'), l.resetsAt ? `· resets in ${until(l.resetsAt)}` : '')
+  }
+}
+const setText = (el, text) => { if (el.textContent !== text) el.textContent = text }
+const setPart = (t, part, value, write) => { if (t.parts[part] !== value) { t.parts[part] = value; write() } }
+const stopChat = async id => {
+  if (!confirm(`Stop “${tiles.get(id)?.names ?? 'this chat'}”?`)) return
+  await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ sid: id, kind: 'stop' }) })
+}
+// many chats send many feed messages: draw at most once per frame, and not while the wall is hidden
+let drawQueued = false
+const schedule = () => {
+  if (drawQueued || document.hidden) return
+  drawQueued = true
+  requestAnimationFrame(() => { drawQueued = false; draw() })
+}
+document.addEventListener('visibilitychange', schedule)
 
 for (const b of document.querySelectorAll('[data-show]')) {
   b.classList.toggle('on', b.dataset.show === show)
@@ -204,10 +272,10 @@ es.onmessage = ev => {
     sessions.set(msg.sid, msg.snapshot)
     for (const a of msg.actions ?? []) if (a.rows?.length) latest.set(msg.sid, a)
   }
-  draw()
+  schedule()
 }
 es.onerror = () => { $('#sub').textContent = 'reconnecting…' }
-setInterval(draw, 1000)
+setInterval(schedule, 1000)
 </script>
 </body>
 </html>
