@@ -109,6 +109,16 @@ Pop it out with ⧉ and it becomes a window that floats over the dashboard and c
 - **Images:** an image written where a chat works (a render, a texture a script painted, a screenshot), one sent to you or looked at, or a browser shot builds up on the stage tile by tile.
 - **Blender:** when a chat runs Blender (`blender.exe -b … --python …`), the dashboard offers *Blender live*. Switched on, it puts a small startup script into that Blender's startup scripts. From then on you watch the model turn as Claude builds it, in the dashboard, and each render lands as an image. It writes only to `~/.claude/live-code-blender`. Switched off in Settings → Display, the script is taken away again.
 
+### Sources & help, and your instructions
+
+Two tiles at the top:
+- **Sources & help** counts what Claude took help from in the chat shown (or in all chats, or today, as the range says): skills it loaded and the skill files it read, design references, repositories it cloned or read on GitHub, pages it fetched, web searches, documentation tools and guide agents, helper agents, packages it ran or looked up, and its memories and CLAUDE.md. Opened large, it lists each under the prompt it was for, with how often and when, filtered by kind.
+- **Instructions** opens the CLAUDE.md files the chat runs under (the global one, the project's, its folders above, and the project memory index) to read and edit. Beside the text: where each file applies and to which chats, and everything it names (skills, mods, folders and files, commands, repositories, links) with the line and heading it stands under, whether it is there, and how often Claude used it. A click on one selects its line. **Save** (or Ctrl+S) writes the file, keeps the version before, and warns when the file was changed elsewhere meanwhile; text not saved yet survives a reload of the page.
+
+The words follow your browser's language (German or English).
+
+Visual shows only the chat shown: its images, steps, files and its Blender model, never several projects at once.
+
 ### Install (one click)
 
 You need **Windows 10/11**, **[Claude Code](https://claude.com/claude-code)** and **[Node.js](https://nodejs.org)**. Open PowerShell and run:
@@ -176,6 +186,8 @@ Everything Live Code does outside of Claude Code itself, in full:
 | Opens the dashboard in Microsoft Edge (app window), tile windows through PowerShell + WebView2 | when you open them | your PC only |
 | Reads your chats' transcripts in `~/.claude/projects` to count today's prompts and words | while the dashboard is open | your PC only |
 | Watches the folders a chat works in (with their subfolders) and its browser screenshots (`~/.claude/projects/…/<chat>/tool-results`) for new images, and reads its web searches, pages and the files it sent you from the transcript, for the Visual card (its list of the last hour kept in `~/.claude/live-code-visual-history.json`, earlier versions of images in `~/.claude/live-code-visual-before`) | while that chat was active in the last 10–30 minutes and a dashboard is open, unless paused | your PC only |
+| Notes what Claude takes help from (skills, design references, repositories, pages, searches, documentation tools, helper agents, packages, memories) from the transcript, kept in `~/.claude/live-code-sources.json` (the newest 600) | while a dashboard is open | your PC only |
+| Shows the CLAUDE.md files of the chat shown and saves them when you click **Save**: only those files, only from the dashboard page, the version before kept in `~/.claude/live-code-claude-md-backups` (the newest 40) | when you open the **Instructions** tile | your PC only |
 | Blender live, only once you switch it on: `live_code_blender.py` in the startup scripts of the Blender a chat runs; Blender then writes its visible meshes and render names to `~/.claude/live-code-blender` | while Blender runs | your PC only |
 | Sends light commands to **your own Philips Hue Bridge** (local network, HTTPS) | only after you pair it, on done / question / stuck / a site build | your bridge |
 | Looks up the latest version number: `api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json` | every 10 minutes while the dashboard runs | GitHub |
@@ -293,6 +305,16 @@ Die Liste ist nach dem Prompt gegliedert, zu dem etwas gehört, und jeder Eintra
 Mit ⧉ löst du sie heraus. Dann wird sie zu einem Fenster, das über dem Dashboard schwebt und von selbst kommt. Du verschiebst es am Kopf und änderst die Grösse an der Ecke. 📌 hält es offen, ⧉ setzt es zurück.
 - **Bilder:** Ein Bild, das dort entsteht, wo ein Chat arbeitet (ein Render, eine von einem Skript gemalte Textur, ein Screenshot), ein gesendetes oder angeschautes Bild oder ein Browser-Screenshot setzt sich auf der Bühne Kachel für Kachel zusammen.
 - **Blender:** Startet ein Chat Blender (`blender.exe -b … --python …`), bietet das Dashboard *Blender live* an. Eingeschaltet legt es ein kleines Startskript in die Startup-Skripte dieses Blenders. Ab dann siehst du im Dashboard, wie sich das Modell dreht, während Claude es baut, und jeder Render kommt als Bild dazu. Geschrieben wird nur nach `~/.claude/live-code-blender`. Ausgeschaltet (Einstellungen → Display) wird das Skript wieder entfernt.
+
+### Quellen & Hilfen, und deine Anweisungen
+
+Zwei Kacheln oben:
+- **Quellen & Hilfen** zählt, woher Claude im angezeigten Chat Hilfe geholt hat (oder in allen Chats, oder heute, je nach Bereich): geladene Skills und gelesene Skill-Dateien, Design-Referenzen, geklonte oder auf GitHub gelesene Repositories, abgerufene Seiten, Websuchen, Doku-Werkzeuge und Guide-Agents, Helfer-Agents, ausgeführte oder nachgeschlagene Pakete sowie Erinnerungen und CLAUDE.md. Gross geöffnet listet sie alles unter dem Prompt, zu dem es gehörte, mit Anzahl und Zeit, filterbar nach Art.
+- **Anweisungen** öffnet die CLAUDE.md-Dateien, unter denen der Chat läuft (die globale, die des Projekts, die der Ordner darüber und den Erinnerungs-Index des Projekts), zum Lesen und Bearbeiten. Daneben steht, wo jede Datei gilt und für welche Chats, und alles, was sie nennt (Skills, Mods, Ordner und Dateien, Befehle, Repositories, Links), mit Zeile und Überschrift, ob es vorhanden ist und wie oft Claude es benutzt hat. Ein Klick darauf markiert die Zeile. **Speichern** (oder Strg+S) schreibt die Datei, behält die vorige Fassung und warnt, wenn die Datei inzwischen anderswo geändert wurde; noch nicht gespeicherter Text übersteht ein Neuladen der Seite.
+
+Die Wörter folgen der Sprache deines Browsers (Deutsch oder Englisch).
+
+Visual zeigt nur den angezeigten Chat: seine Bilder, Schritte, Dateien und sein Blender-Modell, nie mehrere Projekte gleichzeitig.
 
 ### Installation (ein Klick)
 

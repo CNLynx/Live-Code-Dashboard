@@ -19,7 +19,9 @@ import { hueAlarm, hueAsks, hueBuild, hueConfig, hueDone, huePair, hueRooms, pai
 import { ensureWebView2, hasWebView2 } from './webview2.mjs'
 import { deploysFor, followDeploys, pokeDeploys } from './deploys.mjs'
 import { blenderMesh, blenderState, initBlender, setBlenderMode, spotBlender } from './blender.mjs'
-import { imageData, imagesState, initImages, isImage, keepImages, setDoing, setVisualOn, setVisualResting, showImage, visualAwake, visualOn, visualsIn, watchImageDirs } from './images.mjs'
+import { imageData, imagesState, initImages, isImage, keepImages, setDoing, setVisualOn, setVisualResting, showImage, visualOn, visualResting, visualsIn, watchImageDirs } from './images.mjs'
+import { initSources, sourcesState } from './sources.mjs'
+import { claudeMdFor, instructionFiles, saveClaudeMd } from './claudemd.mjs'
 
 const PUSHED = /git(?:\.exe)?\s+push|gh(?:\.exe)?\s+pr\s+merge/
 
@@ -201,6 +203,7 @@ const broadcast = msg => {
 // (the prompt a chat works on, for what it makes: the newest the transcript holds)
 initImages({ broadcast, prompt: sid => prompts.get(sid)?.at(-1) ?? null })
 keepImages(HOME)
+initSources({ broadcast, home: HOME })
 initBlender({ home: HOME, broadcast })
 
 // ── the pages reload themselves when their files change ──
@@ -432,10 +435,11 @@ const switchVisual = value => {
 // coming back wakes it, and what the chats did meanwhile (their last ten
 // minutes) is read once more: what was shown already is not shown twice.
 const REST_AFTER_MS = 30_000
-const wakeVisual = () => { const was = visualAwake(); setVisualResting(false); if (!was && visualOn()) visualsRead.clear() }
-setInterval(() => { if (clients.size === 0 && Date.now() - lastClientAt > REST_AFTER_MS && visualAwake()) setVisualResting(true) }, 5000).unref()
+const wakeVisual = () => { const was = visualResting(); setVisualResting(false); if (was) visualsRead.clear() }
+setInterval(() => { if (clients.size === 0 && Date.now() - lastClientAt > REST_AFTER_MS && !visualResting()) setVisualResting(true) }, 5000).unref()
 setInterval(() => {
-  if (!visualAwake()) return
+  // (paused, Visual takes nothing; the sources tile still reads on: sources.mjs)
+  if (visualResting()) return
   for (const s of sessions.values()) {
     if (Date.now() - s.mtime > 10 * 60_000) continue
     const file = transcriptOf(s.id)
@@ -758,6 +762,7 @@ const initPayload = () => {
     blender: blenderState(),
     images: imagesState(),
     visual: visualOn(),
+    sources: sourcesState(),
     sessions: sessionList(),
     actions: list.map((a, i) => (i < list.length - INIT_ROWS ? lean(a) : a)),
     samples: samples.slice(-INIT_SAMPLES),
@@ -810,13 +815,16 @@ const ingest = (sid, feed) => {
   const cur = feed.current
   if (cur?.action === 'running' && !cur.isDone) {
     const command = (cur.rows ?? []).slice(0, 20).map(r => r.text).join('\n')
-    spotBlender(`${cur.detail ?? ''}\n${command}`)
+    spotBlender(`${cur.detail ?? ''}\n${command}`, sid)
     // (what it is for, for the files it makes meanwhile: images.mjs)
     setDoing(sid, cur.detail ?? '', command)
     noteDirs({ ...cur, sid })
   }
-  // the images made where it works show in the preview window (images.mjs)
-  watchImageDirs(dirsOf(sid, feed.session?.cwd), sid)
+  // the images made where it works show in the preview window (images.mjs); a
+  // folder belongs to the chat at work in it now, not to one that merely reports
+  // (many chats share one folder: an idle one would take the others' images)
+  const atWork = (cur && !cur.isDone) || (Array.isArray(feed.history) && feed.history.some(a => Date.now() - (a.doneAt ?? a.startedAt ?? 0) < 20_000))
+  if (atWork) watchImageDirs(dirsOf(sid, feed.session?.cwd), sid)
   const items = [...(Array.isArray(feed.history) ? feed.history : []), ...(feed.current ? [feed.current] : [])]
   for (const item of items) {
     if (!item?.id || !item.isDone) continue
@@ -1419,7 +1427,7 @@ const server = http.createServer((req, res) => {
     handleSend(req, res).catch(() => res.writeHead(500).end('{}'))
   } else if (url.pathname === '/voice' || url.pathname === '/speak') {
     handleVoice(req, res, url).catch(e => res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: e.message })))
-  } else if (url.pathname === '/extras.js' || url.pathname === '/shared.js' || url.pathname === '/details.js' || url.pathname === '/preview.js') {
+  } else if (url.pathname === '/extras.js' || url.pathname === '/shared.js' || url.pathname === '/details.js' || url.pathname === '/preview.js' || url.pathname === '/sources.js') {
     sendFile(res, path.join(HERE, url.pathname.slice(1)), 'text/javascript; charset=utf-8')
   } else if (url.pathname === '/blender') {
     // Blender live (blender.mjs): its state; switched on or off by the dashboard page alone
@@ -1441,6 +1449,27 @@ const server = http.createServer((req, res) => {
       if (typeof m.on !== 'boolean') { res.writeHead(400).end('{}'); return }
       switchVisual(m.on)
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ on: visualOn() }))
+    }, () => res.writeHead(400).end('{}'))
+  } else if (url.pathname === '/claude-md') {
+    // the instruction files of a chat (claudemd.mjs): GET ?sid= them with what they name and
+    // what Claude made of it; POST { sid, path, text, mtime } saves one, from the dashboard page alone
+    const known = () => [...sessions.values()].filter(s => s.id !== 'legacy' && hidden.get(s.id) === undefined)
+      .map(s => ({ sid: s.id, cwd: s.snapshot?.session?.cwd, transcript: transcriptOf(s.id), title: titles.get(s.id) ?? s.snapshot?.session?.title ?? s.id.slice(0, 8) }))
+    const chat = sid => known().find(s => s.sid === sid) ?? { sid, cwd: undefined, transcript: transcriptOf(sid) }
+    if (req.method !== 'POST') {
+      const sid = url.searchParams.get('sid') ?? ''
+      const c = chat(sid)
+      const list = claudeMdFor({ sid, cwd: c.cwd, transcript: c.transcript, home: HOME, sessions: known(), titleOf: id => known().find(s => s.sid === id)?.title ?? id.slice(0, 8) })
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ files: list }))
+      return
+    }
+    if (!isTrusted(req)) { res.writeHead(403).end('{}'); return }
+    readBody(req, 600 * 1024).then(body => {
+      let m = {}
+      try { m = JSON.parse(body) } catch {}
+      const c = chat(String(m.sid ?? ''))
+      const done = saveClaudeMd({ allowed: instructionFiles({ cwd: c.cwd, transcript: c.transcript, home: HOME }), file: m.path, text: m.text, mtime: m.mtime, home: HOME })
+      res.writeHead(done.ok ? 200 : 409, { 'Content-Type': 'application/json' }).end(JSON.stringify(done))
     }, () => res.writeHead(400).end('{}'))
   } else if (url.pathname === '/blender/mesh') {
     const file = blenderMesh()

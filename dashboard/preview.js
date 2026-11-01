@@ -124,7 +124,8 @@
   for (const b of tabs) b.addEventListener('click', () => { if (!b.disabled) setTab(b.dataset.pv, true) })
 
   // ── what it says ──
-  const info = () => (P.blender?.mode === 'on' ? P.blender.info : null)
+  // (Blender's model: the chat's that ran it, shown only with that chat)
+  const info = () => (P.blender?.mode === 'on' && (!P.blender.sid || P.blender.sid === S.view) ? P.blender.info : null)
   const working = () => { const i = info(); return !!i?.running && Date.now() - i.at < 5 * 60_000 }
   const kilo = n => (n >= 10_000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n))
   const HOW = { made: 'made', render: 'rendered in Blender', sent: 'sent to you', looked: 'looked at', browser: 'browser', search: 'web search', web: 'page read', browse: 'browser opened', blender: 'Blender', click: 'click in the browser', type: 'typed in the browser', key: 'key in the browser', scroll: 'scrolled in the browser', server: 'dev server', bg: 'in the background', file: 'file made', download: 'downloaded' }
@@ -132,12 +133,13 @@
   const drawMeta = () => {
     const i = info()
     tabs[0].disabled = !i
-    tabs[1].disabled = P.images.length === 0
+    const mine = P.images.filter(shownHere).length
+    tabs[1].disabled = mine === 0
     pv.classList.toggle('working', working())
     pv.classList.toggle('empty', !P.hasMesh)
     // (nothing for the stage: what it will show, said once)
     // (not before the server said what there is: no flash of it on each load)
-    pv.classList.toggle('nothing', P.ready && !i && P.images.length === 0)
+    pv.classList.toggle('nothing', P.ready && !i && mine === 0)
     // the 📎 above: for the image shown
     pinHead.hidden = P.tab !== 'images' || !P.cur
     pinHead.classList.toggle('on', P.pins.has(P.cur))
@@ -417,7 +419,8 @@ void main() {
       imx.drawImage(IMG.prev, r.x, r.y, r.w, r.h)
     }
     const im = IMG.cur
-    if (!im) { imx.globalAlpha = 1; lastRect = null; placeMark(); return false }
+    // (none: the one before fades out, then the stage is empty)
+    if (!im) { imx.globalAlpha = 1; lastRect = null; placeMark(); return !!(IMG.prev && e < 800) }
     const r = viewed(fit(im, W, H, pad), W, H)
     lastRect = { ...r, dpr }
     imx.save()
@@ -691,7 +694,8 @@ void main() {
   }
   // The rows, drawn from the items: the same row kept for the same item (no
   // flicker), a new one folding in; a heading for each prompt.
-  const shownHere = item => S.selected === 'all' || !item.sid || item.sid === S.view
+  // only the chat shown: never several projects at once (also with "all chats" chosen above)
+  const shownHere = item => !!item && !!S.view && item.sid === S.view
   let listView = null
   const renderList = (fresh = new Set()) => {
     listView = S.view
@@ -758,7 +762,7 @@ void main() {
     const known = P.items.find(x => x.id === id)
     const patch = { name: `${i.blend || 'Blender'} · ${i.objects} parts`, why: i.running ? `building · step ${i.seq}` : 'done' }
     if (known) { Object.assign(known, patch); renderList(); return }
-    P.items.push({ id, how: 'blender', at: i.at, img: false, sid: null, prompt: null, ...patch })
+    P.items.push({ id, how: 'blender', at: i.at, img: false, sid: P.blender?.sid ?? null, prompt: null, ...patch })
     renderList(new Set([id]))
   }
 
@@ -853,9 +857,9 @@ void main() {
     if (image.img) {
       P.images.push(image)
       if (P.images.length > 40) P.images.shift()
-      addThumb(image)
+      if (shownHere(image)) addThumb(image)
     }
-    if (quiet) { if (image.img && !P.cur) pick(image, false); drawMeta(); return }
+    if (quiet) { if (image.img && !P.cur && shownHere(image)) pick(image, false); drawMeta(); return }
     if (!shownHere(image)) return
     activity()
     // a step in the browser: shown on its shot (unless the person looks at something else)
@@ -872,6 +876,30 @@ void main() {
   window.onImages = list => {
     P.ready = true
     for (const image of (list ?? []).slice().sort((a, b) => a.at - b.at)) window.onImage(image, Date.now() - (image.at ?? 0) > 20_000)
+  }
+
+  // Another chat shown: its own pictures only. The strip is made anew from its
+  // images, the stage shows its newest (what another chat showed fades away), and
+  // the model only with the chat that built it.
+  const viewChanged = () => {
+    stopReplay()
+    const mine = P.images.filter(shownHere)
+    strip.replaceChildren()
+    strip.classList.remove('some')
+    for (const im of mine) addThumb(im)
+    if (!shownHere(P.items.find(x => x.id === P.cur))) {
+      const last = mine.at(-1)
+      if (last) pick(last, false)
+      else {
+        P.cur = null
+        IMG.prev = IMG.cur; IMG.cur = null; IMG.item = null; IMG.before = null; IMG.diff = null; IMG.mark = null
+        IMG.start = performance.now()
+        runImg()
+      }
+    }
+    setTab(info() && (P.tab === 'model' || mine.length === 0) ? 'model' : 'images')
+    if (info()) void loadMesh(false)
+    drawMeta()
   }
 
   const post = mode => fetch('/blender', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Live-Code-Secret': SECRET }, body: JSON.stringify({ mode }) }).catch(() => {})
@@ -904,8 +932,8 @@ void main() {
 
   // each tick of the page (drawNow): the time words, and away when all is calm
   window.drawBlender = () => {
-    // (another chat shown: its list, and what it has picked for its next prompt)
-    if (listView !== S.view) renderList()
+    // (another chat shown: its list, its pictures, and what it has picked for its next prompt)
+    if (listView !== S.view) { renderList(); viewChanged() }
     if (pinsOf !== S.view) loadPins()
     if (!visible()) return
     drawMeta()

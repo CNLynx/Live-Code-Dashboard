@@ -411,7 +411,7 @@ html.native-tile body:hover .nt-bar { opacity: 1; }
 .mini:hover { opacity: 1; }
 .mini canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .mini-view { position: absolute; left: 0; right: 0; top: 0; height: 20px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 22%, transparent); will-change: transform; }
-.mini-at { position: absolute; left: -3px; right: -3px; top: 0; height: 2px; border-radius: 2px; background: var(--action, var(--accent)); box-shadow: 0 0 6px var(--action, var(--accent)); opacity: 0; transition: opacity .3s; will-change: transform; }
+.mini-at { position: absolute; left: -3px; right: -3px; top: 0; height: 2px; border-radius: 2px; background: var(--action, var(--s1)); box-shadow: 0 0 6px var(--action, var(--s1)); opacity: 0; transition: opacity .3s; will-change: transform; }
 .mini-at.on { opacity: 1; }
 .live.thinking .mini, .live.idle .mini { opacity: .25; }
 .code { transition: filter .5s cubic-bezier(.2,.8,.2,1), opacity .5s cubic-bezier(.2,.8,.2,1); }
@@ -911,6 +911,53 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 .sheet .dl.del .t { text-decoration: line-through; text-decoration-color: rgba(248,113,113,.5); opacity: .8; }
 .sheet .dl.gap { color: var(--muted); font-style: italic; }
 .sheet .split { display: grid; grid-template-columns: 1fr 1fr; }
+/* the sources tile opened large (sources.js): kind chips over the list by prompt */
+.src-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.src-chip { border: 1px solid var(--ring); background: var(--surface-2); color: var(--ink-2); border-radius: 999px; padding: 3px 11px; font: inherit; font-size: 12px; cursor: pointer; transition: background .2s, color .2s, border-color .2s; }
+.src-chip:hover { color: var(--ink); background: var(--surface-3); }
+.src-chip.on { background: color-mix(in srgb, var(--s1) 18%, var(--surface-2)); border-color: color-mix(in srgb, var(--s1) 55%, transparent); color: var(--ink); }
+.src-chip:focus-visible, .cm-ref:focus-visible, .sheet .sh .tabs button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+.src-chip .num { color: var(--muted); margin-left: 3px; }
+.src-group + .src-group { margin-top: 12px; }
+.src-prompt { font-size: 12px; font-weight: 650; color: var(--ink-2); margin: 0 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-row .d-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.src-row .d-name > * { flex: none; }
+.src-row .d-name a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.src-row .d-name a:hover { text-decoration: underline; }
+.src-row .src-det { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.src-row.fresh { animation: src-in .6s cubic-bezier(.2,.8,.2,1); }
+@keyframes src-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+:root.calm .src-row.fresh { animation: none; }
+.tile.opens { cursor: pointer; }
+/* the instructions (sources.js): the file to edit beside what it names */
+.sheet.cm { width: min(1240px, 100%); height: 86vh; }
+.sheet.cm textarea, .cm-side { overscroll-behavior: contain; }
+.cm-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); min-height: 0; }
+.cm-edit { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; border-right: 1px solid var(--grid); }
+.cm-edit textarea { width: 100%; height: 100%; resize: none; border: 0; outline: none; padding: 14px 16px; background: var(--surface-2); color: var(--ink); font: 13px/1.6 "Cascadia Code", "Cascadia Mono", Consolas, monospace; tab-size: 2; }
+.cm-edit textarea:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--s1) 60%, transparent); }
+.cm-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--grid); }
+.cm-status { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); }
+.cm-bar .btn.primary:not(:disabled) { background: var(--s1); color: var(--on-accent, #fff); border-color: transparent; }
+.cm-side { overflow: auto; padding: 12px 16px 18px; font-size: 13px; line-height: 1.5; }
+.cm-side h6 { margin: 6px 0 6px; font-size: 13px; color: var(--ink); }
+.cm-side section + section { margin-top: 16px; }
+.cm-side p { margin: 0 0 6px; color: var(--ink-2); }
+.cm-side p.muted { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.cm-chats { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.cm-chats span { padding: 1px 8px; border-radius: 999px; background: var(--surface-3); font-size: 12px; color: var(--ink-2); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-refgroup + .cm-refgroup { margin-top: 10px; }
+.cm-refkind { font-size: 12px; font-weight: 650; color: var(--ink-2); margin-bottom: 4px; }
+.cm-refkind .num { color: var(--muted); font-weight: 500; }
+.cm-ref { all: unset; box-sizing: border-box; display: grid; gap: 1px; width: 100%; padding: 6px 8px; border-radius: 8px; cursor: pointer; transition: background .2s; }
+.cm-ref:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.cm-ref-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; color: var(--ink); }
+.cm-ref-name code, .cm-ref-name a { font: 12.5px "Cascadia Code", Consolas, monospace; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cm-ref-meta { font-size: 11.5px; color: var(--muted); }
+.cm-ok { color: var(--good); font-size: 11.5px; flex: none; }
+.cm-miss { color: var(--crit); font-size: 11.5px; flex: none; }
+.cm-used { color: var(--ink-2); }
+@media (max-width: 860px) { .cm-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); } .cm-edit { border-right: 0; border-bottom: 1px solid var(--grid); } }
 .sheet .split > div { min-width: 0; }
 .sheet .split > div + div { border-left: 1px solid var(--grid); }
 
@@ -2645,6 +2692,11 @@ const drawTiles = () => {
   tile(live ? 'This turn' : 'Last turn', live ? `<span class="num" data-since="${th.turnStartedAt}"></span>` : last ? dur(last.ms) : '—', turns.length ? `Ø ${dur(sum(turns, t => t.ms) / turns.length)} · longest ${dur(Math.max(...turns.map(t => t.ms)))}` : '')
   const errors = acts.filter(a => a.isError).length
   tile('Errors', `<span class="status-icon" style="color:${errors ? 'var(--crit)' : 'var(--good)'}">${errors ? '✗' : '✓'}</span> ${counter(`errors:${scopeKey}`, errors, 'int')}`, acts.length ? `${((errors / acts.length) * 100).toFixed(1)}% of tool calls failed` : '')
+  // what Claude took help from, and the CLAUDE.md it runs under (sources.js)
+  const src = window.sourcesTile?.()
+  if (src) tile(src.label, src.value, src.foot, '', src.tip)
+  const cm = window.claudeTile?.()
+  if (cm) tile(cm.label, cm.value, cm.foot, '', cm.tip, 'opens')
   // a newer version on GitHub: a tile to install it with one click (extras.js)
   const up = !TILE_MODE && window.updateTile?.()
   if (up) tiles.push(up)
@@ -2750,6 +2802,8 @@ $('#tiles').addEventListener('click', e => {
   if (e.target.closest('.update-tile')) { window.startUpdate?.(); return }
   if (e.target.closest('.tile-compact')) { if (!e.target.closest('.tile-compact').disabled) window.askCompact?.(S.view); return }
   const el = e.target.closest('[data-tile]')
+  // (a tile that opens a view of its own: the instructions, sources.js)
+  if (el && window.tileClick?.(el.dataset.tile)) return
   if (el) openBig(el.dataset.tile)
 })
 // In its own window the page shows that one tile, grown to fill the window.
@@ -3855,6 +3909,8 @@ const connect = () => {
       // (the preview window's script may still be loading: it picks them up then)
       window.__pvInit = { images: msg.images, blender: msg.blender, visual: msg.visual }
       if (typeof msg.visual === 'boolean') window.onVisual?.(msg.visual)
+      window.__srcInit = msg.sources
+      if (msg.sources) window.onSources?.(msg.sources)
       if (msg.images) window.onImages?.(msg.images)
       if (msg.blender) window.onBlender?.(msg.blender)
       // the server restarted: its secret is new, so this page loads afresh
@@ -3896,6 +3952,8 @@ const connect = () => {
       window.onImage?.(msg.image)
     } else if (msg.type === 'visual') {
       window.onVisual?.(msg.on)
+    } else if (msg.type === 'source') {
+      window.onSource?.(msg.source)
     } else if (msg.type === 'attach') {
       window.onAttach?.(msg)
     } else if (msg.type === 'update') {
@@ -4056,6 +4114,7 @@ connect()
 </div>
 <script src="/details.js"></script>
 <script src="/preview.js"></script>
+<script src="/sources.js"></script>
 <!-- your own touches, in ~/.claude/live-code-custom: kept through updates -->
 <link rel="stylesheet" href="/custom.css">
 <script src="/custom.js"></script>

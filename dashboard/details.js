@@ -278,7 +278,8 @@ window.bigDetail = key => {
   chartNo = 0
   // any other limit Claude Code reports (7D Opus, …) by the name its tile has
   const other = !DETAIL[key] && (S.snap?.usage?.limits ?? []).find(l => tileKey(`${limitName(l.kind)} limit`) === key)
-  const make = DETAIL[key] ?? (other ? limitDetail(other.kind) : undefined)
+  // (tiles of other scripts bring their own: sources.js)
+  const make = DETAIL[key] ?? window.extraDetail?.[key] ?? (other ? limitDetail(other.kind) : undefined)
   const snap = S.snap ?? {}
   const src = document.querySelector(`#tiles [data-tile="${key}"]`)
   const label = src?.querySelector('.label')?.innerHTML ?? key

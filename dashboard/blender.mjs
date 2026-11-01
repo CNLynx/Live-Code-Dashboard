@@ -70,7 +70,7 @@ const refresh = () => {
   }
 }
 
-export const blenderState = () => ({ mode: cfg.mode, spotted: cfg.spotted.length > 0, versions: [...new Set(cfg.spotted.flatMap(versionsOf))], info })
+export const blenderState = () => ({ mode: cfg.mode, spotted: cfg.spotted.length > 0, versions: [...new Set(cfg.spotted.flatMap(versionsOf))], info, sid: lastSid })
 
 export const setBlenderMode = mode => {
   if (!['on', 'off', 'never'].includes(mode)) return false
@@ -99,8 +99,11 @@ const spot = exe => {
   writeCfg()
   tell(blenderState())
 }
-export const spotBlender = text => {
+// (the chat that ran Blender last: its model and renders belong to it, in the Visual card)
+let lastSid = null
+export const spotBlender = (text, sid = null) => {
   if (typeof text !== 'string' || !/blender/i.test(text)) return
+  if (sid && sid !== lastSid) { lastSid = sid; tell(blenderState()) }
   for (const m of text.matchAll(EXE)) spot(m[1] ?? m[2] ?? m[3])
   // just "blender": the one on the PATH (asked now and then, not with each command)
   if (BARE.test(text) && process.platform === 'win32' && Date.now() - whereAsked > 60_000) {
@@ -120,7 +123,7 @@ const resolve = raw => {
   for (const r of Array.isArray(raw?.renders) ? raw.renders : []) {
     for (const c of Array.isArray(r.cands) ? r.cands : []) {
       if (typeof c !== 'string' || !IMAGE.test(c)) continue
-      try { if (fs.statSync(c).mtimeMs >= (Number(r.at) || 0) - 2000) { showImage(c, 'render'); n++; break } } catch {}
+      try { if (fs.statSync(c).mtimeMs >= (Number(r.at) || 0) - 2000) { showImage(c, 'render', lastSid); n++; break } } catch {}
     }
   }
   return n

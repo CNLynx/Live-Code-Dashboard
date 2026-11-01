@@ -14,6 +14,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { noteSources, sourcesOf } from './sources.mjs'
 
 const IMAGE = /\.(png|jpe?g|webp|gif|bmp)$/i
 export const isImage = file => typeof file === 'string' && IMAGE.test(file)
@@ -44,6 +45,7 @@ let burst = []
 let switchedOn = true, resting = false, on = true
 export const visualOn = () => switchedOn
 export const visualAwake = () => on
+export const visualResting = () => resting
 const letGo = () => {
   for (const x of watchers.values()) { try { x.watcher.close() } catch {} }
   watchers.clear()
@@ -334,14 +336,16 @@ const toolResult = (c, entry, sid, at) => {
   }
 }
 const NOTE = /<task-notification>[\s\S]*?<tool-use-id>([^<]+)<\/tool-use-id>[\s\S]*?<status>([^<]+)<\/status>(?:[\s\S]*?<summary>([^<]*)<\/summary>)?/g
+// (paused, Visual takes nothing from it; the "Sources & help" tile still does,
+// sources.mjs: only resting, with no page open, stops both)
 export const visualsIn = (text, sid) => {
-  if (!on) return
+  if (resting) return
   for (let line of text.split('\n')) {
     if (line.length < 20) continue
     // (a writer that spells < and > as < and >)
     if (line.includes('\\u003ctask-notification')) line = line.replace(/\\u003c/g, '<').replace(/\\u003e/g, '>')
     // (a background command done: its state; this line needs no reading as JSON)
-    if (line.includes('<task-notification>')) for (const m of line.replace(/\\n/g, '\n').replace(/\\"/g, '"').matchAll(NOTE)) updateVisual(m[1], { status: /complet/i.test(m[2]) ? (/exit code [1-9]/.test(m[3] ?? '') ? 'failed' : 'done') : m[2], summary: m[3] ?? '' })
+    if (on && line.includes('<task-notification>')) for (const m of line.replace(/\\n/g, '\n').replace(/\\"/g, '"').matchAll(NOTE)) updateVisual(m[1], { status: /complet/i.test(m[2]) ? (/exit code [1-9]/.test(m[3] ?? '') ? 'failed' : 'done') : m[2], summary: m[3] ?? '' })
     if (!/"type":"(?:assistant|user)"/.test(line)) continue
     let entry
     try { entry = JSON.parse(line) } catch { continue }
@@ -356,8 +360,10 @@ export const visualsIn = (text, sid) => {
     if (!Array.isArray(content) || Date.now() - at > 10 * 60_000) continue
     for (const c of content) {
       if (entry.type === 'assistant' && c?.type === 'text' && c.text?.trim()) { c0.said = firstSentence(c.text); c0.saidAt = at }
-      else if (c?.type === 'tool_use') toolUse(c, entry, sid, at)
-      else if (c?.type === 'tool_result') toolResult(c, entry, sid, at)
+      else if (c?.type === 'tool_use') {
+        noteSources(sourcesOf(c, typeof entry.cwd === 'string' ? entry.cwd : ''), { sid, at, prompt: c0.prompt ?? promptOf(sid), toolId: c.id })
+        if (on) toolUse(c, entry, sid, at)
+      } else if (on && c?.type === 'tool_result') toolResult(c, entry, sid, at)
     }
   }
 }
