@@ -123,6 +123,8 @@ const latest = new Map() // id -> newest action with rows
 const tiles = new Map() // id -> { el, key, actionId }
 let show = localStorage.getItem('lc.wallShow') || 'active'
 const doneSeen = new Map()
+const placeOf = new Map() // id -> place on the wall, kept while its tile is there
+let nextPlace = 0
 
 const rowsHtml = (a, fresh) => {
   const rows = (a?.rows ?? []).slice(-22)
@@ -137,6 +139,9 @@ const draw = () => {
   const list = [...sessions.entries()]
     .filter(([, snap]) => show === 'all' || onWall(snap))
     .sort((a, b) => (isBusy(b[1]) - isBusy(a[1])) || (b[1]?.session?.updatedAt ?? 0) - (a[1]?.session?.updatedAt ?? 0))
+  // a tile keeps its place: newcomers join at the end, nobody swaps
+  for (const [id] of list) if (!placeOf.has(id)) placeOf.set(id, nextPlace++)
+  list.sort((a, b) => placeOf.get(a[0]) - placeOf.get(b[0]))
   const wall = $('#wall')
   const busy = list.filter(([, s]) => isBusy(s)).length
   setText($('#sub'), `${list.length} chats · ${busy} working`)
@@ -151,14 +156,14 @@ const draw = () => {
   const ids = new Set(list.map(([id]) => id))
   for (const [id, t] of tiles) if (!ids.has(id) && !t.leaving) {
     t.el.classList.add('leaving')
-    t.leaving = setTimeout(() => { t.el.remove(); tiles.delete(id); if (tiles.size === 0) draw() }, 480)
+    t.leaving = setTimeout(() => { t.el.remove(); tiles.delete(id); placeOf.delete(id); if (tiles.size === 0) draw() }, 480)
   }
   if (list.length === 0) {
     if (tiles.size === 0 && !wall.querySelector('.none')) wall.innerHTML = `<div class="none">${show === 'all' ? 'No chat to show yet.' : 'No chat is working right now.'}</div>`
     return
   }
   wall.querySelector('.none')?.remove()
-  list.forEach(([id, snap], index) => {
+  list.forEach(([id, snap]) => {
     let t = tiles.get(id)
     if (t?.leaving) { clearTimeout(t.leaving); t.leaving = 0; t.el.classList.remove('leaving') }
     if (!t) {
@@ -174,9 +179,6 @@ const draw = () => {
       t = { el, dot: q('.dot'), name: q('.th b'), st: q('.st'), pr: q('.pr'), ah: q('.ah'), code: q('.code'), tf: q('.tf'), parts: {}, actionId: '' }
       tiles.set(id, t)
     }
-    // keep the order without touching tiles already in place
-    const at = wall.children[index]
-    if (at !== t.el) wall.insertBefore(t.el, at ?? null)
     const live = isLive(snap)
     const busyNow = isBusy(snap)
     const th = snap?.thinking ?? {}
@@ -214,6 +216,9 @@ const draw = () => {
       t.code.scrollTop = t.code.scrollHeight
     })
   })
+  // tiles by their place, fading ones included, so none jumps over another; tiles already in place stay untouched
+  const want = [...tiles.keys()].sort((a, b) => (placeOf.get(a) ?? Infinity) - (placeOf.get(b) ?? Infinity))
+  want.forEach((id, i) => { const el = tiles.get(id).el; if (wall.children[i] !== el) wall.insertBefore(el, wall.children[i] ?? null) })
 }
 // the usage limits are the account's: the chat that heard of them last knows best
 const LIMIT_NAME = { five_hour: '5H', seven_day: '7D', seven_day_opus: '7D Opus', seven_day_sonnet: '7D Sonnet' }
@@ -250,13 +255,16 @@ let drawQueued = false
 const schedule = () => {
   if (drawQueued || document.hidden) return
   drawQueued = true
-  requestAnimationFrame(() => { drawQueued = false; draw() })
+  // a covered window gets no animation frames although it counts as visible: the timer draws then
+  const run = () => { if (!drawQueued) return; drawQueued = false; clearTimeout(timer); draw() }
+  const timer = setTimeout(run, 120)
+  requestAnimationFrame(run)
 }
 document.addEventListener('visibilitychange', schedule)
 
 for (const b of document.querySelectorAll('[data-show]')) {
   b.classList.toggle('on', b.dataset.show === show)
-  b.onclick = () => { show = b.dataset.show; localStorage.setItem('lc.wallShow', show); for (const x of document.querySelectorAll('[data-show]')) x.classList.toggle('on', x === b); draw() }
+  b.onclick = () => { show = b.dataset.show; localStorage.setItem('lc.wallShow', show); placeOf.clear(); for (const x of document.querySelectorAll('[data-show]')) x.classList.toggle('on', x === b); draw() }
 }
 
 const es = new EventSource('/events')
