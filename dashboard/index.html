@@ -3254,8 +3254,10 @@ const toneOn = key => soundOn && store.get(key) !== 'off'
 const chime = (force = false) => {
   if (!toneOn('lc.toneDone') && !force) return
   // several chats finishing together ring once
-  if (Date.now() - chimedAt < 1500 && !force) return
+  // the wall rings too: whichever window rang first (lc.chimedAt) rings alone
+  if ((Date.now() - chimedAt < 1500 || Date.now() - Number(store.get('lc.chimedAt') ?? 0) < 1500) && !force) return
   chimedAt = Date.now()
+  store.set('lc.chimedAt', String(chimedAt))
   const ac = audioCtx()
   if (!ac) return
   const t0 = ac.currentTime + 0.03

@@ -81,6 +81,16 @@ main { display: grid; gap: 14px; padding: 16px 20px 24px; grid-template-columns:
 .tf .bar i { display: block; height: 100%; background: var(--s1); }
 .tf .meta .grow { flex: 1; }
 .tf button { border: 1px solid rgba(248,113,113,.5); background: rgba(248,113,113,.12); color: var(--del); border-radius: 999px; padding: 1px 9px; font: inherit; font-size: 11.5px; cursor: pointer; }
+.toasts { position: fixed; right: 20px; bottom: 20px; z-index: 20; display: grid; gap: 8px; justify-items: end; pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; max-width: min(420px, calc(100vw - 40px)); padding: 10px 16px 10px 12px; border-radius: 12px; cursor: pointer;
+  background: #151724; color: var(--ink); box-shadow: 0 12px 34px rgba(0,0,0,.45), 0 0 0 1px rgba(140,240,190,.35); font: inherit;
+  animation: toast-in .4s cubic-bezier(.2,.8,.2,1); transition: opacity .45s ease, transform .45s ease; }
+.toast .tick { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(125,220,174,.18); color: var(--good); font-weight: 700; }
+.toast b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast span.d { color: var(--ink-2); white-space: nowrap; }
+.toast.out { opacity: 0; transform: translateY(8px); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(14px) scale(.97); } }
+:root.calm .toast { animation: none; transition: opacity .2s linear; } :root.calm .toast.out { transform: none; }
 .none { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 80px 0; }
 :root.calm .tile, :root.calm .ln.new, :root.calm .th .dot.live, :root.calm .tile.done { animation: none; transition: none; }
 :root.calm .tile.leaving { transition: opacity .2s linear; transform: none; }
@@ -98,6 +108,7 @@ try { const p = localStorage.getItem('lc.motion') || 'system'; if (p === 'off' |
   <a href="/" title="The full dashboard">← Dashboard</a>
 </header>
 <main id="wall"></main>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 <script>
 'use strict'
 // Every chat at once: each tile a small live view of what it does now. A click
@@ -267,6 +278,57 @@ for (const b of document.querySelectorAll('[data-show]')) {
   b.onclick = () => { show = b.dataset.show; localStorage.setItem('lc.wallShow', show); placeOf.clear(); for (const x of document.querySelectorAll('[data-show]')) x.classList.toggle('on', x === b); draw() }
 }
 
+// ── a chat is done: the dashboard's chime and a note in the corner ──
+// Sound, its volume and the done-tone switch are the dashboard's settings (same storage).
+const store = { get: k => { try { return localStorage.getItem(k) } catch { return null } }, set: (k, v) => { try { localStorage.setItem(k, v) } catch {} } }
+let audio = null
+const audioCtx = () => {
+  try { audio ??= new AudioContext() } catch { return null }
+  if (audio.state === 'suspended') audio.resume().catch(() => {})
+  return audio
+}
+for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => audioCtx(), { once: true, capture: true })
+const chime = () => {
+  if (store.get('lc.sound') === 'off' || store.get('lc.toneDone') === 'off') return
+  // several chats finishing together, or the dashboard ringing too, ring once
+  if (Date.now() - Number(store.get('lc.chimedAt') ?? 0) < 1500) return
+  store.set('lc.chimedAt', String(Date.now()))
+  const ac = audioCtx()
+  if (!ac) return
+  const vol = Number(store.get('lc.soundVol'))
+  const out = ac.createGain()
+  out.gain.value = 0.28 * (store.get('lc.soundVol') != null && Number.isFinite(vol) ? Math.min(100, Math.max(0, vol)) / 100 : 0.7)
+  out.connect(ac.destination)
+  const t0 = ac.currentTime + 0.03
+  for (const [freq, delay] of [[880, 0], [1318.5, 0.1], [1760, 0.2]]) {
+    for (const [mult, v] of [[1, 0.55], [2, 0.08]]) {
+      const osc = ac.createOscillator()
+      const env = ac.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = freq * mult
+      env.gain.setValueAtTime(0.0001, t0 + delay)
+      env.gain.exponentialRampToValueAtTime(v, t0 + delay + 0.015)
+      env.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.9)
+      osc.connect(env).connect(out)
+      osc.start(t0 + delay)
+      osc.stop(t0 + delay + 1)
+    }
+  }
+}
+const finished = (id, snap) => {
+  chime()
+  const th = snap?.thinking ?? {}
+  const took = th.turnStartedAt ? dur(th.turnEndedAt - th.turnStartedAt) : ''
+  const toast = document.createElement('button')
+  toast.className = 'toast'
+  toast.innerHTML = `<span class="tick">✓</span><b>${esc(nameOf(id, snap))}</b><span class="d">is done${took ? ` · ${took}` : ''}</span>`
+  toast.onclick = () => { location.href = `/?session=${encodeURIComponent(id)}` }
+  const box = $('#toasts')
+  box.append(toast)
+  while (box.children.length > 4) box.firstElementChild.remove()
+  setTimeout(() => { toast.classList.add('out'); setTimeout(() => toast.remove(), 500) }, 6000)
+}
+
 const es = new EventSource('/events')
 es.onmessage = ev => {
   const msg = JSON.parse(ev.data)
@@ -277,6 +339,8 @@ es.onmessage = ev => {
     for (const s of msg.sessions ?? []) sessions.set(s.id, s.snapshot)
     for (const a of msg.actions ?? []) if (a.sid && a.rows?.length) latest.set(a.sid, a)
   } else if (msg.type === 'feed') {
+    const before = sessions.get(msg.sid)
+    if (before && isLive(before) && !isLive(msg.snapshot) && (msg.snapshot?.thinking?.turnEndedAt ?? 0) > 0) finished(msg.sid, msg.snapshot)
     sessions.set(msg.sid, msg.snapshot)
     for (const a of msg.actions ?? []) if (a.rows?.length) latest.set(msg.sid, a)
   }
