@@ -30,8 +30,12 @@ The change Claude is making right now, typed out line by line with syntax colors
 #### Visual: see what Claude sees
 A card beside the live code shows what Claude looks at and makes: images building up tile by tile, browser steps on their screenshots, web searches and pages, *before | after* with a line to drag, commands in the background, files made, and a Blender model turning as it is built. Click 📎 on an image to take it along in your next prompt. [All about Visual](#visual-what-claude-sees-and-makes)
 
+<img src="docs/visual.png" width="420" alt="Visual: an image Claude rewrote, before and after, split by a line to drag"> <img src="docs/visual-steps.png" width="420" alt="Visual: a browser step, the click shown on the screenshot with a pointer">
+
 #### Your CLAUDE.md, open beside the work
 The **Instructions** tile opens every CLAUDE.md the chat runs under, to read and edit. Beside the text you see what each file names (skills, mods, files, commands, links), whether it is there, and how often Claude really used it. **Sources & help** counts what Claude took help from, prompt by prompt. [All about both tiles](#sources--help-and-your-instructions)
+
+![The Instructions tile: a CLAUDE.md to edit, and beside it what it names, whether it is there and how often it was used](docs/instructions.png)
 
 #### Limits & costs at a glance
 Context window, 5-hour and 7-day limits with a live reset countdown and a projection of when you would hit them, session cost as a stock-style chart (red going up, green going down), tokens, lines changed, files, tool calls, errors. Tiles turn yellow and red at thresholds you choose, and a chime plays when a limit resets.
