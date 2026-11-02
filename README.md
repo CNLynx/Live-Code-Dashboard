@@ -2,7 +2,7 @@
 
 # Live Code Dashboard
 
-**Watch Claude Code work, live.** Every file it reads, every line it changes, what it costs, how close you are to your limits, all in one dashboard on your second screen, with a **Stream Deck** plugin and **Philips Hue** lights built in.
+**Watch Claude Code work, live.** Every file it reads, every line it changes, every image and browser step it sees, what it costs, how close you are to your limits, all in one dashboard on your second screen. Your **CLAUDE.md** is open beside it to read and edit, with a **Stream Deck** plugin and **Philips Hue** lights built in.
 
 <a href="https://github.com/sponsors/CNLynx"><img src="https://img.shields.io/badge/%E2%99%A5%20Sponsor%20Live%20Code-db61a2?style=for-the-badge&logo=githubsponsors&logoColor=white" height="46" alt="Sponsor Live Code on GitHub"></a>
 
@@ -27,6 +27,12 @@ The change Claude is making right now, typed out line by line with syntax colors
 
 ![Claude's edits typed out live, each with what it is for](docs/live-code.gif)
 
+#### Visual: see what Claude sees
+A card beside the live code shows what Claude looks at and makes: images building up tile by tile, browser steps on their screenshots, web searches and pages, *before | after* with a line to drag, commands in the background, files made, and a Blender model turning as it is built. Click 📎 on an image to take it along in your next prompt. [All about Visual](#visual-what-claude-sees-and-makes)
+
+#### Your CLAUDE.md, open beside the work
+The **Instructions** tile opens every CLAUDE.md the chat runs under, to read and edit. Beside the text you see what each file names (skills, mods, files, commands, links), whether it is there, and how often Claude really used it. **Sources & help** counts what Claude took help from, prompt by prompt. [All about both tiles](#sources--help-and-your-instructions)
+
 #### Limits & costs at a glance
 Context window, 5-hour and 7-day limits with a live reset countdown and a projection of when you would hit them, session cost as a stock-style chart (red going up, green going down), tokens, lines changed, files, tool calls, errors. Tiles turn yellow and red at thresholds you choose, and a chime plays when a limit resets.
 
@@ -48,7 +54,8 @@ Context and limits over time (with every compaction), activity by tool, cost per
 
 #### And more
 - **Talk back:** send Claude a message, stop it, or answer its questions straight from the dashboard.
-- **Several chats at once:** pick a chat, or the *Wall* to see all of them side by side; a *Report* sums up the day and week by project.
+- **Several chats at once:** pick a chat from a list sorted into the folders of your Claude desktop app's sidebar (it follows any change there right away); a *Report* sums up the day and week by project.
+- **The Wall:** every chat at work side by side, each tile staying in its place. A chat gone idle fades out after a minute. On top: what the running chats cost together and your usage limits. When a chat is done, a chime and a note tell you.
 - **Sound & voice:** a chime when a task is done, and optionally the summary read aloud with Edge's free natural voices (one voice per chat if you like).
 - **It thinks with you:** a calm "thinking" view while Claude thinks longer, a terminal animation while commands run, and an alarm when Claude seems stuck.
 
@@ -90,7 +97,7 @@ When a chat works in a GitHub repository whose site is built by Cloudflare (Work
 
 ### Visual: what Claude sees and makes
 
-The **Visual** card sits beside the live view, below *Current turn*; the live feed has moved below the live view. On top is a stage, and below it a list of everything, newest first:
+The **Visual** card sits beside the live view, below *Current turn*. It shows only the chat shown: its images, steps, files and its Blender model, never several projects at once. On top is a stage, and below it a list of everything, newest first:
 - web searches, pages read and pages the browser opened (a click opens them);
 - each step in the browser: a click shows on the screenshot before it as a pulsing ring, and what was typed shows below;
 - the browser's screenshots;
@@ -116,8 +123,6 @@ Two tiles at the top:
 - **Instructions** opens the CLAUDE.md files the chat runs under (the global one, the project's, its folders above, and the project memory index) to read and edit. Beside the text: where each file applies and to which chats, and everything it names (skills, mods, folders and files, commands, repositories, links) with the line and heading it stands under, whether it is there, and how often Claude used it. A click on one selects its line. **Save** (or Ctrl+S) writes the file, keeps the version before, and warns when the file was changed elsewhere meanwhile; text not saved yet survives a reload of the page.
 
 The words follow your browser's language (German or English).
-
-Visual shows only the chat shown: its images, steps, files and its Blender model, never several projects at once.
 
 ### Install (one click)
 
@@ -188,6 +193,7 @@ Everything Live Code does outside of Claude Code itself, in full:
 | Watches the folders a chat works in (with their subfolders) and its browser screenshots (`~/.claude/projects/…/<chat>/tool-results`) for new images, and reads its web searches, pages and the files it sent you from the transcript, for the Visual card (its list of the last hour kept in `~/.claude/live-code-visual-history.json`, earlier versions of images in `~/.claude/live-code-visual-before`) | while that chat was active in the last 10–30 minutes and a dashboard is open, unless paused | your PC only |
 | Notes what Claude takes help from (skills, design references, repositories, pages, searches, documentation tools, helper agents, packages, memories) from the transcript, kept in `~/.claude/live-code-sources.json` (the newest 600) | while a dashboard is open | your PC only |
 | Shows the CLAUDE.md files of the chat shown and saves them when you click **Save**: only those files, only from the dashboard page, the version before kept in `~/.claude/live-code-claude-md-backups` (the newest 40) | when you open the **Instructions** tile | your PC only |
+| Reads the sidebar's folders (their names and which chat is in which) from the Claude desktop app's `claude_desktop_config.json`, for the chat list; nothing else in that file is kept or shown | while the dashboard runs, and when the file changes | your PC only |
 | Blender live, only once you switch it on: `live_code_blender.py` in the startup scripts of the Blender a chat runs; Blender then writes its visible meshes and render names to `~/.claude/live-code-blender` | while Blender runs | your PC only |
 | Sends light commands to **your own Philips Hue Bridge** (local network, HTTPS) | only after you pair it, on done / question / stuck / a site build | your bridge |
 | Looks up the latest version number: `api.github.com/repos/CNLynx/Live-Code-Dashboard/contents/.claude-plugin/plugin.json` | every 10 minutes while the dashboard runs | GitHub |
@@ -238,6 +244,8 @@ If Live Code saves you time, you can support its development. Thank you!
 ### Was es kann
 
 - **Live-Code-Ansicht:** Die Änderung, die Claude gerade macht, Zeile für Zeile getippt und farbig hervorgehoben. Darunter steht kurz, *wofür* sie ist.
+- **Visual: sehen, was Claude sieht:** Eine Karte neben dem Live-Code zeigt, was Claude anschaut und erstellt: Bilder, die sich Kachel für Kachel aufbauen, Browser-Schritte auf ihren Screenshots, Websuchen und Seiten, *before | after* mit einer Linie zum Ziehen, Befehle im Hintergrund, erzeugte Dateien und ein Blender-Modell, das sich dreht, während es entsteht. Ein Klick auf das 📎 eines Bildes nimmt es in deinen nächsten Prompt mit. [Alles zu Visual](#visual-was-claude-sieht-und-macht)
+- **Deine CLAUDE.md, offen neben der Arbeit:** Die Kachel **Anweisungen** öffnet jede CLAUDE.md, unter der der Chat läuft, zum Lesen und Bearbeiten. Daneben siehst du, was jede Datei nennt (Skills, Mods, Dateien, Befehle, Links), ob es vorhanden ist und wie oft Claude es wirklich benutzt hat. **Quellen & Hilfen** zählt, woher Claude Hilfe geholt hat, Prompt für Prompt. [Alles zu den beiden Kacheln](#quellen--hilfen-und-deine-anweisungen)
 - **Limits und Kosten auf einen Blick:**
   - Kontextfenster;
   - 5-Stunden- und 7-Tage-Limit mit Reset-Countdown und Prognose;
@@ -248,7 +256,8 @@ If Live Code saves you time, you can support its development. Thank you!
 - **Jede Kachel lässt sich öffnen:** Ein Klick zeigt exakte Zahlen und Diagramme mit Hover-Details. Du kannst jede Kachel auch als eigenes, rahmenloses Fenster ausklinken (minimal oder detailliert). Position und Bildschirm werden gespeichert.
 - **Zurückschreiben:** Du kannst Claude Nachrichten senden, es stoppen oder seine Fragen direkt im Dashboard beantworten.
 - **Mehrere Chats:**
-  - *Wall*: alle Chats nebeneinander;
+  - Auswahl: Die Liste ist nach den Ordnern der Seitenleiste deiner Claude-Desktop-App sortiert und folgt jeder Änderung dort sofort;
+  - *Wall*: alle arbeitenden Chats nebeneinander, jede Kachel bleibt an ihrem Platz. Ein Chat im Leerlauf blendet nach einer Minute aus. Oben stehen die Gesamtkosten der laufenden Chats und deine Limits. Ist ein Chat fertig, melden es ein Ton und ein Hinweis;
   - *Report*: Tag und Woche pro Projekt.
 - **Ton und Stimme:** Ein Chime, wenn eine Aufgabe fertig ist. Auf Wunsch liest eine natürliche Edge-Stimme die Zusammenfassung vor (gratis, auf Wunsch pro Chat eine eigene).
 - **Animationen:**
@@ -287,7 +296,7 @@ Arbeitet ein Chat in einem GitHub-Repo, dessen Seite Cloudflare (Workers oder Pa
 
 ### Visual: was Claude sieht und macht
 
-Die Karte **Visual** sitzt neben der Live-Ansicht, unter *Current turn*; der Live feed steht jetzt unter der Live-Ansicht. Oben ist eine Bühne, darunter eine Liste mit allem, das Neuste zuoberst:
+Die Karte **Visual** sitzt neben der Live-Ansicht, unter *Current turn*. Sie zeigt nur den angezeigten Chat: seine Bilder, Schritte, Dateien und sein Blender-Modell, nie mehrere Projekte gleichzeitig. Oben ist eine Bühne, darunter eine Liste mit allem, das Neuste zuoberst:
 - Websuchen, gelesene Seiten und Seiten, die der Browser geöffnet hat (ein Klick öffnet sie);
 - jeder Schritt im Browser: Ein Klick erscheint als pulsierender Ring auf dem Screenshot davor, Getipptes steht darunter;
 - Screenshots des Browsers;
@@ -313,8 +322,6 @@ Zwei Kacheln oben:
 - **Anweisungen** öffnet die CLAUDE.md-Dateien, unter denen der Chat läuft (die globale, die des Projekts, die der Ordner darüber und den Erinnerungs-Index des Projekts), zum Lesen und Bearbeiten. Daneben steht, wo jede Datei gilt und für welche Chats, und alles, was sie nennt (Skills, Mods, Ordner und Dateien, Befehle, Repositories, Links), mit Zeile und Überschrift, ob es vorhanden ist und wie oft Claude es benutzt hat. Ein Klick darauf markiert die Zeile. **Speichern** (oder Strg+S) schreibt die Datei, behält die vorige Fassung und warnt, wenn die Datei inzwischen anderswo geändert wurde; noch nicht gespeicherter Text übersteht ein Neuladen der Seite.
 
 Die Wörter folgen der Sprache deines Browsers (Deutsch oder Englisch).
-
-Visual zeigt nur den angezeigten Chat: seine Bilder, Schritte, Dateien und sein Blender-Modell, nie mehrere Projekte gleichzeitig.
 
 ### Installation (ein Klick)
 
@@ -353,7 +360,7 @@ Die Änderung erscheint, während Claude noch tippt. Das geht in Claude Code (Te
   - alle 10 Minuten ein Blick auf die Versionsnummer dieses Repos;
   - für „● N online“, solange ein Dashboard offen ist, alle 5 Minuten eine zufällige, anonyme ID dieser Installation an den Zähler von Live Code (Cloudflare Worker, `live-users/worker.js`, merkt sich IDs nur 6 Minuten im Speicher). Abschaltbar unter Einstellungen → Display.
 
-  Auf deinem PC bleibt: Das Vorschau-Fenster erkennt neue Bilder in den Arbeitsordnern der Chats, und *Blender live* schreibt nur nach `~/.claude/live-code-blender`.
+  Auf deinem PC bleibt: Das Vorschau-Fenster erkennt neue Bilder in den Arbeitsordnern der Chats, *Blender live* schreibt nur nach `~/.claude/live-code-blender`, und für die Chat-Liste liest das Dashboard die Ordner der Seitenleiste (Namen und welcher Chat wo liegt) aus `claude_desktop_config.json` der Desktop-App.
 - **Tokens:** Die kurzen „Wofür“-Erklärungen schreibt Claude Haiku. Das kostet etwa 1 % dessen, was die Chats selbst kosten.
 - **Deinstallieren:** `claude plugin uninstall live-code@cnlynx`, danach die Verknüpfungen löschen.
 
