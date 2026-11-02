@@ -720,27 +720,60 @@ const readHidden = () => {
 }
 
 // ── the sidebar's folders ──
-// The app's custom groups are in no file a program can read, so a sync writes
-// them to live-code-groups.json: { groups: [{ id, name }], sessions: { <local id>: <group id> } }.
-// No file, no folders: the picker stays a plain list.
-const GROUPS_FILE = path.join(HOME, 'live-code-groups.json')
-let groupsRead = { mtime: -1, data: null }
+// The app keeps its custom groups in claude_desktop_config.json, under
+// preferences.epitaxyPrefs["dframe-group-scopes"]. Only their names and who is
+// in which are taken from it. No groups, no folders: the picker stays a plain list.
+const APP_CONFIG = 'claude_desktop_config.json'
+const appConfigs = () => {
+  const found = []
+  const tryFile = file => { try { if (fs.statSync(file).isFile()) found.push(file) } catch {} }
+  for (const base of APP_DIRS) {
+    tryFile(path.join(base, APP_CONFIG))
+    try { for (const sub of fs.readdirSync(base)) tryFile(path.join(base, sub, APP_CONFIG)) } catch {}
+  }
+  return found
+}
+const configsRead = new Map() // file -> { mtime, scopes }
 let groupOf = new Map() // sid -> { name, order }
 const readGroups = () => {
-  let mtime = 0
-  try { mtime = fs.statSync(GROUPS_FILE).mtimeMs } catch {}
-  if (mtime !== groupsRead.mtime) {
-    let data = null
-    try { if (mtime) data = JSON.parse(fs.readFileSync(GROUPS_FILE, 'utf8')) } catch {}
-    groupsRead = { mtime, data }
+  const filed = new Map() // local id -> { name, order }
+  for (const file of appConfigs()) {
+    let known = configsRead.get(file)
+    let mtime = 0
+    try { mtime = fs.statSync(file).mtimeMs } catch { continue }
+    if (known?.mtime !== mtime) {
+      // the app may be writing it just now: keep what was read until it parses
+      try { known = { mtime, scopes: JSON.parse(fs.readFileSync(file, 'utf8'))?.preferences?.epitaxyPrefs?.['dframe-group-scopes'] ?? {} } } catch { if (!known) continue }
+      configsRead.set(file, known)
+    }
+    for (const { groups = [], assignments = {}, order = {} } of Object.values(known.scopes)) {
+      const byId = new Map(groups.map((g, i) => [g.id, { name: g.name, order: order[g.id] ?? i }]))
+      for (const [key, id] of Object.entries(assignments)) if (byId.has(id)) filed.set(key.replace(/^code:local_/, ''), byId.get(id))
+    }
   }
   const next = new Map()
-  const { groups = [], sessions: filed = {} } = groupsRead.data ?? {}
   for (const known of appFiles.values()) {
-    const order = groups.findIndex(g => g.id === filed[known.ids[0]])
-    if (order >= 0) for (const id of known.ids) next.set(id, { name: groups[order].name, order })
+    const group = filed.get(known.ids[0])
+    if (group) for (const id of known.ids) next.set(id, group)
   }
   groupOf = next
+}
+const isRefiled = (sid, before) => groupOf.get(sid)?.name !== before.get(sid)?.name || groupOf.get(sid)?.order !== before.get(sid)?.order
+// a chat moved in the sidebar shows in its new folder at once
+const watchGroups = () => {
+  let soon = null
+  const changed = () => {
+    clearTimeout(soon)
+    soon = setTimeout(() => {
+      const before = groupOf
+      readGroups()
+      for (const s of sessions.values()) if (s.id !== 'legacy' && isRefiled(s.id, before)) broadcast({ type: 'feed', now: Date.now(), sid: s.id, snapshot: titled(s.id, s.snapshot), actions: [], samples: [] })
+    }, 150)
+  }
+  // the folder, not the file: the app replaces the file when it saves
+  for (const file of appConfigs()) {
+    try { fs.watch(path.dirname(file), (_, name) => { if (name === APP_CONFIG) changed() }).on('error', () => {}) } catch {}
+  }
 }
 
 const titled = (sid, snapshot) => {
@@ -767,13 +800,13 @@ const refreshTitles = () => {
     const hasNewPrompts = readPrompts(s.id)
     const isMoved = now.get(s.id) !== hidden.get(s.id)
     if (isMoved) { if (now.has(s.id)) hidden.set(s.id, now.get(s.id)); else hidden.delete(s.id) }
-    const isRefiled = groupOf.get(s.id)?.name !== groupsBefore.get(s.id)?.name || groupOf.get(s.id)?.order !== groupsBefore.get(s.id)?.order
-    if (isRenamed || hasNewPrompts || isMoved || isRefiled) broadcast({ type: 'feed', now: Date.now(), sid: s.id, snapshot: titled(s.id, s.snapshot), actions: [], samples: [] })
+    if (isRenamed || hasNewPrompts || isMoved || isRefiled(s.id, groupsBefore)) broadcast({ type: 'feed', now: Date.now(), sid: s.id, snapshot: titled(s.id, s.snapshot), actions: [], samples: [] })
   }
   for (const [sid, state] of now) if (!sessions.has(sid)) hidden.set(sid, state)
 }
 try { for (const [sid, state] of readHidden()) hidden.set(sid, state) } catch {}
 readGroups()
+watchGroups()
 
 const sessionList = () =>
   [...sessions.values()]

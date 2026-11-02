@@ -1054,11 +1054,12 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 .menu details.folder { margin-top: 2px; }
 .menu details.folder::details-content { block-size: 0; overflow: clip; opacity: 0; transition: block-size .28s cubic-bezier(.2,.8,.2,1), opacity .2s ease, content-visibility .28s allow-discrete; }
 .menu details.folder[open]::details-content { block-size: auto; opacity: 1; }
-.menu details.folder summary { display: flex; align-items: center; gap: 4px; padding: 7px 10px; border-radius: 8px; cursor: pointer; list-style: none; font-weight: 650; font-size: 13px; color: var(--ink); transition: background-color .15s ease; }
+.menu .it { transition: background-color .14s ease; }
+.menu details.folder summary { display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 8px 12px 8px 8px; border-radius: 8px; cursor: pointer; list-style: none; font-weight: 650; font-size: 14px; color: var(--ink); transition: background-color .14s ease; }
 .menu details.folder summary:hover { background: var(--surface-2); }
 .menu details.folder summary:focus-visible { outline: 2px solid var(--s1); outline-offset: -2px; }
 .menu details.folder summary::-webkit-details-marker { display: none; }
-.menu details.folder summary::before { content: '▸'; flex: none; width: 14px; color: var(--muted); transition: transform .2s; }
+.menu details.folder summary::before { content: '▸'; flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--surface-2); color: var(--ink-2); font-size: 17px; line-height: 1; transition: transform .2s; }
 .menu details.folder[open] summary::before { transform: rotate(90deg); }
 .menu details.folder summary .n { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 400; white-space: nowrap; }
 .menu details.folder summary .n.busy { color: var(--ink-2); }
@@ -3993,7 +3994,8 @@ const sessMenu = $('#sess-menu')
 const sessionsByRecent = () => [...S.sessions.values()].sort((a, b) => (isBusy(b.snap) - isBusy(a.snap)) || activityAt(b.snap) - activityAt(a.snap))
 let pickerKey = ''
 let archiveOpen = false
-let menuHeldUntil = 0 // a folder is opening: no redraw under its animation
+let menuHeldUntil = 0 // a folder just toggled: its state is not stored yet, don't draw over it
+const menuPlace = new Map() // id -> row's place while the menu is open: rows don't swap under the pointer
 const closedFolders = (() => { try { return new Set(JSON.parse(store.get('lc.closedFolders') ?? '[]')) } catch { return new Set() } })()
 const drawPicker = () => {
   const view = S.sessions.get(S.view)
@@ -4016,6 +4018,8 @@ const drawPicker = () => {
 const drawMenu = () => {
   if (Date.now() < menuHeldUntil) return
   const every = sessionsByRecent()
+  for (const s of every) if (!menuPlace.has(s.id)) menuPlace.set(s.id, menuPlace.size)
+  every.sort((a, b) => menuPlace.get(a.id) - menuPlace.get(b.id))
   const list = every.filter(s => !isArchived(s))
   const archived = every.filter(isArchived)
   const busy = list.filter(s => isBusy(s.snap)).length
@@ -4023,13 +4027,16 @@ const drawMenu = () => {
     const isNew = doneUnseen.has(id)
     return `<div class="it${S.selected === id ? ' on' : ''}${isNew ? ' done-new' : ''}" data-id="${esc(id)}"><span class="dot" style="background:${dot}"></span><b>${esc(title)}</b><span class="t">${isNew ? '<span class="new">✓ done · new</span>' : esc(right)}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</div>`
   }
-  sessMenu.innerHTML =
+  const next = document.createElement('div')
+  next.innerHTML =
     `<div class="head">Sessions · ${busy} working · ${list.length} in all</div>` +
     item('auto', 'var(--s1)', 'Auto', 'follow whoever is working', 'Shows the session that works; stays while it works') +
     item('all', 'var(--s7)', 'All sessions', 'statistics of every session', 'The live view still follows the working session') +
     '<hr>' +
     rows() +
     (archived.length === 0 ? '' : `<details class="archive"${archiveOpen || archived.some(s => s.id === S.selected) ? ' open' : ''}><summary>🗄 Archived · ${archived.length}</summary>${archived.map(row).join('')}</details>`)
+  // what stayed is not replaced: the row under the pointer keeps its hover, a folder its animation
+  morph(sessMenu, next)
   for (const el of sessMenu.querySelectorAll('.it')) el.onclick = () => selectSession(el.dataset.id)
   const folder = sessMenu.querySelector('details.archive')
   if (folder) folder.ontoggle = () => { archiveOpen = folder.open }
@@ -4080,6 +4087,7 @@ $('#sess-btn').onclick = e => {
   e.stopPropagation()
   reveal(sessMenu, sessMenu.hidden, 'pop')
   if (sessMenu.hidden) return
+  menuPlace.clear()
   drawMenu()
   // its rows come in once, as it opens
   sessMenu.classList.add('opening')
