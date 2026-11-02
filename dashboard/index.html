@@ -1049,6 +1049,20 @@ a.btn { text-decoration: none; color: inherit; display: inline-flex; align-items
 .menu details.archive summary::before { content: '▸'; display: inline-block; width: 14px; transition: transform .2s; }
 .menu details.archive[open] summary::before { transform: rotate(90deg); }
 .menu details.archive .it { opacity: .75; }
+/* the sidebar's folders: open and shut with a soft height, not a jump */
+.menu { interpolate-size: allow-keywords; }
+.menu details.folder { margin-top: 2px; }
+.menu details.folder::details-content { block-size: 0; overflow: clip; opacity: 0; transition: block-size .28s cubic-bezier(.2,.8,.2,1), opacity .2s ease, content-visibility .28s allow-discrete; }
+.menu details.folder[open]::details-content { block-size: auto; opacity: 1; }
+.menu details.folder summary { display: flex; align-items: center; gap: 4px; padding: 7px 10px; border-radius: 8px; cursor: pointer; list-style: none; font-weight: 650; font-size: 13px; color: var(--ink); transition: background-color .15s ease; }
+.menu details.folder summary:hover { background: var(--surface-2); }
+.menu details.folder summary:focus-visible { outline: 2px solid var(--s1); outline-offset: -2px; }
+.menu details.folder summary::-webkit-details-marker { display: none; }
+.menu details.folder summary::before { content: '▸'; flex: none; width: 14px; color: var(--muted); transition: transform .2s; }
+.menu details.folder[open] summary::before { transform: rotate(90deg); }
+.menu details.folder summary .n { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 400; white-space: nowrap; }
+.menu details.folder summary .n.busy { color: var(--ink-2); }
+:root.calm .menu details.folder::details-content, :root.calm .menu details.folder summary::before { transition: none; }
 
 /* ── menus, popups and dialogs glide open and closed ──
    (closing too: with display in the transition, a [hidden] one stays drawn
@@ -3979,6 +3993,8 @@ const sessMenu = $('#sess-menu')
 const sessionsByRecent = () => [...S.sessions.values()].sort((a, b) => (isBusy(b.snap) - isBusy(a.snap)) || activityAt(b.snap) - activityAt(a.snap))
 let pickerKey = ''
 let archiveOpen = false
+let menuHeldUntil = 0 // a folder is opening: no redraw under its animation
+const closedFolders = (() => { try { return new Set(JSON.parse(store.get('lc.closedFolders') ?? '[]')) } catch { return new Set() } })()
 const drawPicker = () => {
   const view = S.sessions.get(S.view)
   const st = sessionState(view?.snap)
@@ -3998,6 +4014,7 @@ const drawPicker = () => {
   if (!sessMenu.hidden) drawMenu()
 }
 const drawMenu = () => {
+  if (Date.now() < menuHeldUntil) return
   const every = sessionsByRecent()
   const list = every.filter(s => !isArchived(s))
   const archived = every.filter(isArchived)
@@ -4011,11 +4028,33 @@ const drawMenu = () => {
     item('auto', 'var(--s1)', 'Auto', 'follow whoever is working', 'Shows the session that works; stays while it works') +
     item('all', 'var(--s7)', 'All sessions', 'statistics of every session', 'The live view still follows the working session') +
     '<hr>' +
-    list.map(row).join('') +
+    rows() +
     (archived.length === 0 ? '' : `<details class="archive"${archiveOpen || archived.some(s => s.id === S.selected) ? ' open' : ''}><summary>🗄 Archived · ${archived.length}</summary>${archived.map(row).join('')}</details>`)
   for (const el of sessMenu.querySelectorAll('.it')) el.onclick = () => selectSession(el.dataset.id)
   const folder = sessMenu.querySelector('details.archive')
   if (folder) folder.ontoggle = () => { archiveOpen = folder.open }
+  for (const box of sessMenu.querySelectorAll('details.folder')) {
+    box.querySelector('summary').onclick = () => { menuHeldUntil = Date.now() + 320 }
+    box.ontoggle = () => {
+      if (box.open) closedFolders.delete(box.dataset.folder); else closedFolders.add(box.dataset.folder)
+      store.set('lc.closedFolders', JSON.stringify([...closedFolders]))
+    }
+  }
+  // by the sidebar's folders when there are any, chats without one last; else the plain list
+  function rows() {
+    if (!list.some(s => s.snap?.session?.group)) return list.map(row).join('')
+    const byName = new Map()
+    for (const s of list) {
+      const g = s.snap?.session?.group
+      const key = g?.name ?? 'No folder'
+      if (!byName.has(key)) byName.set(key, { order: g?.order ?? Infinity, chats: [] })
+      byName.get(key).chats.push(s)
+    }
+    return [...byName].sort((a, b) => a[1].order - b[1].order).map(([name, { chats }]) => {
+      const working = chats.filter(s => isBusy(s.snap)).length
+      return `<details class="folder" data-folder="${esc(name)}"${closedFolders.has(name) ? '' : ' open'}><summary>${esc(name)}<span class="n${working ? ' busy' : ''}">${working ? `${working} working · ` : ''}${chats.length}</span></summary>${chats.map(row).join('')}</details>`
+    }).join('')
+  }
   function row(s) {
     const st = sessionState(s.snap)
     const snap = s.snap ?? {}

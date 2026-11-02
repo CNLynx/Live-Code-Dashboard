@@ -719,19 +719,46 @@ const readHidden = () => {
   return next
 }
 
+// ── the sidebar's folders ──
+// The app's custom groups are in no file a program can read, so a sync writes
+// them to live-code-groups.json: { groups: [{ id, name }], sessions: { <local id>: <group id> } }.
+// No file, no folders: the picker stays a plain list.
+const GROUPS_FILE = path.join(HOME, 'live-code-groups.json')
+let groupsRead = { mtime: -1, data: null }
+let groupOf = new Map() // sid -> { name, order }
+const readGroups = () => {
+  let mtime = 0
+  try { mtime = fs.statSync(GROUPS_FILE).mtimeMs } catch {}
+  if (mtime !== groupsRead.mtime) {
+    let data = null
+    try { if (mtime) data = JSON.parse(fs.readFileSync(GROUPS_FILE, 'utf8')) } catch {}
+    groupsRead = { mtime, data }
+  }
+  const next = new Map()
+  const { groups = [], sessions: filed = {} } = groupsRead.data ?? {}
+  for (const known of appFiles.values()) {
+    const order = groups.findIndex(g => g.id === filed[known.ids[0]])
+    if (order >= 0) for (const id of known.ids) next.set(id, { name: groups[order].name, order })
+  }
+  groupOf = next
+}
+
 const titled = (sid, snapshot) => {
   const title = titles.get(sid)
   const said = prompts.get(sid)
   const told = notes.get(sid)
   const gone = hidden.get(sid)
+  const group = groupOf.get(sid)
   const builds = deploysFor(dirsOf(sid, snapshot?.session?.cwd))
-  if (!snapshot || (!title && !said && !told && !gone && builds.length === 0)) return snapshot
-  return { ...snapshot, session: { ...(snapshot.session ?? {}), ...(title ? { title } : {}), ...(said ? { prompts: said } : {}), ...(told ? { notes: told } : {}), ...(gone ? { hidden: gone } : {}), ...(builds.length ? { deploys: builds } : {}) } }
+  if (!snapshot || (!title && !said && !told && !gone && !group && builds.length === 0)) return snapshot
+  return { ...snapshot, session: { ...(snapshot.session ?? {}), ...(title ? { title } : {}), ...(said ? { prompts: said } : {}), ...(told ? { notes: told } : {}), ...(gone ? { hidden: gone } : {}), ...(group ? { group } : {}), ...(builds.length ? { deploys: builds } : {}) } }
 }
 
 const refreshTitles = () => {
   let now = new Map()
   try { now = readHidden() } catch {}
+  const groupsBefore = groupOf
+  readGroups()
   for (const s of sessions.values()) {
     if (s.id === 'legacy') continue
     const title = readTitle(s.id)
@@ -740,11 +767,13 @@ const refreshTitles = () => {
     const hasNewPrompts = readPrompts(s.id)
     const isMoved = now.get(s.id) !== hidden.get(s.id)
     if (isMoved) { if (now.has(s.id)) hidden.set(s.id, now.get(s.id)); else hidden.delete(s.id) }
-    if (isRenamed || hasNewPrompts || isMoved) broadcast({ type: 'feed', now: Date.now(), sid: s.id, snapshot: titled(s.id, s.snapshot), actions: [], samples: [] })
+    const isRefiled = groupOf.get(s.id)?.name !== groupsBefore.get(s.id)?.name || groupOf.get(s.id)?.order !== groupsBefore.get(s.id)?.order
+    if (isRenamed || hasNewPrompts || isMoved || isRefiled) broadcast({ type: 'feed', now: Date.now(), sid: s.id, snapshot: titled(s.id, s.snapshot), actions: [], samples: [] })
   }
   for (const [sid, state] of now) if (!sessions.has(sid)) hidden.set(sid, state)
 }
 try { for (const [sid, state] of readHidden()) hidden.set(sid, state) } catch {}
+readGroups()
 
 const sessionList = () =>
   [...sessions.values()]
